@@ -6,11 +6,10 @@ import router from './router';
 // 引入样式库
 import 'vant/lib/index.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-// 假设这是你自己配置的 tailwind 入口
-// import './style.css';
+// 引入全局自定义样式 (包含 Tailwind 和 RPG 样式)
+import './style.css';
 
-// 引入 Vant 组件 (按需引入或全局引入)
-// 简便起见，这里演示全局引入常用组件
+// 引入 Vant 组件
 import {
   ConfigProvider, Tabbar, TabbarItem, Icon, Button,
   Popup, Cell, Calendar, Slider, Overlay, Tabs, Tab,

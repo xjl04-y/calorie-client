@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --van-primary-color: #7c3aed; /* Magic Purple */
+  --van-success-color: #10b981;
+  --app-bg: #f8fafc;
+  --rarity-common: #a3a3a3;
+  --rarity-rare: #3b82f6;
+  --rarity-epic: #a855f7;
+  --rarity-legendary: #f59e0b;
+}
+
+/* 深色模式变量覆盖 */
+html.dark {
+  --app-bg: #0f172a;
+  --van-background-2: #1e293b;
+  --van-text-color: #f8fafc;
+  --van-popup-background: #1e293b;
+  --van-toast-background: #334155;
+  --van-toast-text-color: #f8fafc;
+  --van-dialog-background: #1e293b;
+  --van-dialog-text-color: #f8fafc;
+}
+
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  background-color: var(--app-bg);
+  overscroll-behavior-y: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.3s ease;
+}
+
+.font-rpg { font-family: 'Zcool KuaiLe', cursive; }
+.safe-area-top { padding-top: env(safe-area-inset-top); }
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.mobile-frame {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 受伤覆盖层 */
+.damage-overlay {
+  position: absolute; inset: 0; pointer-events: none; z-index: 9999;
+  background: transparent;
+}
+.damage-active { animation: flash-red 0.5s ease-out; }
+.screen-shaking { animation: screen-shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* 魔法特效 */
+.magic-border { position: relative; }
+.magic-border::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px;
+  background: linear-gradient(45deg, #7c3aed, #3b82f6, #ef4444);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; opacity: 0.5;
+}
+
+.magic-glow { box-shadow: 0 0 15px rgba(124, 58, 237, 0.5); animation: pulse-purple 2s infinite; }
+@keyframes pulse-purple { 0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); } 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); } }
+
+.stat-bar-overflow { background: repeating-linear-gradient(45deg, #ef4444, #ef4444 10px, #b91c1c 10px, #b91c1c 20px); }
+.border-common { border-color: var(--rarity-common); }
+.border-rare { border-color: var(--rarity-rare); box-shadow: 0 0 5px rgba(59, 130, 246, 0.3); }
+.border-epic { border-color: var(--rarity-epic); box-shadow: 0 0 8px rgba(168, 85, 247, 0.4); }
+.border-legendary { border-color: var(--rarity-legendary); box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); animation: pulse-gold 3s infinite; }
+
+@keyframes pulse-gold { 0% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.4); } 50% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.8); } 100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.4); } }
+
+.anim-spin-slow { animation: spin-slow 10s linear infinite; }
+.anim-rays { animation: spin-slow 20s linear infinite; }
+.anim-pop { animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes spin-slow { 100% { transform: rotate(360deg); } }
+@keyframes pop-in { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes float-boss { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.05); } }
+.anim-boss { animation: float-boss 4s ease-in-out infinite; }
+.anim-hit { animation: shake-boss 0.5s ease-in-out; }
+@keyframes shake-boss { 0%, 100% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(-5px, 5px) rotate(-5deg); } 50% { transform: translate(5px, -5px) rotate(5deg); } 75% { transform: translate(-5px, -5px) rotate(-5deg); } }
+
+/* Dark Mode Vant Overrides */
+.dark .van-cell { background: #1e293b; color: white; }
+.dark .van-cell::after { border-bottom-color: #334155; }
+.dark .van-tabbar { background: #0f172a; border-top-color: #1e293b; }
+.dark .van-tabbar-item { background: #0f172a; color: #94a3b8; }
+.dark .van-tabbar-item--active { background: #1e293b; color: #a855f7; }
+.dark .van-popup { background: #1e293b; color: #f8fafc; }
+.dark .van-action-sheet { background: #1e293b; color: #f8fafc; }
+.dark .van-slider__button { background: #f8fafc; }
+.dark .van-calendar { background-color: #1e293b; }
+.dark .van-calendar__header { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.dark .van-calendar__day { color: #e2e8f0; }
+.dark .van-calendar__month-title { color: #fff; }
+.dark .van-calendar__day--disabled { color: #475569; opacity: 0.3; pointer-events: none; }
+.dark .van-tabs__nav { background: transparent; }
+.dark .van-tab { color: #94a3b8; }
+.dark .van-tab--active { color: #a855f7; font-weight: bold; }
+
+.timeline-line { position: absolute; left: 19px; top: 30px; bottom: -20px; width: 2px; background: #334155; z-index: 0; }
+.last-item .timeline-line { display: none; }
+
+/* Tag Badges */
+.tag-badge { font-size: 0.6rem; padding: 1px 4px; border-radius: 4px; font-weight: bold; margin-right: 4px; }
+.tag-HIGH_SUGAR { background: #fca5a5; color: #7f1d1d; border: 1px solid #fecaca; }
+.tag-HIGH_FAT { background: #fde047; color: #854d0e; border: 1px solid #fef08a; }
+.tag-HIGH_SODIUM { background: #cbd5e1; color: #334155; border: 1px solid #e2e8f0; }
+.tag-HIGH_CARB { background: #fed7aa; color: #7c2d12; border: 1px solid #ffedd5; }
+.tag-HIGH_PRO { background: #86efac; color: #14532d; border: 1px solid #bbf7d0; }
+.dark .tag-HIGH_SUGAR { background: #7f1d1d; color: #fca5a5; border-color: #991b1b; }
+.dark .tag-HIGH_FAT { background: #713f12; color: #fde047; border-color: #854d0e; }
+.dark .tag-HIGH_SODIUM { background: #334155; color: #cbd5e1; border-color: #475569; }
+.dark .tag-HIGH_CARB { background: #7c2d12; color: #fed7aa; border-color: #9a3412; }
+.dark .tag-HIGH_PRO { background: #14532d; color: #86efac; border-color: #166534; }
+
+/* Hero HP Bar */
+.hero-hp-container {
+  width: 100%; height: 8px; background: #0f172a; border-radius: 4px; overflow: hidden; margin-top: 4px; border: 1px solid #334155;
+  position: relative;
+}
+.hero-hp-fill {
+  height: 100%; background: linear-gradient(90deg, #ef4444, #dc2626); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hero-hp-text {
+  position: absolute; top: -1px; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: bold; color: white; text-shadow: 0 1px 2px black;
+}
