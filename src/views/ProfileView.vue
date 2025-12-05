@@ -163,7 +163,7 @@ const openSwap = (slotId: string) => {
 
             <div v-if="slot.item" class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
             <!-- @ts-ignore -->
-            <span v-if="slot.item" class="text-4xl mb-1 filter drop-shadow-md transform transition-transform group-hover:scale-110">{{ slot.item.rewardIcon || slot.item.icon }}</span>
+            <span v-if="slot.item" class="text-4xl mb-1 filter drop-shadow-md transform transition-transform group-hover:scale-110">{{ slot.item.icon }}</span>
             <div v-if="slot.item" class="absolute bottom-0 w-full text-center bg-slate-900/80 backdrop-blur-sm py-0.5">
               <span class="text-[8px] font-bold block truncate px-1" :class="'text-' + slot.item.rarity">{{ slot.item.reward }}</span>
             </div>

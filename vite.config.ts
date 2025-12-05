@@ -15,4 +15,11 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  // Capacitor配置
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+  },
+  // 确保public目录正确配置
+  publicDir: 'public',
 })

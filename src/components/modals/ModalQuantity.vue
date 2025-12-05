@@ -60,19 +60,19 @@ const dmgPrediction = computed(() => {
   const finalPro = calcMacros.value.p;
 
   // 强制抵抗逻辑检测
-  if (monster.weaknessType === 'LOW_FAT') {
+  if (monster?.weaknessType === 'LOW_FAT') {
     if (tags.includes('HIGH_FAT') || finalFat > 20)
       return { text: '💀 严重抵抗! (0.3x)', subtext: 'Boss 必将暴怒反击', color: 'text-red-500 border-red-500 bg-red-50 dark:bg-red-900/30' };
   }
 
-  if (monster.weaknessType === 'LOW_CARB') {
+  if (monster?.weaknessType === 'LOW_CARB') {
     if (tags.includes('HIGH_SUGAR') || tags.includes('HIGH_CARB') || finalCarb > 30)
       return { text: '💀 严重抵抗! (0.3x)', subtext: 'Boss 必将暴怒反击', color: 'text-red-500 border-red-500 bg-red-50 dark:bg-red-900/30' };
     if (finalCarb < 15)
       return { text: '🔥 效果拔群 (低碳)', color: 'text-green-500 border-green-500 bg-green-50 dark:bg-green-900/30' };
   }
 
-  if (monster.weaknessType === 'HIGH_PRO') {
+  if (monster?.weaknessType === 'HIGH_PRO') {
     if (tags.includes('HIGH_PRO') || finalPro > 25)
       return { text: '🔥 效果拔群 (高蛋白)', color: 'text-green-500 border-green-500 bg-green-50 dark:bg-green-900/30' };
   }

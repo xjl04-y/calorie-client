@@ -155,7 +155,7 @@ watch(query, (newVal) => {
                 {{ aiResult.name }}
                 <div v-if="aiResult.tags" class="flex gap-1">
                   <span v-for="tag in aiResult.tags" :key="tag" class="text-[8px] px-1 rounded bg-purple-100 text-purple-800 border border-purple-200">
-                    {{ TAG_DEFS[tag]?.label }}
+                    {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label }}
                   </span>
                 </div>
               </div>
@@ -182,7 +182,7 @@ watch(query, (newVal) => {
                 <div class="font-bold dark:text-white text-sm flex items-center gap-2">
                   {{ item.name }}
                   <span v-if="item.tags?.[0]" class="text-[8px] px-1 rounded bg-white/50 dark:bg-black/30 text-purple-600">
-                    {{ TAG_DEFS[item.tags[0]]?.label }}
+                    {{ TAG_DEFS[item.tags[0] as keyof typeof TAG_DEFS]?.label }}
                   </span>
                 </div>
                 <div class="text-xs text-slate-500 mt-0.5">{{ item.tips || '未知描述' }}</div>
@@ -213,7 +213,7 @@ watch(query, (newVal) => {
                           tag === 'CLEAN' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
                           'bg-slate-50 text-slate-600 border-slate-200'
                         ]">
-                    {{ TAG_DEFS[tag]?.label || tag }}
+                    {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
                   </span>
                 </div>
                 <div class="text-xs text-slate-400 mt-1" v-else>

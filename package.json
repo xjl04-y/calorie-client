@@ -16,6 +16,8 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
     "@fortawesome/fontawesome-free": "^7.1.0",
     "pinia": "^3.0.4",
     "vant": "^4.9.21",
@@ -23,6 +25,7 @@
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@tsconfig/node24": "^24.0.3",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",

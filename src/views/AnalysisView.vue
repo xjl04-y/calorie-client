@@ -15,7 +15,7 @@ const weeklyStats = computed(() => store.weeklyStats); // 注意：Pinia getter 
 // 计算当前周期的显示文本 (e.g., "2023年10月1日 - 10月7日")
 const weekRangeDateText = computed(() => {
   const stats = weeklyStats.value;
-  if(!stats.length) return '';
+  if(!stats.length || !stats[0] || !stats[6]) return '';
   const start = new Date(stats[0].date);
   const end = new Date(stats[6].date);
   return `${start.getFullYear()}年${start.getMonth()+1}月${start.getDate()}日 - ${end.getMonth()+1}月${end.getDate()}日`;
@@ -70,7 +70,7 @@ const shiftWeek = (offset: number) => {
 
   // 临时逻辑：手动修改 store 中的 refDate
   const [y, m, d] = analysisRefDate.value.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
+  const date = new Date(y || 2024, (m || 1) - 1, d || 1);
   date.setDate(date.getDate() + (offset * 7));
 
   const year = date.getFullYear();

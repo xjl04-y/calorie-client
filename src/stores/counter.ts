@@ -123,7 +123,7 @@ export const useGameStore = defineStore('game', () => {
 
   const heroStats = computed(() => {
     let totalP = 0, totalC = 0, totalF = 0;
-    Object.keys(logs).forEach(date => { logs[date].forEach(l => { totalP += l.p||0; totalC += l.c||0; totalF += l.f||0; }); });
+    Object.keys(logs).forEach(date => { (logs[date] || []).forEach(l => { totalP += l.p||0; totalC += l.c||0; totalF += l.f||0; }); });
 
     const race = RACES[user.race] || RACES.HUMAN;
     const statCap = 50 + (user.level * 20);
@@ -132,9 +132,9 @@ export const useGameStore = defineStore('game', () => {
     let rawAgi = Math.floor(totalC / 180) + 10;
     let rawVit = Math.floor(totalF / 40) + 10;
 
-    rawStr = Math.floor(rawStr * race.growth.str);
-    rawAgi = Math.floor(rawAgi * race.growth.agi);
-    rawVit = Math.floor(rawVit * race.growth.vit);
+    rawStr = Math.floor(rawStr * (race?.growth?.str || 1));
+    rawAgi = Math.floor(rawAgi * (race?.growth?.agi || 1));
+    rawVit = Math.floor(rawVit * (race?.growth?.vit || 1));
 
     let gearPower = 0;
     Object.values(user.equipped).forEach(id => {
@@ -156,7 +156,7 @@ export const useGameStore = defineStore('game', () => {
       vit: Math.min(rawVit, statCap),
       maxStat: statCap, rawStr, rawAgi, rawVit,
       combatPower, maxHp, blockValue, dodgeChance,
-      raceName: race.name, raceIcon: race.icon
+      raceName: race?.name || '人类', raceIcon: race?.icon || '👤'
     };
   });
 
@@ -225,7 +225,7 @@ export const useGameStore = defineStore('game', () => {
   // 周报逻辑
   const weeklyStats = computed(() => {
     const [y, m, d] = analysisRefDate.value.split('-').map(Number);
-    const refDate = new Date(y, m - 1, d);
+    const refDate = new Date(y || 2024, (m || 1) - 1, d || 1);
     const day = refDate.getDay() || 7;
     const monday = new Date(refDate);
     monday.setDate(refDate.getDate() - day + 1);
@@ -274,7 +274,7 @@ export const useGameStore = defineStore('game', () => {
     recalcBMR();
 
     const defaultFoods = RACE_DEFAULT_FOODS[user.race] || RACE_DEFAULT_FOODS.HUMAN;
-    const newFoods = defaultFoods.map(f => ({ ...f, id: Date.now() + Math.random() }));
+    const newFoods = (defaultFoods || []).map(f => ({ ...f, id: Date.now() + Math.random() }));
 
     // 强制校验并去重
     const currentDb = Array.isArray(foodDb.value) ? foodDb.value : [];
@@ -359,7 +359,7 @@ export const useGameStore = defineStore('game', () => {
     // 2. 存入数据库
     saveToDb(item);
 
-    const monster = stageInfo.value.currentObj.data;
+    const monster = stageInfo.value.currentObj?.data;
     const stats = heroStats.value;
     let multiplier = 1.0;
     let isResist = false;
@@ -367,7 +367,7 @@ export const useGameStore = defineStore('game', () => {
     const uniqueTags = item.tags;
 
     // 属性相克逻辑
-    if (monster.weaknessType === 'LOW_CARB') {
+    if (monster?.weaknessType === 'LOW_CARB') {
       if (uniqueTags.includes('HIGH_CARB') || uniqueTags.includes('HIGH_SUGAR')) {
         multiplier = 0.3;
         isResist = true;
@@ -375,7 +375,7 @@ export const useGameStore = defineStore('game', () => {
       } else if (item.c < 15) {
         multiplier = 1.5;
       }
-    } else if (monster.weaknessType === 'LOW_FAT') {
+    } else if (monster?.weaknessType === 'LOW_FAT') {
       if (uniqueTags.includes('HIGH_FAT')) {
         multiplier = 0.3;
         isResist = true;
@@ -383,7 +383,7 @@ export const useGameStore = defineStore('game', () => {
       } else if (item.f < 5) {
         multiplier = 1.5;
       }
-    } else if (monster.weaknessType === 'HIGH_PRO') {
+    } else if (monster?.weaknessType === 'HIGH_PRO') {
       if (uniqueTags.includes('HIGH_PRO')) {
         multiplier = 1.5;
       }
@@ -401,7 +401,7 @@ export const useGameStore = defineStore('game', () => {
 
       if (Math.random() < dodge) {
         const log = {
-          id: Date.now() + 1, name: `闪避反击 (${monster.name})`, icon: '⚡',
+          id: Date.now() + 1, name: `闪避反击 (${monster?.name || '未知敌人'})`, icon: '⚡',
           calories: 0, p:0, c:0, f:0, grams:0, mealType: temp.activeMealType,
           dodged: true, timestamp: new Date().toISOString()
         };
@@ -413,7 +413,7 @@ export const useGameStore = defineStore('game', () => {
         user.heroCurrentHp = Math.max(0, user.heroCurrentHp - finalDamage);
 
         const log = {
-          id: Date.now() + 1, name: isResist ? `暴怒反击 (${monster.name})` : `偷袭 (${monster.name})`, icon: '💥',
+          id: Date.now() + 1, name: isResist ? `暴怒反击 (${monster?.name || '未知敌人'})` : `偷袭 (${monster?.name || '未知敌人'})`, icon: '💥',
           calories: 0, p:0, c:0, f:0, grams:0, mealType: temp.activeMealType,
           damageTaken: finalDamage, blocked: block, timestamp: new Date().toISOString()
         };

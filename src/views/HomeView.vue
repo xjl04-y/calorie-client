@@ -24,7 +24,7 @@ const hpBarColor = computed(() => {
 
 // 弱点颜色映射
 const weaknessColor = computed(() => {
-  const type = stageInfo.value.currentObj.data.weaknessType;
+  const type = stageInfo.value.currentObj?.data?.weaknessType;
   if (type === 'LOW_CARB') return 'text-orange-400 border-orange-400 bg-orange-900/20';
   if (type === 'LOW_FAT') return 'text-yellow-400 border-yellow-400 bg-yellow-900/20';
   if (type === 'HIGH_PRO') return 'text-red-400 border-red-400 bg-red-900/20';
@@ -72,19 +72,19 @@ const openAddFood = (key: any) => {
           <div class="relative">
             <div class="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-4xl border border-slate-600 shadow-inner"
                  :class="{'animate-bounce': stageInfo.isOverloaded}">
-              {{ stageInfo.currentObj.data.icon }}
+              {{ stageInfo.currentObj?.data?.icon || '❓' }}
             </div>
             <!-- Boss 标记 -->
             <div v-if="stageInfo.isBoss" class="absolute -top-2 -right-2 bg-red-600 text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/20">BOSS</div>
           </div>
 
           <div class="ml-4">
-            <div class="text-xl font-rpg tracking-wider">{{ stageInfo.currentObj.data.name }}</div>
+            <div class="text-xl font-rpg tracking-wider">{{ stageInfo.currentObj?.data?.name || '未知敌人' }}</div>
             <!-- 弱点展示：高亮显示 -->
             <div class="text-[10px] mt-1 flex items-center">
               <span class="mr-1 text-slate-400">弱点:</span>
               <span class="px-2 py-0.5 rounded border text-[10px] font-bold tracking-wide" :class="weaknessColor">
-                {{ stageInfo.currentObj.data.weakness || '无' }}
+                {{ stageInfo.currentObj?.data?.weakness || '无' }}
               </span>
             </div>
           </div>

@@ -110,7 +110,7 @@ export const AiService = {
     // 随机选择前缀
     // 使用 item 名称的 hash 来保证同一个食物每次生成的前缀一致
     const hash = item.name.split('').reduce((a: number, b: string) => a + b.charCodeAt(0), 0);
-    const prefix = race.prefixes[hash % race.prefixes.length];
+    const prefix = race?.prefixes?.[hash % (race.prefixes?.length || 1)] || 'Ancient';
 
     // 生成 RPG 风格名称
     const rpgName = `${prefix}·${item.name}`;
@@ -118,9 +118,9 @@ export const AiService = {
     // 根据种族微调提示语
     let tips = '';
     switch(raceKey) {
-      case 'ELF': tips = item.tags.includes('HIGH_FAT') ? '精灵对此感到油腻...' : '充满自然的气息。'; break;
-      case 'ORC': tips = item.tags.includes('HIGH_PRO') ? '这正是勇士的力量源泉！' : '这东西能吃饱吗？'; break;
-      case 'DWARF': tips = item.tags.includes('HIGH_CARB') ? '像石头一样顶饱！' : '不够劲，再来点酒！'; break;
+      case 'ELF': tips = item.tags?.includes('HIGH_FAT') ? '精灵对此感到油腻...' : '充满自然的气息。'; break;
+      case 'ORC': tips = item.tags?.includes('HIGH_PRO') ? '这正是勇士的力量源泉！' : '这东西能吃饱吗？'; break;
+      case 'DWARF': tips = item.tags?.includes('HIGH_CARB') ? '像石头一样顶饱！' : '不够劲，再来点酒！'; break;
       default: tips = '看起来很普通的食物。';
     }
 
@@ -156,14 +156,14 @@ export const AiService = {
     // --- Prompt Engineering (微调提示词) ---
     const systemPrompt = `
     Role: Professional RPG Dietitian & Chef.
-    User Race: ${userRaceName} (Style: ${raceInfo.style}).
+    User Race: ${userRaceName} (Style: ${raceInfo?.style || 'fantasy'}).
     User Input: "${query}".
 
     Task: Identify food items from input and return a JSON Array.
 
     Requirements:
     1. **Strict JSON**: Return ONLY a JSON Array. No markdown, no comments.
-    2. **RPG Naming**: Rename foods to fit the ${userRaceName} fantasy style using prefixes like [${raceInfo.prefixes.join(', ')}].
+    2. **RPG Naming**: Rename foods to fit the ${userRaceName} fantasy style using prefixes like [${raceInfo?.prefixes?.join(', ') || 'Ancient, Mystic, Royal'}].
        Example: "Apple" -> "Forest Whisper Apple" (for Elf).
     3. **Accuracy**: Estimate calories (cals), protein (p), carbs (c), fat (f) per 100g/unit.
     4. **Tags**: Add tags from [HIGH_CARB, HIGH_FAT, HIGH_SUGAR, HIGH_SODIUM, HIGH_PRO, CLEAN].
@@ -212,7 +212,7 @@ export const AiService = {
 
     const prompt = `
     Identify food in image for a ${userRaceName} character.
-    Return JSON Array of detected items with RPG names (Style: ${raceInfo.style}).
+    Return JSON Array of detected items with RPG names (Style: ${raceInfo?.style || 'fantasy'}).
     Format: [{name, originalName, cals, p, c, f, grams, unit, icon, tags[], tips}].
     Strict JSON only.
     `;
@@ -221,7 +221,7 @@ export const AiService = {
       contents: [{
         parts: [
           { text: prompt },
-          { inlineData: { mimeType: "image/jpeg", data: base64Data } }
+          { inlineData: { mimeType: "image/jpeg", data: base64Data || '' } }
         ]
       }]
     });
