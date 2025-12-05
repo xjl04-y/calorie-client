@@ -11,17 +11,37 @@ const step = ref(1);
 const formData = reactive({
   race: 'HUMAN',
   nickname: '',
+  gender: 'MALE', // 默认性别
   height: 170,
   weight: 65,
   age: 24
 });
 
-const finish = () => {
-  if (!formData.nickname) {
+const validate = () => {
+  if (!formData.nickname.trim()) {
     showToast('请输入冒险代号');
-    return;
+    return false;
   }
-  store.initUser(formData);
+  if (formData.height <= 50 || formData.height > 250) {
+    showToast('身高必须在 50-250cm 之间');
+    return false;
+  }
+  if (formData.weight <= 20 || formData.weight > 300) {
+    showToast('体重必须在 20-300kg 之间');
+    return false;
+  }
+  if (formData.age <= 5 || formData.age > 120) {
+    showToast('年龄必须在 5-120 岁之间');
+    return false;
+  }
+  return true;
+};
+
+const finish = () => {
+  if (validate()) {
+    // @ts-ignore
+    store.initUser(formData);
+  }
 };
 </script>
 
@@ -61,6 +81,22 @@ const finish = () => {
             <label class="text-xs text-slate-400 block mb-1">冒险代号 (昵称)</label>
             <input v-model="formData.nickname" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none" placeholder="例如: 屠龙勇士" />
           </div>
+
+          <!-- 性别选择 -->
+          <div class="mb-4">
+            <label class="text-xs text-slate-400 block mb-2">性别 (影响基础代谢)</label>
+            <div class="flex gap-4">
+              <div @click="formData.gender = 'MALE'" class="flex-1 p-3 rounded-lg border-2 text-center cursor-pointer transition-all"
+                   :class="formData.gender === 'MALE' ? 'border-blue-500 bg-blue-900/20 text-blue-300' : 'border-slate-600 text-slate-500'">
+                <i class="fas fa-mars mr-2"></i>男
+              </div>
+              <div @click="formData.gender = 'FEMALE'" class="flex-1 p-3 rounded-lg border-2 text-center cursor-pointer transition-all"
+                   :class="formData.gender === 'FEMALE' ? 'border-pink-500 bg-pink-900/20 text-pink-300' : 'border-slate-600 text-slate-500'">
+                <i class="fas fa-venus mr-2"></i>女
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="text-xs text-slate-400 block mb-1">身高 (cm)</label>

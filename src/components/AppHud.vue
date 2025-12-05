@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useGameStore } from '@/stores/counter.ts';
+import { useGameStore } from '@/stores/counter';
 
 const store = useGameStore();
 // 访问 store 中的 state 和 getters
@@ -17,49 +17,65 @@ const toggleTheme = () => {
 </script>
 
 <template>
-  <div class="px-4 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur sticky top-0 z-50 shadow-sm border-b dark:border-slate-800 flex justify-between safe-area-top">
-    <!-- 用户头像区 -->
-    <div class="flex items-center gap-3" @click="store.setModal('achievements', true)">
-      <div class="relative">
-        <div class="w-10 h-10 rounded-full border-2 border-purple-500 p-0.5 bg-purple-50">
-          <img :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full" />
+  <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 dark:border-slate-800 safe-area-top transition-colors duration-300">
+    <div class="px-4 py-3">
+      <!-- 上半部分：身份与操作 (分两边，中间留白) -->
+      <div class="flex items-center justify-between mb-3">
+        <!-- 左侧：头像与基础信息 -->
+        <div class="flex items-center gap-3" @click="store.setModal('achievements', true)">
+          <!-- 头像 -->
+          <div class="relative shrink-0">
+            <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+              <img :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full object-cover" />
+            </div>
+            <!-- 等级胶囊 -->
+            <div class="absolute -bottom-1 -right-2 bg-slate-800 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-slate-900 scale-90">
+              Lv.{{ user.level }}
+            </div>
+          </div>
+
+          <!-- 文字信息 -->
+          <div>
+            <div class="text-sm font-black text-slate-800 dark:text-slate-100 leading-tight">
+              {{ user.nickname }}
+            </div>
+            <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+              <span>{{ heroStats.raceIcon }}</span>
+              <span>{{ heroStats.raceName }}</span>
+            </div>
+          </div>
         </div>
-        <div class="absolute -bottom-1 -right-1 bg-purple-600 text-white text-[10px] font-bold px-1.5 rounded-full border border-white">
-          Lv.{{ user.level }}
+
+        <!-- 右侧：按钮组 -->
+        <div class="flex items-center gap-2">
+          <!-- 勋章 -->
+          <button @click.stop="$emit('open-achievements')" class="w-8 h-8 rounded-full bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 flex items-center justify-center border border-yellow-100 dark:border-yellow-500/20 active:scale-95 transition">
+            <i class="fas fa-medal text-xs"></i>
+          </button>
+          <!-- 主题 -->
+          <button @click.stop="toggleTheme" class="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center border border-slate-100 dark:border-slate-700 active:scale-95 transition">
+            <i :class="store.isDarkMode ? 'fas fa-sun' : 'fas fa-moon'" class="text-xs"></i>
+          </button>
         </div>
       </div>
 
-      <!-- HP 条 -->
-      <div>
-        <div class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ user.nickname }}</div>
-        <div class="hero-hp-container w-28 h-4 cursor-pointer" @click.stop="store.setModal('hpHistory', true)">
-          <div class="hero-hp-text z-10">{{ Math.floor(user.heroCurrentHp) }}/{{ heroStats.maxHp }}</div>
-          <div class="hero-hp-fill" :style="{ width: (user.heroCurrentHp / heroStats.maxHp * 100) + '%' }"></div>
+      <!-- 下半部分：独立的 HP 条 (更宽敞，更有存在感) -->
+      <div class="relative w-full" @click.stop="store.setModal('hpHistory', true)">
+        <div class="flex justify-between text-[9px] font-bold mb-1 px-0.5">
+          <span class="text-red-500 flex items-center gap-1"><i class="fas fa-heart text-[8px]"></i> 英雄状态</span>
+          <span class="text-slate-600 dark:text-slate-300 font-mono">{{ Math.floor(user.heroCurrentHp) }} / {{ heroStats.maxHp }}</span>
+        </div>
+        <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shadow-inner">
+          <div class="h-full bg-gradient-to-r from-red-500 to-rose-400 transition-all duration-500 relative"
+               :style="{ width: Math.min((user.heroCurrentHp / heroStats.maxHp * 100), 100) + '%' }">
+            <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- 按钮区 -->
-    <div class="flex gap-3">
-      <button @click="toggleTheme" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-        <i :class="store.isDarkMode ? 'fas fa-sun' : 'fas fa-moon'" class="text-slate-600 dark:text-yellow-400"></i>
-      </button>
-      <!-- 成就按钮 -->
-      <button @click="$emit('open-achievements')" class="w-9 h-9 rounded-full bg-yellow-50 text-yellow-600 border border-yellow-100 flex items-center justify-center">
-        <i class="fas fa-medal"></i>
-      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.hero-hp-container {
-  @apply bg-[#0f172a] rounded overflow-hidden mt-1 border border-slate-700 relative;
-}
-.hero-hp-fill {
-  @apply h-full bg-gradient-to-r from-red-500 to-red-600 transition-all duration-300;
-}
-.hero-hp-text {
-  @apply absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center text-[8px] font-bold text-white shadow-black drop-shadow-md;
-}
+/* 无需额外 CSS */
 </style>

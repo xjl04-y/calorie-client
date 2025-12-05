@@ -67,7 +67,7 @@ const dmgPrediction = computed(() => {
 
   if (monster.weaknessType === 'LOW_CARB') {
     if (tags.includes('HIGH_SUGAR') || tags.includes('HIGH_CARB') || finalCarb > 30)
-      return { text: '💀 严重抵抗! (0.2x)', subtext: 'Boss 必将暴怒反击', color: 'text-red-500 border-red-500 bg-red-50 dark:bg-red-900/30' };
+      return { text: '💀 严重抵抗! (0.3x)', subtext: 'Boss 必将暴怒反击', color: 'text-red-500 border-red-500 bg-red-50 dark:bg-red-900/30' };
     if (finalCarb < 15)
       return { text: '🔥 效果拔群 (低碳)', color: 'text-green-500 border-green-500 bg-green-50 dark:bg-green-900/30' };
   }
@@ -97,14 +97,14 @@ const confirm = () => {
 
   // 如果是“配菜模式”
   if (temp.value.isBuilding) {
-    // 需要在 store 中添加 addBasketItem action
     store.temp.basket.push({ ...finalLog, isComposite: false });
     store.setModal('quantity', false);
     return;
   }
 
-  // 否则直接提交日志 (commitLog 包含了战斗结算逻辑)
-  store.commitLog(finalLog);
+  // 使用新的战斗结算 Action
+  store.battleCommit(finalLog);
+
   store.setModal('quantity', false);
   store.setModal('addFood', false); // 同时也关闭上层弹窗
 };

@@ -3,6 +3,7 @@
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+export type Gender = 'MALE' | 'FEMALE'; // 新增性别
 
 // 种族定义
 export interface Race {
@@ -24,6 +25,7 @@ export interface UserState {
   nickname: string;
   avatarSeed: string;
   race: RaceType;
+  gender: Gender; // 新增
   height: number;
   weight: number;
   age: number;
@@ -54,6 +56,9 @@ export interface FoodLog {
   blocked?: number;
   dodged?: boolean;
   ingredients?: any[];
+  // 数据库相关
+  category?: string;
+  usageCount?: number;
 }
 
 // 怪物/Boss
