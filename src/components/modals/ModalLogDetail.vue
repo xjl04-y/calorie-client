@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { TAG_DEFS } from '@/constants/gameData';
+import { showConfirmDialog } from 'vant';
 
 const store = useGameStore();
 
@@ -11,6 +12,22 @@ const show = computed({
 });
 
 const log = computed(() => store.temp.selectedLog);
+
+const handleDelete = () => {
+  if (log.value) {
+    showConfirmDialog({
+      title: '时光倒流',
+      message: '确定要撤销这条记录吗？\n该操作会回滚所有影响（HP、经验、怪物状态）。',
+      confirmButtonText: '确认撤销',
+      confirmButtonColor: '#7c3aed'
+    }).then(() => {
+      // @ts-ignore
+      store.deleteLog(log.value);
+    }).catch(() => {
+      // 取消操作
+    });
+  }
+};
 </script>
 
 <template>
@@ -72,7 +89,12 @@ const log = computed(() => store.temp.selectedLog);
         <div class="flex justify-between text-xs"><span class="text-slate-500">脂肪</span><span class="font-bold text-orange-500">{{ log.f }}g</span></div>
       </div>
 
-      <van-button block color="#7c3aed" @click="show = false">关闭</van-button>
+      <div class="flex gap-3">
+        <van-button class="flex-1 border-slate-200 dark:border-slate-600 text-slate-500" plain round @click="handleDelete">
+          <i class="fas fa-undo mr-1"></i> 撤销记录
+        </van-button>
+        <van-button class="flex-1" color="#7c3aed" round @click="show = false">关闭</van-button>
+      </div>
     </div>
   </van-popup>
 </template>

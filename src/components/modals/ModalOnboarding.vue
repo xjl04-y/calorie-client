@@ -11,7 +11,7 @@ const step = ref(1);
 const formData = reactive({
   race: 'HUMAN',
   nickname: '',
-  gender: 'MALE', // 默认性别
+  gender: 'MALE',
   height: 170,
   weight: 65,
   age: 24
@@ -112,9 +112,10 @@ const finish = () => {
             </div>
           </div>
         </div>
+        <!-- 按钮布局调整：返回占小部分，开始冒险占大部分 -->
         <div class="flex gap-3">
-          <van-button round block plain class="!bg-transparent !text-slate-400 !border-slate-600" @click="step = 1">返回</van-button>
-          <van-button round block color="linear-gradient(to right, #7c3aed, #d946ef)" class="font-bold flex-1 shadow-lg shadow-purple-900/50" @click="finish">开启冒险</van-button>
+          <van-button round plain class="!bg-transparent !text-slate-400 !border-slate-600 flex-[1]" @click="step = 1">返回</van-button>
+          <van-button round color="linear-gradient(to right, #7c3aed, #d946ef)" class="font-bold flex-[2] shadow-lg shadow-purple-900/50" @click="finish">开启冒险</van-button>
         </div>
       </div>
     </div>

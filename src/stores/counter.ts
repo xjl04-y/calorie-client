@@ -21,34 +21,6 @@ const getLocalDateStr = (d = new Date()) => {
 
 const generateMockLogs = () => {
   const logs: Record<string, FoodLog[]> = {};
-  const today = new Date();
-  for (let i = 1; i < 14; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const dateStr = getLocalDateStr(d);
-    const cals = Math.floor(Math.random() * (2400 - 1500) + 1500);
-    logs[dateStr] = [{
-      id: Date.now() - i * 10000,
-      name: '旧日口粮 (干粮)',
-      calories: cals,
-      p: Math.floor(cals * 0.2 / 4),
-      c: Math.floor(cals * 0.5 / 4),
-      f: Math.floor(cals * 0.3 / 9),
-      grams: 100,
-      quantity: 1,
-      multiplier: 1,
-      unit: '份',
-      mealType: 'LUNCH',
-      isComposite: false,
-      icon: '🍞',
-      tags: ['HIGH_CARB'],
-    }];
-  }
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  const yesterday = getLocalDateStr(d);
-  if(!logs[yesterday]) logs[yesterday] = [{ id: 1, name: '测试高碳水饮食', calories: 2200, p: 50, c: 350, f: 20, multiplier: 1, tags: ['HIGH_CARB'], mealType: 'DINNER', grams: 500, unit: '份' }];
-
   const todayStr = getLocalDateStr();
   if (!logs[todayStr]) logs[todayStr] = [];
   return logs;
@@ -76,7 +48,9 @@ export const useGameStore = defineStore('game', () => {
   // --- State ---
   const user = reactive<UserState>({
     isInitialized: false, level: 1, currentExp: 0, nextLevelExp: 100,
-    baseBMR: 2000, nickname: '', avatarSeed: 'Felix', race: 'HUMAN', gender: 'MALE',
+    baseBMR: 2000, nickname: '', avatarSeed: 'Felix',
+    avatarType: 'SEED', customAvatar: '', // 新增字段
+    race: 'HUMAN', gender: 'MALE',
     height: 170, weight: 65, age: 25,
     heroCurrentHp: 200, heroMaxHp: 200,
     equipped: { HEAD: null, BODY: null, LEGS: null, WEAPON: null, OFFHAND: null, BACK: null, ACCESSORY: null }
@@ -93,8 +67,10 @@ export const useGameStore = defineStore('game', () => {
   const temp = reactive({
     activeMealType: 'SNACK' as const,
     pendingItem: null as any,
-    basket: [] as any[],
-    isBuilding: false, buildingName: '', isShaking: false, isDamaged: false,
+    // 新增：配餐系统状态
+    basket: [] as any[], // 餐篮：存放配餐中的食材
+    isBuilding: false,   // 是否开启配餐模式
+    buildingName: '', isShaking: false, isDamaged: false,
     selectedLog: null as FoodLog | null, selectedItem: null as any,
     activeSlot: null as string | null, unlockedAchievement: null as Achievement | null,
     selectedHistoryDate: null as string | null, searchResetTrigger: 0, aiSuggestions: [] as any[]
@@ -104,7 +80,8 @@ export const useGameStore = defineStore('game', () => {
   const modals = reactive({
     addFood: false, quantity: false, levelUp: false, achievements: false,
     unlock: false, onboarding: true, itemDetail: false, equipmentSwap: false,
-    historyDetail: false, logDetail: false, hpHistory: false
+    historyDetail: false, logDetail: false, hpHistory: false,
+    npcGuide: false // 新增 NPC 引导弹窗
   });
 
   // --- Getters ---
@@ -145,9 +122,8 @@ export const useGameStore = defineStore('game', () => {
     });
 
     const maxHp = 200 + (rawVit * 10);
-    // 核心战斗属性：力量影响格挡，敏捷影响闪避
     const blockValue = Math.floor(rawStr * 0.8);
-    const dodgeChance = Math.min(rawAgi * 0.003, 0.60); // 上限60%
+    const dodgeChance = Math.min(rawAgi * 0.003, 0.60);
     const combatPower = Math.floor(user.currentExp * 1.5 + rawStr * 10 + rawAgi * 10 + rawVit * 10 + gearPower);
 
     return {
@@ -191,7 +167,6 @@ export const useGameStore = defineStore('game', () => {
     let currentStageIndex = Math.floor(consumed / minionHP);
     if (currentStageIndex >= minionCount) currentStageIndex = minionCount;
 
-    // 动态获取小怪数据
     const daySeed = parseInt(currentDate.value.replace(/-/g, '')) + currentStageIndex;
     const minionData = MINIONS_POOL[daySeed % MINIONS_POOL.length];
 
@@ -212,7 +187,7 @@ export const useGameStore = defineStore('game', () => {
     const currentHpRemaining = Math.max(0, currentStageObj.maxHp - stageDamage);
 
     return {
-      stages: Array(minionCount + 1).fill(0), // 仅用于计数
+      stages: Array(minionCount + 1).fill(0),
       currentIndex: currentStageIndex,
       currentObj: currentStageObj,
       currentHpRemaining,
@@ -222,7 +197,6 @@ export const useGameStore = defineStore('game', () => {
     };
   });
 
-  // 周报逻辑
   const weeklyStats = computed(() => {
     const [y, m, d] = analysisRefDate.value.split('-').map(Number);
     const refDate = new Date(y || 2024, (m || 1) - 1, d || 1);
@@ -276,10 +250,7 @@ export const useGameStore = defineStore('game', () => {
     const defaultFoods = RACE_DEFAULT_FOODS[user.race] || RACE_DEFAULT_FOODS.HUMAN;
     const newFoods = (defaultFoods || []).map(f => ({ ...f, id: Date.now() + Math.random() }));
 
-    // 强制校验并去重
     const currentDb = Array.isArray(foodDb.value) ? foodDb.value : [];
-
-    // 移除旧数据中与新默认数据同名的项（彻底清洗）
     const newFoodNames = new Set(newFoods.map(f => f.name));
     const cleanCurrentDb = currentDb.filter(f => !newFoodNames.has(f.name));
 
@@ -287,6 +258,7 @@ export const useGameStore = defineStore('game', () => {
 
     user.isInitialized = true;
     modals.onboarding = false;
+    modals.npcGuide = true; // 新增：初始化后弹出 NPC 引导
     saveState();
     showToast(`欢迎来到健康乐园，${formData.nickname}！`);
   }
@@ -298,10 +270,8 @@ export const useGameStore = defineStore('game', () => {
     setTimeout(() => { temp.isShaking = false; temp.isDamaged = false; }, 500);
   }
 
-  // 增强的去重逻辑
   function saveToDb(item: any) {
     const getCleanName = (i: any) => {
-      // 提取核心名称，忽略前缀
       if (i.originalName) return i.originalName.trim();
       const match = i.name.match(/[\(（](.*?)[\)）]/);
       if (match) return match[1].trim();
@@ -316,19 +286,14 @@ export const useGameStore = defineStore('game', () => {
     }
 
     const existingIndex = foodDb.value.findIndex(f => getCleanName(f) === targetCleanName);
-
-    // 深拷贝 item 以去除潜在的 ref
     const cleanItem = JSON.parse(JSON.stringify(toRaw(item)));
 
     if (existingIndex !== -1) {
       const existingItem = foodDb.value[existingIndex];
       existingItem.usageCount = (existingItem.usageCount || 0) + 1;
-
-      // 合并标签去重
       const newTags = cleanItem.tags || [];
       const oldTags = existingItem.tags || [];
       existingItem.tags = [...new Set([...oldTags, ...newTags])];
-
       foodDb.value.splice(existingIndex, 1);
       foodDb.value.unshift(existingItem);
     } else {
@@ -337,17 +302,14 @@ export const useGameStore = defineStore('game', () => {
       cleanItem.category = cleanItem.category || 'STAPLE';
       cleanItem.usageCount = 1;
       cleanItem.tags = [...new Set(cleanItem.tags || [])];
-
       foodDb.value.unshift(cleanItem);
     }
 
-    // 限制长度
     if (foodDb.value.length > 60) foodDb.value = foodDb.value.slice(0, 60);
     saveState();
   }
 
   function battleCommit(item: any) {
-    // 1. 标签处理
     let tags = item.tags || [];
     if (item.c > 40) tags.push('HIGH_CARB');
     if (item.f > 20) tags.push('HIGH_FAT');
@@ -355,8 +317,6 @@ export const useGameStore = defineStore('game', () => {
     if (item.name.includes('糖') || item.name.includes('奶茶')) tags.push('HIGH_SUGAR');
 
     item.tags = [...new Set(tags)];
-
-    // 2. 存入数据库
     saveToDb(item);
 
     const monster = stageInfo.value.currentObj?.data;
@@ -366,7 +326,6 @@ export const useGameStore = defineStore('game', () => {
     let resistReason = '';
     const uniqueTags = item.tags;
 
-    // 属性相克逻辑
     if (monster?.weaknessType === 'LOW_CARB') {
       if (uniqueTags.includes('HIGH_CARB') || uniqueTags.includes('HIGH_SUGAR')) {
         multiplier = 0.3;
@@ -392,7 +351,6 @@ export const useGameStore = defineStore('game', () => {
     item.multiplier = multiplier;
     commitLog(item);
 
-    // 反击逻辑
     if (isResist || Math.random() < 0.1) {
       triggerShake();
       const baseDamage = isResist ? 50 : 15;
@@ -436,10 +394,7 @@ export const useGameStore = defineStore('game', () => {
   function commitLog(logItem: any) {
     const dateKey = currentDate.value;
     if (!logs[dateKey]) logs[dateKey] = [];
-
-    // 使用深拷贝去除 reactivity
     const cleanLogItem = JSON.parse(JSON.stringify(toRaw(logItem)));
-
     logs[dateKey].unshift({
       id: Date.now(),
       ...cleanLogItem,
@@ -465,7 +420,6 @@ export const useGameStore = defineStore('game', () => {
 
   function saveState() {
     try {
-      // 彻底的深拷贝清理，移除所有 ComputedRefImpl
       const stateToSave = {
         user: toRaw(user),
         logs: toRaw(logs),
@@ -473,10 +427,7 @@ export const useGameStore = defineStore('game', () => {
         foodDb: Array.isArray(foodDb.value) ? toRaw(foodDb.value) : [],
         isDarkMode: isDarkMode.value
       };
-
-      // 使用 JSON 序列化再次确保没有循环引用
-      const jsonString = JSON.stringify(stateToSave);
-      localStorage.setItem('health_rpg_save_v2', jsonString);
+      localStorage.setItem('health_rpg_save_v2', JSON.stringify(stateToSave));
     } catch (e) {
       console.error("Save failed:", e);
     }
@@ -489,15 +440,10 @@ export const useGameStore = defineStore('game', () => {
         const data = JSON.parse(saved);
         if (data.user) Object.assign(user, data.user);
         if (data.logs) Object.assign(logs, data.logs);
-
-        // 增加去重清理逻辑
         if (data.foodDb && Array.isArray(data.foodDb)) {
-          // 清理重复项，保留最新的
           const uniqueMap = new Map();
           data.foodDb.forEach((item: any) => {
-            // 简单的名称 key
             const key = item.name.trim();
-            // 如果已存在，累加使用次数
             if (uniqueMap.has(key)) {
               const existing = uniqueMap.get(key);
               existing.usageCount = (existing.usageCount || 0) + (item.usageCount || 0);
@@ -509,7 +455,6 @@ export const useGameStore = defineStore('game', () => {
         } else {
           foodDb.value = [];
         }
-
         if (data.isDarkMode !== undefined) isDarkMode.value = data.isDarkMode;
         if (data.achievements) {
           data.achievements.forEach((oldAch: any) => {
@@ -519,7 +464,6 @@ export const useGameStore = defineStore('game', () => {
         }
       } catch (e) {
         console.error('Failed to parse save data', e);
-        // 出错时也重置
         foodDb.value = [];
       }
     }

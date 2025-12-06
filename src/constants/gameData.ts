@@ -1,4 +1,4 @@
-import type { Race, Monster } from '@/types';
+import type { Race, Monster, NPC } from '@/types';
 
 // 种族数据
 export const RACES: Record<string, Race> = {
@@ -6,6 +6,54 @@ export const RACES: Record<string, Race> = {
   ELF: { name: '精灵', icon: '🧝‍♀️', desc: '森林之子，轻盈优雅', bonus: '高敏捷，低力量', prefixes: ['月光', '森林', '晨露', '星辰', '自然'], growth: { str: 0.95, agi: 1.30, vit: 1.00 } },
   ORC: { name: '兽人', icon: '🧟‍♂️', desc: '力量至上，热血沸腾', bonus: '高力量，低敏捷', prefixes: ['蛮荒', '狂暴', '巨魔', '血腥', '战歌'], growth: { str: 1.30, agi: 0.95, vit: 1.05 } },
   DWARF: { name: '矮人', icon: '🧔', desc: '坚如磐石，豪饮佳酿', bonus: '高体质，高力量', prefixes: ['岩石', '熔炉', '精钢', '深渊', '黑铁'], growth: { str: 1.15, agi: 0.90, vit: 1.30 } }
+};
+
+// 新增：种族导师 NPC (功能引导)
+export const RACE_NPCS: Record<string, NPC> = {
+  HUMAN: {
+    name: '亚瑟·光辉',
+    title: '王国骑士长',
+    icon: '🛡️',
+    color: 'text-blue-600',
+    dialogue: [
+      "新兵，听好了！这里是你的【讨伐战场】。你吃下的每一口食物，都会转化为攻击力。",
+      "如果需要查看营养均衡度，去底部的【战报】栏。那里记录着你的元素（营养素）分布。",
+      "点击【英雄】可以管理你的装备和属性。现在，点击右下角的【出刀】按钮，记录你的第一餐吧！"
+    ]
+  },
+  ELF: {
+    name: '艾琳娜·月语',
+    title: '月之大祭司',
+    icon: '🌙',
+    color: 'text-green-600',
+    dialogue: [
+      "年轻的行者，【首页】是你与卡路里恶魔战斗的地方。",
+      "如果你想制作沙拉等复合食物，请在添加食物时开启【配餐模式】，将食材组合起来。",
+      "时刻关注【战报】中的数据，保持身体的纯净。若有疑惑，随时点击【导师通讯】呼唤我。"
+    ]
+  },
+  ORC: {
+    name: '格罗姆·咆哮',
+    title: '部落督军',
+    icon: '🪓',
+    color: 'text-red-700',
+    dialogue: [
+      "小崽子！【首页】就是战场！大口吃肉，把热量砸在怪物脸上！",
+      "觉得自己太弱？去【英雄】界面看看你的属性！力量决定格挡，敏捷决定闪避！",
+      "别忘了去【战报】看看你的战绩。现在，点击加号，给我去狩猎！"
+    ]
+  },
+  DWARF: {
+    name: '穆拉丁·铜须',
+    title: '酒馆老板',
+    icon: '🍺',
+    color: 'text-orange-700',
+    dialogue: [
+      "嘿！这里的规则很简单：在【首页】记录食物，就是给怪物一锤子！",
+      "想换个帅气的头像？去【英雄】界面点你的脑袋就行！",
+      "要是忘了怎么操作，就点上面的按钮找我！干杯！"
+    ]
+  }
 };
 
 // 怪物数据

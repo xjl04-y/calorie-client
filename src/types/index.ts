@@ -3,7 +3,7 @@
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
-export type Gender = 'MALE' | 'FEMALE'; // 新增性别
+export type Gender = 'MALE' | 'FEMALE';
 
 // 种族定义
 export interface Race {
@@ -24,8 +24,11 @@ export interface UserState {
   baseBMR: number;
   nickname: string;
   avatarSeed: string;
+  // 新增：头像自定义支持
+  avatarType?: 'SEED' | 'CUSTOM';
+  customAvatar?: string; // Base64 字符串
   race: RaceType;
-  gender: Gender; // 新增
+  gender: Gender;
   height: number;
   weight: number;
   age: number;
@@ -85,4 +88,13 @@ export interface Achievement {
   stats: string;
   combatPower: number;
   bonusBMR: number;
+}
+
+// 新增：NPC 接口定义
+export interface NPC {
+  name: string;
+  title: string;
+  icon: string;
+  color: string;
+  dialogue: string[]; // 引导话术
 }

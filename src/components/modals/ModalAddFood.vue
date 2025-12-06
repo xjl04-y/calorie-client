@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { AiService } from '@/utils/aiService.ts';
 import { TAG_DEFS } from '@/constants/gameData';
+import { showToast } from 'vant';
 
 const store = useGameStore();
 const query = ref('');
@@ -15,6 +16,14 @@ const show = computed({
   get: () => store.modals.addFood,
   set: (val) => store.setModal('addFood', val)
 });
+
+// 配餐模式开关
+const isBuilding = computed({
+  get: () => store.temp.isBuilding,
+  set: (val) => store.temp.isBuilding = val
+});
+
+const basket = computed(() => store.temp.basket);
 
 // 计算显示的列表 (优先本地搜索)
 const filteredList = computed(() => {
@@ -72,6 +81,44 @@ const selectItem = (item: any) => {
   store.setModal('quantity', true);
 };
 
+// 提交整个餐盘 (配餐模式)
+const commitBasket = () => {
+  if (basket.value.length === 0) return;
+
+  // 计算总营养
+  const total = basket.value.reduce((acc, item) => ({
+    calories: acc.calories + item.calories,
+    p: acc.p + item.p,
+    c: acc.c + item.c,
+    f: acc.f + item.f,
+    grams: acc.grams + item.grams
+  }), { calories: 0, p: 0, c: 0, f: 0, grams: 0 });
+
+  const mealName = `自选${store.temp.activeMealType === 'LUNCH' ? '午餐' : store.temp.activeMealType === 'DINNER' ? '晚餐' : '套餐'}`;
+
+  const compositeLog = {
+    id: Date.now(),
+    name: mealName,
+    icon: '🍱',
+    ...total,
+    unit: '份',
+    mealType: store.temp.activeMealType,
+    isComposite: true, // 标记为复合食物
+    ingredients: [...basket.value], // 保存成分供详情查看
+    tags: ['CLEAN'] // 默认标签，实际可根据成分推算
+  };
+
+  store.battleCommit(compositeLog);
+  store.temp.basket = [];
+  isBuilding.value = false;
+  store.setModal('addFood', false);
+  showToast('丰盛的套餐制作完成！经验大幅增加！');
+};
+
+const removeFromBasket = (idx: number) => {
+  store.temp.basket.splice(idx, 1);
+};
+
 // 监听弹窗关闭，重置
 watch(show, (val) => {
   if (val) {
@@ -79,10 +126,10 @@ watch(show, (val) => {
     aiResult.value = null;
     aiSuggestions.value = [];
     loading.value = false;
+    // 配餐模式保留，方便用户继续
   }
 });
 
-// 新增：监听输入框，为空时清空联想
 watch(query, (newVal) => {
   if (!newVal || newVal.trim() === '') {
     aiResult.value = null;
@@ -98,7 +145,16 @@ watch(query, (newVal) => {
       <!-- 头部 -->
       <div class="px-4 py-3 bg-white dark:bg-slate-800 flex justify-between sticky top-0 z-10 border-b dark:border-slate-700 items-center">
         <van-icon name="arrow-down" @click="show = false" class="text-slate-400 text-lg" />
-        <div class="font-bold dark:text-white text-lg">添加食物</div>
+        <div class="font-bold dark:text-white text-lg flex items-center gap-2">
+          添加食物
+          <!-- 配餐模式开关 -->
+          <div class="flex items-center bg-slate-100 dark:bg-slate-700 rounded-full p-0.5 ml-2 cursor-pointer" @click="isBuilding = !isBuilding">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold transition-all" :class="!isBuilding ? 'bg-white shadow text-slate-800' : 'text-slate-400'">单品</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold transition-all flex items-center" :class="isBuilding ? 'bg-purple-500 shadow text-white' : 'text-slate-400'">
+              <i class="fas fa-layer-group mr-1"></i> 配餐
+            </span>
+          </div>
+        </div>
         <div class="w-4"></div>
       </div>
 
@@ -140,7 +196,7 @@ watch(query, (newVal) => {
       </div>
 
       <!-- 内容列表区 -->
-      <div class="flex-1 overflow-y-auto px-4 mt-2 pb-10">
+      <div class="flex-1 overflow-y-auto px-4 mt-2 pb-24"> <!-- 底部留白给餐篮 -->
         <!-- Loading -->
         <div v-if="loading" class="py-10 text-center">
           <div class="text-4xl animate-bounce mb-2">🔮</div>
@@ -161,7 +217,7 @@ watch(query, (newVal) => {
               </div>
               <div class="text-xs text-purple-500 mt-1">{{ aiResult.tips }}</div>
             </div>
-            <van-button size="small" color="#7c3aed" class="h-8 px-4 rounded-lg">添加</van-button>
+            <van-button size="small" color="#7c3aed" class="h-8 px-4 rounded-lg">{{ isBuilding ? '加入餐盘' : '添加' }}</van-button>
           </div>
           <div class="flex space-x-3 text-xs text-slate-500 mt-2 bg-white/50 dark:bg-black/20 p-2 rounded-lg">
             <span>🔥 ~{{ aiResult.cals }}</span><span>🥚 ~{{ aiResult.p }}</span><span>🍞 ~{{ aiResult.c }}</span><span>🥑 ~{{ aiResult.f }}</span>
@@ -188,7 +244,7 @@ watch(query, (newVal) => {
                 <div class="text-xs text-slate-500 mt-0.5">{{ item.tips || '未知描述' }}</div>
               </div>
             </div>
-            <van-button size="small" color="#9333ea" plain class="h-7 px-3 text-xs rounded-lg">选择</van-button>
+            <van-button size="small" color="#9333ea" plain class="h-7 px-3 text-xs rounded-lg">{{ isBuilding ? '选入' : '选择' }}</van-button>
           </div>
         </div>
 
@@ -222,17 +278,41 @@ watch(query, (newVal) => {
                 </div>
               </div>
             </div>
-            <van-button size="small" color="#7c3aed" plain class="h-7 px-3 text-xs rounded-lg">添加</van-button>
+            <!-- 动态按钮文字 -->
+            <van-button size="small" :color="isBuilding ? '#10b981' : '#7c3aed'" plain class="h-7 px-3 text-xs rounded-lg">
+              <i class="fas" :class="isBuilding ? 'fa-plus' : 'fa-check'"></i> {{ isBuilding ? '加入' : '添加' }}
+            </van-button>
           </div>
         </div>
-
-        <!-- 空状态 -->
-        <div v-if="filteredList.length === 0 && !loading && !aiResult && aiSuggestions.length === 0" class="py-10 text-center text-slate-400">
-          <div class="text-4xl mb-2">🍃</div>
-          <p class="text-xs">背包里没有这个食物...</p>
-          <p class="text-[10px] mt-1 text-slate-500">输入内容并点击“鉴定”来发现新食物</p>
-        </div>
       </div>
+
+      <!-- 配餐模式底部栏 -->
+      <transition name="van-slide-up">
+        <div v-if="isBuilding" class="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 p-4 shadow-2xl z-20 rounded-t-2xl">
+          <div class="flex justify-between items-center mb-3">
+            <div class="text-sm font-bold dark:text-white">
+              <i class="fas fa-utensils mr-2 text-purple-500"></i> 当前餐盘 ({{ basket.length }})
+            </div>
+            <div class="text-xs text-slate-400" v-if="basket.length > 0">已选热量: {{ basket.reduce((a,b)=>a+b.calories,0) }} kcal</div>
+          </div>
+
+          <!-- 横向滚动餐盘 -->
+          <div class="flex gap-3 overflow-x-auto pb-2 mb-2 no-scrollbar" v-if="basket.length > 0">
+            <div v-for="(item, idx) in basket" :key="idx" class="relative shrink-0 w-16 flex flex-col items-center">
+              <div class="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-2xl border dark:border-slate-700">{{ item.icon }}</div>
+              <div class="text-[9px] truncate w-full text-center mt-1 dark:text-slate-300">{{ item.name }}</div>
+              <div class="absolute -top-1 -right-1 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[10px] cursor-pointer shadow-sm" @click.stop="removeFromBasket(idx)">×</div>
+            </div>
+          </div>
+          <div v-else class="text-center text-xs text-slate-400 py-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl mb-3">
+            点击上方列表添加食材
+          </div>
+
+          <van-button block color="linear-gradient(to right, #10b981, #059669)" round :disabled="basket.length === 0" @click="commitBasket" class="shadow-lg shadow-green-500/20">
+            完成配餐 (获得额外经验)
+          </van-button>
+        </div>
+      </transition>
     </div>
   </van-popup>
 </template>

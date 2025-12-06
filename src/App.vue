@@ -14,6 +14,7 @@ import ModalEquipmentSwap from '@/components/modals/ModalEquipmentSwap.vue';
 import ModalHistoryDetail from '@/components/modals/ModalHistoryDetail.vue';
 import ModalLogDetail from '@/components/modals/ModalLogDetail.vue';
 import ModalHpHistory from '@/components/modals/ModalHpHistory.vue';
+import ModalNpcGuide from '@/components/modals/ModalNpcGuide.vue'; // 引入新组件
 
 const store = useGameStore();
 const { isDarkMode, temp, user } = storeToRefs(store);
@@ -88,6 +89,7 @@ const openAddFood = (type: 'SNACK') => {
       <ModalHistoryDetail />
       <ModalLogDetail />
       <ModalHpHistory />
+      <ModalNpcGuide />
     </div>
   </van-config-provider>
 </template>

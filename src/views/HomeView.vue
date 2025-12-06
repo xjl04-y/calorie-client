@@ -4,6 +4,7 @@ import { useGameStore } from '@/stores/counter';
 import { storeToRefs } from 'pinia';
 import AppHud from '@/components/AppHud.vue';
 import DateNavigator from '@/components/DateNavigator.vue';
+import ModalNpcGuide from '@/components/modals/ModalNpcGuide.vue'; // 引入 NPC 组件
 import { showConfirmDialog } from 'vant'
 
 const store = useGameStore();
@@ -122,7 +123,13 @@ const openAddFood = (key: any) => {
     </div>
 
     <!-- 膳食/行动入口 -->
-    <div class="px-4 mt-6 mb-2"><h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">冒险行动</h3></div>
+    <div class="px-4 mt-6 mb-2 flex justify-between items-center">
+      <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">冒险行动</h3>
+      <!-- 新增：NPC 引导按钮 -->
+      <button @click="store.setModal('npcGuide', true)" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700 active:scale-95 transition flex items-center">
+        <i class="fas fa-comment-dots mr-1"></i> 导师通讯
+      </button>
+    </div>
     <div class="px-4 grid grid-cols-2 gap-3 mb-6">
       <div v-for="m in rpgMeals" :key="m.key" @click="openAddFood(m.key)"
            class="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 dark:border-slate-700 active:scale-95 transition cursor-pointer hover:border-purple-300 dark:hover:border-purple-700">
@@ -158,7 +165,8 @@ const openAddFood = (key: any) => {
             <div>
               <div class="font-bold text-sm dark:text-slate-200 flex items-center">
                 {{ log.name }}
-                <!-- 抵抗/暴击 标签 -->
+                <!-- 抵抗/暴击/复合 标签 -->
+                <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 text-purple-600 font-bold border border-purple-200">复合</span>
                 <span v-if="(log.multiplier || 1) < 1" class="ml-2 text-[8px] px-1 rounded bg-red-100 text-red-600 font-bold border border-red-200">抵抗</span>
                 <span v-else-if="(log.multiplier || 1) > 1" class="ml-2 text-[8px] px-1 rounded bg-yellow-100 text-yellow-600 font-bold border border-yellow-200">暴击</span>
               </div>
@@ -185,6 +193,9 @@ const openAddFood = (key: any) => {
         </div>
       </transition-group>
     </div>
+
+    <!-- 全局挂载 NPC 弹窗 -->
+    <ModalNpcGuide />
   </div>
 </template>
 

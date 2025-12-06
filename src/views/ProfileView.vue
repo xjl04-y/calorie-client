@@ -2,7 +2,7 @@
 import { ref, reactive, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { storeToRefs } from 'pinia';
-import { showToast } from 'vant';
+import { showToast, showDialog } from 'vant';
 
 const store = useGameStore();
 const { user, heroStats } = storeToRefs(store);
@@ -27,6 +27,36 @@ const equipment = computed(() => {
 
 const showEdit = ref(false);
 const editData = reactive({ height: 0, weight: 0, age: 0 });
+
+// 处理自定义上传
+const onAvatarRead = (file: any) => {
+  store.user.avatarType = 'CUSTOM';
+  store.user.customAvatar = file.content;
+  store.saveState();
+  showToast('头像上传成功！');
+  return true;
+};
+
+// 更换头像逻辑 (随机/重置)
+const changeAvatar = () => {
+  showDialog({
+    title: '重塑容貌',
+    message: '选择你的英雄形象',
+    showCancelButton: true,
+    confirmButtonText: '随机生成',
+    cancelButtonText: '取消',
+    confirmButtonColor: '#7c3aed',
+  }).then(() => {
+    // 随机
+    const newSeed = Math.random().toString(36).substring(7);
+    store.user.avatarType = 'SEED';
+    store.user.avatarSeed = newSeed;
+    store.saveState();
+    showToast('容貌已焕然一新！');
+  }).catch(() => {
+    // 取消
+  });
+};
 
 const startEditProfile = () => {
   editData.height = user.value.height;
@@ -53,21 +83,16 @@ const validate = () => {
 
 const saveProfile = () => {
   if (!validate()) return;
-
   store.user.height = editData.height;
   store.user.weight = editData.weight;
   store.user.age = editData.age;
-
   store.recalcBMR();
   store.saveState();
-
   showToast('档案已更新，Boss数值重算中...');
 };
 
 const onBeforeClose = (action: string) => {
-  if (action === 'confirm') {
-    return validate();
-  }
+  if (action === 'confirm') return validate();
   return true;
 };
 
@@ -79,12 +104,32 @@ const openSwap = (slotId: string) => {
 
 <template>
   <div class="pb-24 bg-slate-900 min-h-full text-white">
-    <div class="relative h-56 bg-gradient-to-b from-purple-900 to-slate-900 overflow-hidden">
+    <!-- 头部背景：移除 overflow-hidden 修复头像遮挡 -->
+    <div class="relative h-56 bg-gradient-to-b from-purple-900 to-slate-900">
       <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
-      <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center">
-        <div class="w-28 h-28 rounded-full border-4 border-slate-800 p-1 bg-slate-700 shadow-2xl relative z-10">
-          <img :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-600" />
-          <div class="absolute bottom-0 right-0 bg-yellow-500 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full border-2 border-slate-800 shadow-lg">Lv.{{ user.level }}</div>
+
+      <!-- 自定义上传按钮 (右上角) -->
+      <div class="absolute top-4 right-4 z-30">
+        <van-uploader :after-read="onAvatarRead">
+          <div class="bg-black/30 backdrop-blur px-3 py-1 rounded-full text-xs border border-white/20 flex items-center active:scale-95 transition">
+            <i class="fas fa-camera mr-1"></i> 上传头像
+          </div>
+        </van-uploader>
+      </div>
+
+      <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-20">
+        <!-- 头像区域 -->
+        <div class="relative group cursor-pointer" @click="changeAvatar">
+          <div class="w-28 h-28 rounded-full border-4 border-slate-800 p-1 bg-slate-700 shadow-2xl relative z-10 overflow-hidden">
+            <!-- 根据类型显示头像 -->
+            <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full rounded-full object-cover" />
+            <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-600" />
+          </div>
+          <div class="absolute bottom-0 right-0 bg-yellow-500 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full border-2 border-slate-800 shadow-lg z-20">Lv.{{ user.level }}</div>
+          <!-- 悬停/点击提示 -->
+          <div class="absolute inset-0 z-20 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+            <i class="fas fa-random text-white text-xl"></i>
+          </div>
         </div>
       </div>
     </div>
@@ -93,10 +138,7 @@ const openSwap = (slotId: string) => {
       <h2 class="text-3xl font-rpg text-yellow-400 tracking-wide">{{ user.nickname }}</h2>
       <div class="flex items-center justify-center gap-2 mt-1 text-slate-400 text-xs">
         <span><i :class="user.gender === 'MALE' ? 'fas fa-mars text-blue-400' : 'fas fa-venus text-pink-400'"></i> {{ user.age }}岁</span>
-        <span>|</span>
-        <span>{{ user.height }}cm</span>
-        <span>|</span>
-        <span>{{ user.weight }}kg</span>
+        <span>|</span><span>{{ user.height }}cm</span><span>|</span><span>{{ user.weight }}kg</span>
       </div>
 
       <div class="flex justify-center mt-2 mb-2">
@@ -152,15 +194,11 @@ const openSwap = (slotId: string) => {
         </div>
 
         <div class="grid grid-cols-4 gap-3 relative z-10">
-          <div v-for="slot in equipment" :key="slot.slotId"
-               @click="openSwap(slot.slotId)"
+          <div v-for="slot in equipment" :key="slot.slotId" @click="openSwap(slot.slotId)"
                class="aspect-square bg-slate-800 rounded-lg flex flex-col items-center justify-center border-2 transition-all relative overflow-hidden group cursor-pointer hover:border-purple-500 active:scale-95"
-               :class="[
-                             slot.item ? ('border-' + slot.item.rarity + ' shadow-md') : 'border-slate-700 border-dashed opacity-60'
-                         ]">
+               :class="[slot.item ? ('border-' + slot.item.rarity + ' shadow-md') : 'border-slate-700 border-dashed opacity-60']">
             <i v-if="!slot.item" :class="slot.defaultIcon" class="text-3xl text-slate-600"></i>
             <span v-if="!slot.item" class="text-[8px] text-slate-600 mt-1 font-bold">{{ slot.slotName }}</span>
-
             <div v-if="slot.item" class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
             <!-- @ts-ignore -->
             <span v-if="slot.item" class="text-4xl mb-1 filter drop-shadow-md transform transition-transform group-hover:scale-110">{{ slot.item.icon }}</span>
