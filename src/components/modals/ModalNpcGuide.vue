@@ -10,7 +10,7 @@ const show = computed({
   set: (val) => store.setModal('npcGuide', val)
 });
 
-// 根据种族获取对应 NPC
+// 根据用户种族获取对应的导师
 const npc = computed(() => RACE_NPCS[store.user.race] || RACE_NPCS.HUMAN);
 
 const close = () => {

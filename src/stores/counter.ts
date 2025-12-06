@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, reactive, computed, toRaw } from 'vue';
 import type { UserState, FoodLog, Achievement } from '@/types';
 import { RACES, MONSTERS, RACE_DEFAULT_FOODS } from '@/constants/gameData';
-import { showToast, showNotify } from 'vant';
+import { showToast, showNotify, showConfirmDialog } from 'vant';
 
 // 简易的小怪数据池
 const MINIONS_POOL = [
@@ -48,12 +48,14 @@ export const useGameStore = defineStore('game', () => {
   // --- State ---
   const user = reactive<UserState>({
     isInitialized: false, level: 1, currentExp: 0, nextLevelExp: 100,
-    baseBMR: 2000, nickname: '', avatarSeed: 'Felix',
-    avatarType: 'SEED', customAvatar: '', // 新增字段
+    baseBMR: 2000, nickname: '',
+    // 头像相关
+    avatarSeed: 'Felix', avatarType: 'SEED', customAvatar: '',
     race: 'HUMAN', gender: 'MALE',
     height: 170, weight: 65, age: 25,
     heroCurrentHp: 200, heroMaxHp: 200,
-    equipped: { HEAD: null, BODY: null, LEGS: null, WEAPON: null, OFFHAND: null, BACK: null, ACCESSORY: null }
+    equipped: { HEAD: null, BODY: null, LEGS: null, WEAPON: null, OFFHAND: null, BACK: null, ACCESSORY: null },
+    lastLoginDate: ''
   });
 
   const isDarkMode = ref(true);
@@ -67,9 +69,9 @@ export const useGameStore = defineStore('game', () => {
   const temp = reactive({
     activeMealType: 'SNACK' as const,
     pendingItem: null as any,
-    // 新增：配餐系统状态
-    basket: [] as any[], // 餐篮：存放配餐中的食材
-    isBuilding: false,   // 是否开启配餐模式
+    // 配餐系统核心状态
+    basket: [] as any[], // 存放食材的餐篮
+    isBuilding: false,   // 是否正在配餐
     buildingName: '', isShaking: false, isDamaged: false,
     selectedLog: null as FoodLog | null, selectedItem: null as any,
     activeSlot: null as string | null, unlockedAchievement: null as Achievement | null,
@@ -81,7 +83,7 @@ export const useGameStore = defineStore('game', () => {
     addFood: false, quantity: false, levelUp: false, achievements: false,
     unlock: false, onboarding: true, itemDetail: false, equipmentSwap: false,
     historyDetail: false, logDetail: false, hpHistory: false,
-    npcGuide: false // 新增 NPC 引导弹窗
+    npcGuide: false // 新增 NPC 弹窗状态
   });
 
   // --- Getters ---
@@ -234,7 +236,6 @@ export const useGameStore = defineStore('game', () => {
     return days;
   });
 
-  // --- Actions ---
   function setModal(key: keyof typeof modals, val: boolean) { modals[key] = val; }
 
   function recalcBMR() {
@@ -246,19 +247,15 @@ export const useGameStore = defineStore('game', () => {
   function initUser(formData: any) {
     Object.assign(user, formData);
     recalcBMR();
-
     const defaultFoods = RACE_DEFAULT_FOODS[user.race] || RACE_DEFAULT_FOODS.HUMAN;
     const newFoods = (defaultFoods || []).map(f => ({ ...f, id: Date.now() + Math.random() }));
-
     const currentDb = Array.isArray(foodDb.value) ? foodDb.value : [];
     const newFoodNames = new Set(newFoods.map(f => f.name));
     const cleanCurrentDb = currentDb.filter(f => !newFoodNames.has(f.name));
-
     foodDb.value = [...newFoods, ...cleanCurrentDb];
-
     user.isInitialized = true;
     modals.onboarding = false;
-    modals.npcGuide = true; // 新增：初始化后弹出 NPC 引导
+    modals.npcGuide = true; // 开启 NPC 引导
     saveState();
     showToast(`欢迎来到健康乐园，${formData.nickname}！`);
   }
@@ -278,16 +275,10 @@ export const useGameStore = defineStore('game', () => {
       if (i.name.includes('·')) return i.name.split('·')[1].trim();
       return i.name.trim();
     };
-
     const targetCleanName = getCleanName(item);
-
-    if (!Array.isArray(foodDb.value)) {
-      foodDb.value = [];
-    }
-
+    if (!Array.isArray(foodDb.value)) foodDb.value = [];
     const existingIndex = foodDb.value.findIndex(f => getCleanName(f) === targetCleanName);
     const cleanItem = JSON.parse(JSON.stringify(toRaw(item)));
-
     if (existingIndex !== -1) {
       const existingItem = foodDb.value[existingIndex];
       existingItem.usageCount = (existingItem.usageCount || 0) + 1;
@@ -304,7 +295,6 @@ export const useGameStore = defineStore('game', () => {
       cleanItem.tags = [...new Set(cleanItem.tags || [])];
       foodDb.value.unshift(cleanItem);
     }
-
     if (foodDb.value.length > 60) foodDb.value = foodDb.value.slice(0, 60);
     saveState();
   }
@@ -315,7 +305,6 @@ export const useGameStore = defineStore('game', () => {
     if (item.f > 20) tags.push('HIGH_FAT');
     if (item.p > 25) tags.push('HIGH_PRO');
     if (item.name.includes('糖') || item.name.includes('奶茶')) tags.push('HIGH_SUGAR');
-
     item.tags = [...new Set(tags)];
     saveToDb(item);
 
@@ -328,66 +317,42 @@ export const useGameStore = defineStore('game', () => {
 
     if (monster?.weaknessType === 'LOW_CARB') {
       if (uniqueTags.includes('HIGH_CARB') || uniqueTags.includes('HIGH_SUGAR')) {
-        multiplier = 0.3;
-        isResist = true;
-        resistReason = '触犯禁忌(高碳)';
-      } else if (item.c < 15) {
-        multiplier = 1.5;
-      }
+        multiplier = 0.3; isResist = true; resistReason = '触犯禁忌(高碳)';
+      } else if (item.c < 15) { multiplier = 1.5; }
     } else if (monster?.weaknessType === 'LOW_FAT') {
       if (uniqueTags.includes('HIGH_FAT')) {
-        multiplier = 0.3;
-        isResist = true;
-        resistReason = '触犯禁忌(高油)';
-      } else if (item.f < 5) {
-        multiplier = 1.5;
-      }
+        multiplier = 0.3; isResist = true; resistReason = '触犯禁忌(高油)';
+      } else if (item.f < 5) { multiplier = 1.5; }
     } else if (monster?.weaknessType === 'HIGH_PRO') {
-      if (uniqueTags.includes('HIGH_PRO')) {
-        multiplier = 1.5;
-      }
+      if (uniqueTags.includes('HIGH_PRO')) { multiplier = 1.5; }
     }
 
     item.multiplier = multiplier;
-    commitLog(item);
+    // 复合食物经验加成
+    const xp = item.isComposite ? 50 : 30;
+    item.gainedExp = xp;
 
     if (isResist || Math.random() < 0.1) {
       triggerShake();
       const baseDamage = isResist ? 50 : 15;
       const block = stats.blockValue;
       const dodge = stats.dodgeChance;
-
       if (Math.random() < dodge) {
-        const log = {
-          id: Date.now() + 1, name: `闪避反击 (${monster?.name || '未知敌人'})`, icon: '⚡',
-          calories: 0, p:0, c:0, f:0, grams:0, mealType: temp.activeMealType,
-          dodged: true, timestamp: new Date().toISOString()
-        };
-        const d = currentDate.value;
-        if(logs[d]) logs[d].unshift(log);
+        item.dodged = true;
         showNotify({ type: 'success', message: '身手敏捷！完美闪避了攻击！' });
       } else {
         const finalDamage = Math.max(1, baseDamage - block);
         user.heroCurrentHp = Math.max(0, user.heroCurrentHp - finalDamage);
-
-        const log = {
-          id: Date.now() + 1, name: isResist ? `暴怒反击 (${monster?.name || '未知敌人'})` : `偷袭 (${monster?.name || '未知敌人'})`, icon: '💥',
-          calories: 0, p:0, c:0, f:0, grams:0, mealType: temp.activeMealType,
-          damageTaken: finalDamage, blocked: block, timestamp: new Date().toISOString()
-        };
-        const d = currentDate.value;
-        if(logs[d]) logs[d].unshift(log);
-
-        showNotify({
-          type: 'danger',
-          message: `💔 ${resistReason || '不慎'} 受到 ${finalDamage} 点伤害 (格挡${block})`
-        });
+        item.damageTaken = finalDamage;
+        item.blocked = block;
+        showNotify({ type: 'danger', message: `💔 ${resistReason || '不慎'} 受到 ${finalDamage} 点伤害 (格挡${block})` });
       }
     } else {
       if (multiplier > 1) showToast('🔥 效果拔群！造成了巨额伤害！');
       else showToast('攻击有效');
     }
-
+    commitLog(item);
+    addExp(xp);
     saveState();
   }
 
@@ -401,8 +366,38 @@ export const useGameStore = defineStore('game', () => {
       mealType: temp.activeMealType,
       timestamp: new Date().toISOString()
     });
-    addExp(logItem.isComposite ? 50 : 30);
-    checkAchievements();
+    // 修复：提交日志时只触发即时成就检查
+    checkAchievements(false);
+  }
+
+  function deleteLog(log: FoodLog) {
+    const dateKey = currentDate.value;
+    const dayLogs = logs[dateKey];
+    if (!dayLogs) return;
+    const idx = dayLogs.findIndex(l => l.id === log.id);
+    if (idx === -1) return;
+
+    if (log.gainedExp) {
+      user.currentExp -= log.gainedExp;
+      while (user.currentExp < 0 && user.level > 1) {
+        user.level--;
+        const prevLevelMaxExp = Math.ceil(user.nextLevelExp / 1.2);
+        user.nextLevelExp = prevLevelMaxExp;
+        user.currentExp += user.nextLevelExp;
+        showNotify({ type: 'warning', message: '经验回退，等级下降！' });
+      }
+      if (user.level === 1 && user.currentExp < 0) user.currentExp = 0;
+    }
+
+    if (log.damageTaken) {
+      user.heroCurrentHp = Math.min(user.heroMaxHp, user.heroCurrentHp + log.damageTaken);
+      showNotify({ type: 'primary', message: `✨ 时光倒流：恢复了 ${log.damageTaken} 点生命值` });
+    }
+
+    dayLogs.splice(idx, 1);
+    modals.logDetail = false;
+    showToast('记录已湮灭在时间长河中');
+    saveState();
   }
 
   function addExp(amount: number) {
@@ -414,23 +409,61 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  function checkAchievements() { /* ...省略... */ }
-  function unlockAch(id: number) { /* ...省略... */ }
-  function equipItem(item: any) { /* ...省略... */ }
+  function checkAchievements(isInitCheck: boolean = false) {
+    const stats = todayMacros.value;
+    const todayLogList = todayLogs.value;
+    achievements.value.forEach(ach => {
+      if (ach.unlocked) return;
+
+      // 如果是初始化检查，跳过那些容易误触发的即时成就（比如“新手村毕业”这种只要有一条记录就触发的，可能需要更严谨的判断）
+      // 但对于大多数成就，如果条件满足就应该触发
+      // 这里可以根据需求加限制，比如 if (isInitCheck && ach.type === 'INSTANT') return;
+
+      let unlocked = false;
+      switch (ach.id) {
+        case 1: if (todayLogList.length > 0) unlocked = true; break;
+        case 2: if (stats.p > 120) unlocked = true; break;
+        case 3: const veg = todayLogList.filter(l => l.category === 'VEG' || l.tags?.includes('CLEAN')).reduce((s, l) => s + (l.grams || 0), 0); if (veg > 400) unlocked = true; break;
+        case 5: if (todayLogList.some(l => l.mealType === 'BREAKFAST' && new Date(l.timestamp || '').getHours() < 9)) unlocked = true; break;
+        case 6: if (todayLogList.some(l => new Date(l.timestamp || '').getHours() >= 22)) unlocked = true; break;
+        case 8: if (todayLogList.some(l => l.calories > 1000)) unlocked = true; break;
+        case 9: if (todayLogList.filter(l => l.category === 'DRINK' || l.name.includes('水')).length >= 3) unlocked = true; break;
+        case 10: if (todayLogList.length >= 3) unlocked = true; break;
+        case 11: if (stats.c > 300) unlocked = true; break;
+        case 12: if (stats.f > 0 && stats.f < 40 && todayLogList.length > 2) unlocked = true; break;
+        case 13: if (stats.cals > 2500) unlocked = true; break;
+        case 14: if (stats.cals > 0 && stats.cals < 1200 && todayLogList.length > 0) unlocked = true; break;
+      }
+      // 只有在非初始化检查（即用户操作触发）或者成就确实未解锁时才弹窗
+      // 为了防止一进页面就弹窗，我们可以在 loadState 时不调用 checkAchievements，或者传入参数控制不弹窗只静默解锁
+      if (unlocked) {
+        if (!isInitCheck) {
+          unlockAch(ach.id);
+        } else {
+          // 静默解锁，不弹窗
+          ach.unlocked = true;
+        }
+      }
+    });
+  }
+
+  function unlockAch(id: number) {
+    const ach = achievements.value.find(a => a.id === id);
+    if (ach && !ach.unlocked) {
+      ach.unlocked = true;
+      temp.unlockedAchievement = ach;
+      modals.unlock = true;
+      saveState();
+    }
+  }
+
+  function equipItem(item: any) { /* ... */ }
 
   function saveState() {
     try {
-      const stateToSave = {
-        user: toRaw(user),
-        logs: toRaw(logs),
-        achievements: toRaw(achievements.value),
-        foodDb: Array.isArray(foodDb.value) ? toRaw(foodDb.value) : [],
-        isDarkMode: isDarkMode.value
-      };
+      const stateToSave = { user: toRaw(user), logs: toRaw(logs), achievements: toRaw(achievements.value), foodDb: Array.isArray(foodDb.value) ? toRaw(foodDb.value) : [], isDarkMode: isDarkMode.value };
       localStorage.setItem('health_rpg_save_v2', JSON.stringify(stateToSave));
-    } catch (e) {
-      console.error("Save failed:", e);
-    }
+    } catch (e) { console.error("Save failed:", e); }
   }
 
   function loadState() {
@@ -442,37 +475,16 @@ export const useGameStore = defineStore('game', () => {
         if (data.logs) Object.assign(logs, data.logs);
         if (data.foodDb && Array.isArray(data.foodDb)) {
           const uniqueMap = new Map();
-          data.foodDb.forEach((item: any) => {
-            const key = item.name.trim();
-            if (uniqueMap.has(key)) {
-              const existing = uniqueMap.get(key);
-              existing.usageCount = (existing.usageCount || 0) + (item.usageCount || 0);
-            } else {
-              uniqueMap.set(key, item);
-            }
-          });
+          data.foodDb.forEach((item: any) => uniqueMap.set(item.name.trim(), item));
           foodDb.value = Array.from(uniqueMap.values());
-        } else {
-          foodDb.value = [];
-        }
+        } else { foodDb.value = []; }
         if (data.isDarkMode !== undefined) isDarkMode.value = data.isDarkMode;
-        if (data.achievements) {
-          data.achievements.forEach((oldAch: any) => {
-            const exist = achievements.value.find(a => a.id === oldAch.id);
-            if (exist) exist.unlocked = oldAch.unlocked;
-          });
-        }
-      } catch (e) {
-        console.error('Failed to parse save data', e);
-        foodDb.value = [];
-      }
+        if (data.achievements) data.achievements.forEach((oldAch: any) => { const e = achievements.value.find(a => a.id === oldAch.id); if (e) e.unlocked = oldAch.unlocked; });
+      } catch (e) { console.error('Failed to parse', e); foodDb.value = []; }
     }
+    // 严谨逻辑：加载时不触发弹窗，只做静默检查或不检查
+    // checkAchievements(true);
   }
 
-  return {
-    user, isDarkMode, currentDate, logs, achievements, foodDb, temp, modals, analysisRefDate,
-    todayLogs, todayMacros, heroStats, dailyTarget, stageInfo, weeklyStats, logsReverse,
-    setModal, initUser, commitLog, saveState, loadState, triggerShake, equipItem,
-    battleCommit, recalcBMR
-  };
+  return { user, isDarkMode, currentDate, logs, achievements, foodDb, temp, modals, analysisRefDate, todayLogs, todayMacros, heroStats, dailyTarget, stageInfo, weeklyStats, logsReverse, setModal, initUser, commitLog, deleteLog, saveState, loadState, triggerShake, equipItem, battleCommit, recalcBMR };
 });
