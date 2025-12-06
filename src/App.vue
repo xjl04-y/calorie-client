@@ -2,7 +2,7 @@
 import { onMounted, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { storeToRefs } from 'pinia';
-import AppHud from '@/components/AppHud.vue';
+import AppHud from '@/components/AppHud.vue'; // 修复：引入 AppHud
 import ModalOnboarding from '@/components/modals/ModalOnboarding.vue';
 import ModalAddFood from '@/components/modals/ModalAddFood.vue';
 import ModalQuantity from '@/components/modals/ModalQuantity.vue';
@@ -14,7 +14,7 @@ import ModalEquipmentSwap from '@/components/modals/ModalEquipmentSwap.vue';
 import ModalHistoryDetail from '@/components/modals/ModalHistoryDetail.vue';
 import ModalLogDetail from '@/components/modals/ModalLogDetail.vue';
 import ModalHpHistory from '@/components/modals/ModalHpHistory.vue';
-import ModalNpcGuide from '@/components/modals/ModalNpcGuide.vue'; // 引入新组件
+import ModalNpcGuide from '@/components/modals/ModalNpcGuide.vue'; // 引入 NPC 组件
 
 const store = useGameStore();
 const { isDarkMode, temp, user } = storeToRefs(store);
@@ -50,14 +50,12 @@ const openAddFood = (type: 'SNACK') => {
       <!-- 核心路由视图区域 -->
       <div class="flex-1 overflow-y-auto no-scrollbar bg-slate-50 dark:bg-[#0b1120] relative" id="main-scroll-view">
         <router-view v-slot="{ Component, route }">
-          <!-- 使用 keep-alive 缓存 meta.keepAlive 为 true 的页面 -->
+          <!-- 修复：合并 Transition，确保单根节点结构 -->
           <transition name="van-fade" mode="out-in">
-            <keep-alive>
-              <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
+            <keep-alive v-if="route.meta.keepAlive">
+              <component :is="Component" :key="route.name" />
             </keep-alive>
-          </transition>
-          <transition name="van-fade" mode="out-in">
-            <component :is="Component" v-if="!route.meta.keepAlive" :key="route.name" />
+            <component :is="Component" v-else :key="route.name" />
           </transition>
         </router-view>
       </div>

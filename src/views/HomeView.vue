@@ -32,10 +32,20 @@ const weaknessColor = computed(() => {
   return 'text-blue-400 border-blue-400 bg-blue-900/20';
 });
 
-// 撤销日志 (保留)
+// 撤销日志 (滑动删除)
 const confirmDelete = (log: any) => {
-  showConfirmDialog({ title: '撤销行动?', message: '这也将删除获得的经验值。' })
-  // .then(() => store.deleteLog(log.id)); // 需要在 store 实现 deleteLog
+  showConfirmDialog({
+    title: '时光倒流',
+    message: '确定要撤销这条记录吗？\n这也将回滚获得的经验值和造成的伤害。',
+    confirmButtonText: '发动魔法',
+    confirmButtonColor: '#7c3aed'
+  })
+    .then(() => {
+      store.deleteLog(log);
+    })
+    .catch(() => {
+      // 取消
+    });
 };
 
 const rpgMeals = [
@@ -48,6 +58,11 @@ const rpgMeals = [
 const openAddFood = (key: any) => {
   store.temp.activeMealType = key;
   store.setModal('addFood', true);
+}
+
+const openLogDetail = (log: any) => {
+  store.temp.selectedLog = log;
+  store.setModal('logDetail', true);
 }
 </script>
 
@@ -145,7 +160,7 @@ const openAddFood = (key: any) => {
     <div class="bg-white dark:bg-slate-800 rounded-t-3xl min-h-[300px] p-5 pb-20 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">战斗记录</h3>
-        <span class="text-[10px] text-slate-400">最新战况</span>
+        <span class="text-[10px] text-slate-400">左滑撤销 / 点击详情</span>
       </div>
 
       <div v-if="store.todayLogs.length === 0" class="text-center py-10 text-slate-400">
@@ -154,43 +169,54 @@ const openAddFood = (key: any) => {
       </div>
 
       <transition-group name="van-slide-up">
-        <div v-for="log in store.logsReverse" :key="log.id"
-             class="mb-3 rounded-2xl border border-slate-100 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between relative overflow-hidden"
-             :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken}">
+        <van-swipe-cell v-for="log in store.logsReverse" :key="log.id" class="mb-3 rounded-2xl overflow-hidden shadow-sm">
 
-          <div class="flex items-center gap-3 relative z-10">
-            <div class="text-2xl w-10 h-10 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm">
-              {{ log.icon }}
+          <!-- 核心卡片内容 -->
+          <div class="p-3 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between relative"
+               :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken}"
+               @click="openLogDetail(log)">
+
+            <div class="flex items-center gap-3 relative z-10">
+              <div class="text-2xl w-10 h-10 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm">
+                {{ log.icon }}
+              </div>
+              <div>
+                <div class="font-bold text-sm dark:text-slate-200 flex items-center">
+                  {{ log.name }}
+                  <!-- 抵抗/暴击/复合 标签 -->
+                  <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 text-purple-600 font-bold border border-purple-200">复合</span>
+                  <span v-if="(log.multiplier || 1) < 1" class="ml-2 text-[8px] px-1 rounded bg-red-100 text-red-600 font-bold border border-red-200">抵抗</span>
+                  <span v-else-if="(log.multiplier || 1) > 1" class="ml-2 text-[8px] px-1 rounded bg-yellow-100 text-yellow-600 font-bold border border-yellow-200">暴击</span>
+                </div>
+                <div class="text-[10px] text-slate-400 mt-0.5" v-if="!log.damageTaken">
+                  {{ log.grams }}g · {{ log.mealType }}
+                </div>
+                <div class="text-[10px] text-red-400 font-bold mt-0.5" v-else>
+                  反击伤害 -{{ log.damageTaken }} (格挡 {{ log.blocked }})
+                </div>
+              </div>
             </div>
-            <div>
-              <div class="font-bold text-sm dark:text-slate-200 flex items-center">
-                {{ log.name }}
-                <!-- 抵抗/暴击/复合 标签 -->
-                <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 text-purple-600 font-bold border border-purple-200">复合</span>
-                <span v-if="(log.multiplier || 1) < 1" class="ml-2 text-[8px] px-1 rounded bg-red-100 text-red-600 font-bold border border-red-200">抵抗</span>
-                <span v-else-if="(log.multiplier || 1) > 1" class="ml-2 text-[8px] px-1 rounded bg-yellow-100 text-yellow-600 font-bold border border-yellow-200">暴击</span>
+
+            <div class="text-right relative z-10">
+              <div v-if="!log.damageTaken">
+                <div class="font-rpg font-bold text-lg" :class="(log.multiplier || 1) < 1 ? 'text-slate-400' : 'text-red-500'">
+                  -{{ Math.floor(log.calories * (log.multiplier || 1)) }}
+                </div>
+                <div class="text-[8px] text-slate-400">DMG</div>
               </div>
-              <div class="text-[10px] text-slate-400 mt-0.5" v-if="!log.damageTaken">
-                {{ log.grams }}g · {{ log.mealType }}
-              </div>
-              <div class="text-[10px] text-red-400 font-bold mt-0.5" v-else>
-                反击伤害 -{{ log.damageTaken }} (格挡 {{ log.blocked }})
+              <div v-else>
+                <div class="text-2xl">💔</div>
               </div>
             </div>
           </div>
 
-          <div class="text-right relative z-10">
-            <div v-if="!log.damageTaken">
-              <div class="font-rpg font-bold text-lg" :class="(log.multiplier || 1) < 1 ? 'text-slate-400' : 'text-red-500'">
-                -{{ Math.floor(log.calories * (log.multiplier || 1)) }}
-              </div>
-              <div class="text-[8px] text-slate-400">DMG</div>
+          <!-- 右侧滑动操作 -->
+          <template #right>
+            <div class="h-full flex">
+              <van-button square type="danger" text="撤销" class="h-full !rounded-none" @click="confirmDelete(log)" />
             </div>
-            <div v-else>
-              <div class="text-2xl">💔</div>
-            </div>
-          </div>
-        </div>
+          </template>
+        </van-swipe-cell>
       </transition-group>
     </div>
 
@@ -203,4 +229,10 @@ const openAddFood = (key: any) => {
 /* 简单的进入动画 */
 .van-slide-up-enter-active, .van-slide-up-leave-active { transition: all 0.3s ease; }
 .van-slide-up-enter-from, .van-slide-up-leave-to { opacity: 0; transform: translateY(20px); }
+
+/* Vant Swipe Cell 样式微调 */
+:deep(.van-swipe-cell__right) {
+  display: flex;
+  align-items: center;
+}
 </style>

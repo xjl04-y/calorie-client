@@ -30,6 +30,7 @@ const editData = reactive({ height: 0, weight: 0, age: 0 });
 
 // 处理自定义上传
 const onAvatarRead = (file: any) => {
+  // 保存 Base64 到 Store
   store.user.avatarType = 'CUSTOM';
   store.user.customAvatar = file.content;
   store.saveState();
@@ -37,11 +38,11 @@ const onAvatarRead = (file: any) => {
   return true;
 };
 
-// 更换头像逻辑 (随机/重置)
+// 头像点击交互
 const changeAvatar = () => {
   showDialog({
     title: '重塑容貌',
-    message: '选择你的英雄形象',
+    message: '想要改变你的英雄形象吗？',
     showCancelButton: true,
     confirmButtonText: '随机生成',
     cancelButtonText: '取消',
@@ -104,11 +105,11 @@ const openSwap = (slotId: string) => {
 
 <template>
   <div class="pb-24 bg-slate-900 min-h-full text-white">
-    <!-- 头部背景：移除 overflow-hidden 修复头像遮挡 -->
+    <!-- 头部背景：移除了 overflow-hidden 以解决头像截断问题 -->
     <div class="relative h-56 bg-gradient-to-b from-purple-900 to-slate-900">
       <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 
-      <!-- 自定义上传按钮 (右上角) -->
+      <!-- 右上角上传按钮 -->
       <div class="absolute top-4 right-4 z-30">
         <van-uploader :after-read="onAvatarRead">
           <div class="bg-black/30 backdrop-blur px-3 py-1 rounded-full text-xs border border-white/20 flex items-center active:scale-95 transition">
@@ -121,7 +122,7 @@ const openSwap = (slotId: string) => {
         <!-- 头像区域 -->
         <div class="relative group cursor-pointer" @click="changeAvatar">
           <div class="w-28 h-28 rounded-full border-4 border-slate-800 p-1 bg-slate-700 shadow-2xl relative z-10 overflow-hidden">
-            <!-- 根据类型显示头像 -->
+            <!-- 严谨的判断逻辑：优先显示自定义头像 -->
             <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full rounded-full object-cover" />
             <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-600" />
           </div>

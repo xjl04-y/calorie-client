@@ -34,3 +34,16 @@ coverage
 
 # Vitest
 __screenshots__/
+
+# Android build files
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/gradle-8.7/
+android/gradle-8.7-bin.zip
+android/local.properties
+android/*.log
+
+# Capacitor
+capacitor.config.json
