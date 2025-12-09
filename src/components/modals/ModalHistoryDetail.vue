@@ -18,6 +18,14 @@ const dateDisplay = computed(() => {
   const [y, m, d] = date.value.split('-');
   return `${m}月${d}日 战斗记录`;
 });
+
+// 新增：餐点类型中文映射
+const MEAL_LABELS: Record<string, string> = {
+  BREAKFAST: '早餐',
+  LUNCH: '午餐',
+  DINNER: '晚餐',
+  SNACK: '零食'
+};
 </script>
 
 <template>
@@ -48,10 +56,11 @@ const dateDisplay = computed(() => {
                   <div class="font-bold text-sm dark:text-slate-200">{{ log.name }}</div>
                   <div class="flex gap-1 mt-1" v-if="!log.damageTaken && !log.dodged">
                                         <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-[8px] px-1 rounded">
-                                            {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label }}
+                                            {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
                                         </span>
                   </div>
-                  <div class="text-[10px] text-slate-400 mt-0.5">{{ log.mealType }}</div>
+                  <!-- 修改：使用映射显示中文餐点名称 -->
+                  <div class="text-[10px] text-slate-400 mt-0.5">{{ MEAL_LABELS[log.mealType] || log.mealType }}</div>
                 </div>
               </div>
 
@@ -79,9 +88,5 @@ const dateDisplay = computed(() => {
 </template>
 
 <style scoped>
-.tag-HIGH_SUGAR { @apply bg-red-100 text-red-800 border-red-200 border; }
-.tag-HIGH_FAT { @apply bg-yellow-100 text-yellow-800 border-yellow-200 border; }
-.tag-HIGH_SODIUM { @apply bg-slate-200 text-slate-700 border-slate-300 border; }
-.tag-HIGH_CARB { @apply bg-orange-100 text-orange-800 border-orange-200 border; }
-.tag-HIGH_PRO { @apply bg-green-100 text-green-800 border-green-200 border; }
+/* 移除局部样式，使用 style.css 中的全局样式 */
 </style>

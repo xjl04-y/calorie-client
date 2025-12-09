@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
+// [Fix] 恢复并确保 RACE_NPCS 存在
 import { RACE_NPCS } from '@/constants/gameData';
 import { useRouter } from 'vue-router';
 
@@ -12,7 +13,12 @@ const show = computed({
   set: (val) => store.setModal('npcGuide', val)
 });
 
-const npc = computed(() => RACE_NPCS[store.user.race] || RACE_NPCS.HUMAN);
+// [Fix] 增加安全访问
+const npc = computed(() => {
+  const race = store.user.race || 'HUMAN';
+  // 确保 RACE_NPCS 存在，否则回退
+  return RACE_NPCS[race] || RACE_NPCS.HUMAN || { name: '导师', title: '指引者', icon: '🧚', greeting: '你好！' };
+});
 
 // 优化后的引导步骤
 const guideSteps = computed(() => [

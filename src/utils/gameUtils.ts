@@ -1,5 +1,18 @@
 import { RACES } from '@/constants/gameData';
 
+// --- 工具函数：防抖 (新增) ---
+// 用于优化高频存档操作，避免阻塞 UI 线程
+export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  return function(this: any, ...args: Parameters<T>) {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      fn.apply(this, args);
+      timeoutId = null;
+    }, delay);
+  };
+}
+
 // --- 存档混淆逻辑 (保持不变) ---
 export const encodeSaveData = (data: any): string => {
   try {
@@ -27,8 +40,6 @@ export const decodeSaveData = (saveStr: string): any | null => {
 };
 
 // --- V2.4 Feature: 文件操作工具 ---
-// 更加专业的文件下载与读取逻辑，替代不稳定的剪贴板操作
-
 export const downloadJsonFile = (filename: string, data: any) => {
   try {
     const jsonStr = JSON.stringify(data, null, 2);
@@ -69,26 +80,21 @@ export const readJsonFile = (file: File): Promise<any> => {
 };
 
 // --- 食物命名逻辑 ---
-// 格式：种族前缀·食物名 (原名)
 export const formatRpgFoodName = (foodName: string, raceKey: string, originalName?: string): string => {
   const race = RACES[raceKey] || RACES.HUMAN;
 
-  // 1. 如果名字里已经包含"·"和"(...)"，说明已经是格式化过的，直接返回
   if (foodName && foodName.includes('·') && foodName.includes('(')) return foodName;
 
-  // 2. 确定原名
   const realOrigin = originalName || foodName;
   if (!realOrigin) return '未知食物';
 
-  // 3. 计算前缀 (基于原名的 Hash，保证同一个食物前缀固定)
   const seed = realOrigin.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
   const prefix = race.prefixes[seed % race.prefixes.length];
 
-  // 4. 组装
   return `${prefix}·${realOrigin} (${realOrigin})`;
 };
 
-// --- 战力阶位与特权 (RPG Features) ---
+// --- 战力阶位与特权 ---
 export const getCombatRank = (cp: number) => {
   if (cp < 500) return {
     title: '见习冒险者', color: 'text-slate-500', icon: '🪵',

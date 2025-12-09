@@ -107,18 +107,24 @@ body {
 .timeline-line { position: absolute; left: 19px; top: 30px; bottom: -20px; width: 2px; background: #334155; z-index: 0; }
 .last-item .timeline-line { display: none; }
 
-/* Tag Badges */
+/* Tag Badges (Unified Style for Chinese & Legacy English Keys) */
 .tag-badge { font-size: 0.6rem; padding: 1px 4px; border-radius: 4px; font-weight: bold; margin-right: 4px; }
-.tag-HIGH_SUGAR { background: #fca5a5; color: #7f1d1d; border: 1px solid #fecaca; }
-.tag-HIGH_FAT { background: #fde047; color: #854d0e; border: 1px solid #fef08a; }
-.tag-HIGH_SODIUM { background: #cbd5e1; color: #334155; border: 1px solid #e2e8f0; }
-.tag-HIGH_CARB { background: #fed7aa; color: #7c2d12; border: 1px solid #ffedd5; }
-.tag-HIGH_PRO { background: #86efac; color: #14532d; border: 1px solid #bbf7d0; }
-.dark .tag-HIGH_SUGAR { background: #7f1d1d; color: #fca5a5; border-color: #991b1b; }
-.dark .tag-HIGH_FAT { background: #713f12; color: #fde047; border-color: #854d0e; }
-.dark .tag-HIGH_SODIUM { background: #334155; color: #cbd5e1; border-color: #475569; }
-.dark .tag-HIGH_CARB { background: #7c2d12; color: #fed7aa; border-color: #9a3412; }
-.dark .tag-HIGH_PRO { background: #14532d; color: #86efac; border-color: #166534; }
+
+.tag-高糖, .tag-HIGH_SUGAR { background: #fca5a5; color: #7f1d1d; border: 1px solid #fecaca; }
+.tag-高油, .tag-HIGH_FAT { background: #fde047; color: #854d0e; border: 1px solid #fef08a; }
+.tag-高盐, .tag-HIGH_SODIUM { background: #cbd5e1; color: #334155; border: 1px solid #e2e8f0; }
+.tag-高碳, .tag-HIGH_CARB { background: #fed7aa; color: #7c2d12; border: 1px solid #ffedd5; }
+.tag-高蛋白, .tag-HIGH_PRO { background: #86efac; color: #14532d; border: 1px solid #bbf7d0; }
+.tag-纯净, .tag-CLEAN { background: #cffafe; color: #155e75; border: 1px solid #a5f3fc; }
+.tag-均衡, .tag-BALANCED { background: #e9d5ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+
+.dark .tag-高糖, .dark .tag-HIGH_SUGAR { background: #7f1d1d; color: #fca5a5; border-color: #991b1b; }
+.dark .tag-高油, .dark .tag-HIGH_FAT { background: #713f12; color: #fde047; border-color: #854d0e; }
+.dark .tag-高盐, .dark .tag-HIGH_SODIUM { background: #334155; color: #cbd5e1; border-color: #475569; }
+.dark .tag-高碳, .dark .tag-HIGH_CARB { background: #7c2d12; color: #fed7aa; border-color: #9a3412; }
+.dark .tag-高蛋白, .dark .tag-HIGH_PRO { background: #14532d; color: #86efac; border-color: #166534; }
+.dark .tag-纯净, .dark .tag-CLEAN { background: #164e63; color: #67e8f9; border-color: #0e7490; }
+.dark .tag-均衡, .dark .tag-BALANCED { background: #581c87; color: #d8b4fe; border-color: #6b21a8; }
 
 /* Hero HP Bar */
 .hero-hp-container {

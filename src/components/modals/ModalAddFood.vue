@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, toRaw } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { AiService } from '@/utils/aiService';
-import { formatRpgFoodName } from '@/utils/gameUtils'; // V2.2
+import { formatRpgFoodName } from '@/utils/gameUtils';
 import { TAG_DEFS } from '@/constants/gameData';
 import { showToast } from 'vant';
+import type { FoodItem } from '@/types';
 
 const store = useGameStore();
 const query = ref('');
 const loading = ref(false);
-const aiResult = ref<any>(null);
-const aiSuggestions = ref<any[]>([]);
+const aiResult = ref<FoodItem | null>(null);
+const aiSuggestions = ref<FoodItem[]>([]);
 const activeCategory = ref('ALL');
 
 const show = computed({
@@ -18,23 +19,22 @@ const show = computed({
   set: (val) => store.setModal('addFood', val)
 });
 
-// 是否处于配餐构建模式
 const isBuilding = computed(() => store.temp.isBuilding);
 const basket = computed(() => store.temp.basket);
 
 const filteredList = computed(() => {
-  const list = Array.isArray(store.foodDb) ? store.foodDb : [];
+  const list = (store.foodDb && Array.isArray(store.foodDb)) ? store.foodDb : [];
   let result = list;
 
   if (activeCategory.value === 'FAV') {
-    result = list.filter((i: any) => i.usageCount && i.usageCount > 0).sort((a: any, b: any) => (b.usageCount||0) - (a.usageCount||0));
+    result = list.filter((i) => i.usageCount && i.usageCount > 0).sort((a, b) => (b.usageCount||0) - (a.usageCount||0));
   } else if (activeCategory.value !== 'ALL') {
-    result = list.filter((i: any) => i.category === activeCategory.value);
+    result = list.filter((i) => i.category === activeCategory.value);
   }
 
   if (query.value) {
     const q = query.value.toLowerCase();
-    result = result.filter((i: any) =>
+    result = result.filter((i) =>
       (i.name && i.name.toLowerCase().includes(q)) ||
       (i.displayName && i.displayName.toLowerCase().includes(q))
     );
@@ -42,8 +42,7 @@ const filteredList = computed(() => {
   return result;
 });
 
-// V2.2: 显示用的名称处理函数 (V2.3 Updated)
-const getDisplayName = (item: any) => {
+const getDisplayName = (item: FoodItem) => {
   if (item.displayName) return item.displayName;
   return formatRpgFoodName(item.name, store.user.race, item.originalName);
 };
@@ -56,10 +55,10 @@ const onTextSearch = async () => {
   try {
     const res = await AiService.estimateText(query.value, store.user.race);
     if (Array.isArray(res)) aiSuggestions.value = res;
-    else if (res) aiResult.value = res;
+    else if (res) aiResult.value = res as FoodItem;
   } catch (e) {
     console.error(e);
-    showToast('鉴定失败，请重试');
+    showToast('鉴定失败');
   } finally {
     loading.value = false;
   }
@@ -71,7 +70,7 @@ const onImageUpload = async (file: any) => {
   try {
     const res = await AiService.identifyImage(file.content || '', store.user.race);
     if (Array.isArray(res)) aiSuggestions.value = res;
-    else if (res) aiResult.value = res;
+    else if (res) aiResult.value = res as FoodItem;
   } catch (e) {
     console.error(e);
     showToast('图片识别失败');
@@ -80,20 +79,19 @@ const onImageUpload = async (file: any) => {
   }
 };
 
-const selectItem = (item: any) => {
+const selectItem = (item: FoodItem) => {
   if (item.isComposite && !isBuilding.value) {
     store.temp.basket = [];
     store.temp.isBuilding = true;
     store.temp.basket.push({ ...item, isComposite: false });
-    showToast(`正在制作：${item.name}，请添加配料`);
+    showToast(`正在制作：${item.name}`);
     return;
   }
 
-  // V2.3 Fix: 确保传入 Store 的名称是格式化后的
-  const finalItem = {
+  const finalItem: FoodItem = {
     ...item,
     name: getDisplayName(item),
-    originalName: item.originalName || item.name // 确保原名也被传递
+    originalName: item.originalName || item.name
   };
 
   store.temp.pendingItem = finalItem;
@@ -103,11 +101,7 @@ const selectItem = (item: any) => {
 const commitBasket = () => {
   if (basket.value.length === 0) return;
 
-  interface MacroAccumulator {
-    calories: number; p: number; c: number; f: number; grams: number;
-  }
-
-  const total = basket.value.reduce((acc: MacroAccumulator, item: any) => ({
+  const total = basket.value.reduce((acc, item) => ({
     calories: acc.calories + (Number(item.calories) || 0),
     p: acc.p + (Number(item.p) || 0),
     c: acc.c + (Number(item.c) || 0),
@@ -122,16 +116,26 @@ const commitBasket = () => {
     mealName = `特制·${baseItem.name}`;
   }
 
-  const compositeLog: any = {
+  if (basket.value.length > 1 && !mealName.includes('特制')) {
+    mealName += ` (+${basket.value.length - 1})`;
+  }
+
+  const aggregatedTags = new Set<string>();
+  basket.value.forEach(i => {
+    if (i.tags) i.tags.forEach(t => aggregatedTags.add(t));
+  });
+
+  const compositeLog: FoodItem = {
     id: Date.now(),
     name: mealName,
+    originalName: mealName,
     icon: baseItem?.icon || '🍱',
     ...total,
     unit: '份',
-    mealType: store.temp.activeMealType,
+    category: 'DISH',
     isComposite: true,
-    ingredients: [...basket.value],
-    tags: []
+    ingredients: JSON.parse(JSON.stringify(toRaw(basket.value))),
+    tags: Array.from(aggregatedTags)
   };
 
   store.battleCommit(compositeLog);
@@ -139,7 +143,7 @@ const commitBasket = () => {
   store.temp.basket = [];
   store.temp.isBuilding = false;
   store.setModal('addFood', false);
-  showToast('料理完成！属性已重新计算。');
+  showToast('料理完成！');
 };
 
 const removeFromBasket = (idx: number) => {
@@ -155,6 +159,12 @@ watch(show, (val) => {
     aiResult.value = null;
     aiSuggestions.value = [];
     loading.value = false;
+
+    if (!store.foodDb || store.foodDb.length === 0) {
+      console.warn('[ModalAddFood] FoodDB empty, forcing reload...');
+      store.loadState();
+    }
+
     if (store.temp.basket.length === 0) store.temp.isBuilding = false;
   }
 });
@@ -163,7 +173,6 @@ watch(show, (val) => {
 <template>
   <van-popup v-model:show="show" position="bottom" round :style="{ height: '90%' }" class="dark:bg-slate-900">
     <div class="flex flex-col h-full bg-slate-50 dark:bg-[#0b1120]">
-      <!-- 头部 -->
       <div class="px-4 py-3 bg-white dark:bg-slate-800 flex justify-between sticky top-0 z-10 border-b dark:border-slate-700 items-center">
         <van-icon name="arrow-down" @click="show = false" class="text-slate-400 text-lg" />
         <div class="font-bold dark:text-white text-lg flex items-center gap-2">
@@ -175,7 +184,6 @@ watch(show, (val) => {
         <div class="w-4"></div>
       </div>
 
-      <!-- 搜索区 -->
       <div class="p-4 pb-0 flex gap-2 items-center">
         <div class="flex-1 bg-white dark:bg-slate-800 rounded-full px-4 py-2 flex items-center border border-slate-200 dark:border-slate-700 shadow-sm transition-colors focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500">
           <van-icon name="search" class="text-slate-400 mr-2" />
@@ -199,7 +207,6 @@ watch(show, (val) => {
         </van-uploader>
       </div>
 
-      <!-- 分类 Tab -->
       <div class="px-2 mt-2">
         <van-tabs v-model:active="activeCategory" background="transparent" color="#7c3aed" shrink line-width="20px">
           <van-tab title="全部" name="ALL"></van-tab>
@@ -212,17 +219,22 @@ watch(show, (val) => {
         </van-tabs>
       </div>
 
-      <!-- 内容列表区 -->
       <div class="flex-1 overflow-y-auto px-4 mt-2 pb-24">
-        <!-- AI 结果 -->
         <div v-if="aiResult && !loading" class="bg-gradient-to-br from-purple-50 to-white dark:from-slate-800 dark:to-slate-700 p-4 rounded-2xl mb-4 border border-purple-100 dark:border-slate-600 shadow-sm cursor-pointer active:scale-98 transition" @click="selectItem(aiResult)">
           <div class="flex justify-between items-start">
             <div>
               <div class="font-bold text-lg dark:text-white flex items-center gap-2">
                 {{ aiResult.name }}
                 <div v-if="aiResult.tags" class="flex gap-1">
-                  <span v-for="tag in aiResult.tags" :key="tag" class="text-[8px] px-1 rounded bg-purple-100 text-purple-800 border border-purple-200">
-                    {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label }}
+                  <span v-for="tag in aiResult.tags" :key="tag" class="text-[8px] px-1 rounded font-bold border"
+                        :class="[
+                          tag === '高糖' ? 'bg-red-50 text-red-700 border-red-100' :
+                          tag === '高油' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                          tag === '高蛋白' ? 'bg-green-50 text-green-700 border-green-100' :
+                          tag === '纯净' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
+                          'bg-slate-50 text-slate-600 border-slate-200'
+                        ]">
+                    {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
                   </span>
                 </div>
               </div>
@@ -231,18 +243,26 @@ watch(show, (val) => {
             <van-button size="small" color="#7c3aed" class="h-8 px-4 rounded-lg">{{ isBuilding ? '加入配料' : (aiResult.isComposite ? '制作' : '添加') }}</van-button>
           </div>
           <div class="flex space-x-3 text-xs text-slate-500 mt-2 bg-white/50 dark:bg-black/20 p-2 rounded-lg">
-            <span>🔥 ~{{ aiResult.cals }}</span><span>🥚 ~{{ aiResult.p }}</span><span>🍞 ~{{ aiResult.c }}</span><span>🥑 ~{{ aiResult.f }}</span>
+            <span>🔥 ~{{ aiResult.calories }}</span><span>🥚 ~{{ aiResult.p }}</span><span>🍞 ~{{ aiResult.c }}</span><span>🥑 ~{{ aiResult.f }}</span>
           </div>
         </div>
 
-        <!-- 本地列表 -->
+        <div v-if="loading" class="text-center py-10">
+          <van-loading type="spinner" color="#7c3aed" vertical>正在向大贤者祈祷...</van-loading>
+        </div>
+
+        <div v-if="!loading && filteredList.length === 0" class="text-center py-10 text-slate-400">
+          <div class="text-4xl mb-2">🍃</div>
+          <div>暂无此分类食物</div>
+          <div class="text-xs mt-2">试试搜索或切换分类</div>
+        </div>
+
         <div class="space-y-2">
           <div v-for="item in filteredList" :key="item.id" @click="selectItem(item)"
                class="flex justify-between p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl active:bg-slate-50 dark:active:bg-slate-700 transition cursor-pointer">
             <div class="flex items-center">
               <span class="text-2xl mr-3 w-8 text-center">{{ item.icon }}</span>
               <div>
-                <!-- V2.3 Change: 格式化名称 -->
                 <div class="font-bold dark:text-white text-sm flex items-center">
                   {{ getDisplayName(item) }}
                   <span v-if="item.isComposite" class="ml-2 text-[8px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200">复合</span>
@@ -251,10 +271,10 @@ watch(show, (val) => {
                   <span v-for="tag in item.tags" :key="tag"
                         class="text-[8px] px-1.5 py-0.5 rounded font-bold border"
                         :class="[
-                          tag === 'HIGH_SUGAR' ? 'bg-red-50 text-red-700 border-red-100' :
-                          tag === 'HIGH_FAT' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                          tag === 'HIGH_PRO' ? 'bg-green-50 text-green-700 border-green-100' :
-                          tag === 'CLEAN' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
+                          tag === '高糖' ? 'bg-red-50 text-red-700 border-red-100' :
+                          tag === '高油' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                          tag === '高蛋白' ? 'bg-green-50 text-green-700 border-green-100' :
+                          tag === '纯净' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
                           'bg-slate-50 text-slate-600 border-slate-200'
                         ]">
                     {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
@@ -262,7 +282,7 @@ watch(show, (val) => {
                 </div>
                 <div class="text-xs text-slate-400 mt-1" v-else>
                   <span class="mr-2">{{ item.unit }}</span>
-                  <span>~{{ item.cals }} kcal</span>
+                  <span>~{{ item.calories }} kcal</span>
                 </div>
               </div>
             </div>
@@ -274,14 +294,13 @@ watch(show, (val) => {
         </div>
       </div>
 
-      <!-- 配餐底部栏 -->
       <transition name="van-slide-up">
         <div v-if="isBuilding" class="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 p-4 shadow-2xl z-20 rounded-t-2xl">
           <div class="flex justify-between items-center mb-3">
             <div class="text-sm font-bold dark:text-white">
               <i class="fas fa-utensils mr-2 text-purple-500"></i> 当前配料 ({{ basket.length }})
             </div>
-            <div class="text-xs text-slate-400" v-if="basket.length > 0">已选热量: {{ basket.reduce((a: any, b: any)=>a+(b.calories||0),0) }} kcal</div>
+            <div class="text-xs text-slate-400" v-if="basket.length > 0">已选热量: {{ basket.reduce((a, b)=>a+(b.calories||0),0) }} kcal</div>
           </div>
 
           <div class="flex gap-3 overflow-x-auto pb-2 mb-2 no-scrollbar" v-if="basket.length > 0">

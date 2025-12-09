@@ -1,28 +1,26 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-// 修复问题3：移除 storeToRefs 以解决 Proxy 报错
-// import { storeToRefs } from 'pinia';
 
 const store = useGameStore();
 
-// 改为直接访问或使用 computed
-const analysisRefDate = computed({
-  get: () => store.analysisRefDate,
-  set: (val) => store.analysisRefDate = val
-});
 const user = computed(() => store.user);
-const weeklyStats = computed(() => store.weeklyStats);
-const todayMacros = computed(() => store.todayMacros);
-const topFoods = computed(() => store.todayLogs.slice(0, 8));
+const weeklyStats = computed(() => store.weeklyStats || []);
+const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
+const topFoods = computed(() => (store.todayLogs || []).slice(0, 8));
 
 const activeTab = ref('today');
-// 选中的图表点（用于显示 Tooltip）
 const selectedPoint = ref<number | null>(null);
+
+const currentDateObj = computed(() => {
+  const dateStr = store.analysisRefDate || new Date().toISOString().split('T')[0];
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+});
 
 const weekRangeDateText = computed(() => {
   const stats = weeklyStats.value;
-  if(!stats.length || !stats[0] || !stats[6]) return '';
+  if(!stats || !stats.length || !stats[0] || !stats[6]) return '加载中...';
   const start = new Date(stats[0].date);
   const end = new Date(stats[6].date);
   return `${start.getFullYear()}.${start.getMonth()+1}.${start.getDate()} - ${end.getMonth()+1}.${end.getDate()}`;
@@ -30,19 +28,20 @@ const weekRangeDateText = computed(() => {
 
 const isCurrentWeek = computed(() => {
   const today = new Date();
-  const refDate = new Date(analysisRefDate.value);
+  const ref = currentDateObj.value;
   const getMonday = (d: Date) => {
     const day = d.getDay() || 7;
     const temp = new Date(d);
-    temp.setHours(0,0,0,0);
     temp.setDate(temp.getDate() - day + 1);
+    temp.setHours(0,0,0,0);
     return temp;
   };
-  return getMonday(refDate).getTime() >= getMonday(today).getTime();
+  return getMonday(ref).getTime() === getMonday(today).getTime();
 });
 
 const macroPct = computed(() => {
   const m = todayMacros.value;
+  if (!m) return { p: 0, c: 0, f: 0 };
   const total = (m.p + m.c + m.f) || 1;
   return {
     p: Math.round(m.p/total*100),
@@ -61,22 +60,25 @@ const getDayFlavorText = (status: string) => {
   }
 };
 
+// 修复 4: 严格的日期格式化 (YYYY-MM-DD)，确保与 store 中的 key 匹配
 const shiftWeek = (offset: number) => {
-  const [y, m, d] = analysisRefDate.value.split('-').map(Number);
-  const date = new Date(y || 2024, (m || 1) - 1, d || 1);
-  date.setDate(date.getDate() + (offset * 7));
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  store.analysisRefDate = `${year}-${month}-${day}`;
+  const d = new Date(currentDateObj.value);
+  d.setDate(d.getDate() + (offset * 7));
+
+  const y = d.getFullYear();
+  // 必须补零，否则匹配不到 store 中的 key (如 2023-5-1 vs 2023-05-01)
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+
+  store.analysisRefDate = `${y}-${m}-${day}`;
 };
 
 const resetToCurrentWeek = () => {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
-  store.analysisRefDate = `${year}-${month}-${day}`;
+  store.analysisRefDate = `${y}-${m}-${day}`;
 };
 
 const openDetail = (date: string) => {
@@ -84,39 +86,39 @@ const openDetail = (date: string) => {
   store.setModal('historyDetail', true);
 }
 
-// 深度监听触发 SVG 更新
+// 确保体重历史记录是响应式的
 const weightHistory = computed(() => {
-  return user.value.weightHistory ? [...user.value.weightHistory] : [];
+  return store.user.weightHistory ? [...store.user.weightHistory] : [];
 });
 
 const weightChartData = computed(() => {
   const history = weightHistory.value;
-  if (history.length === 0) return null;
+  if (!history || history.length === 0) return null;
 
   const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const recent = sorted.slice(-7); // 只取最近7次，保持图表稀疏度适中
+  const recent = sorted.slice(-14); // 取最近14条
 
   const weights = recent.map(r => r.weight);
-  const minW = Math.min(...weights) - 0.5;
-  const maxW = Math.max(...weights) + 0.5;
+  const minW = Math.min(...weights) - 1;
+  const maxW = Math.max(...weights) + 1;
   const range = maxW - minW || 1;
 
   const width = 300;
   const height = 150;
-  const padding = 20; // 增加内边距
+  const padding = 20;
 
   const points = recent.map((r, i) => {
-    const x = padding + (i / (Math.max(1, recent.length - 1))) * (width - 2 * padding);
+    const xStep = recent.length > 1 ? (width - 2 * padding) / (recent.length - 1) : 0;
+    const x = padding + (i * xStep);
     const y = height - padding - ((r.weight - minW) / range) * (height - 2 * padding);
-    return { x, y, val: r.weight, date: r.date.slice(5) };
+    const dateShort = r.date.slice(5);
+    return { x, y, val: r.weight, date: dateShort };
   });
 
-  // 生成折线路径
   const pathD = points.length > 1
     ? `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')
     : points.length === 1 ? `M ${padding} ${points[0].y} L ${width-padding} ${points[0].y}` : '';
 
-  // 生成填充区域路径 (闭合到底部)
   const areaPathD = points.length > 1
     ? `${pathD} L ${points[points.length-1].x} ${height} L ${points[0].x} ${height} Z`
     : '';
@@ -127,6 +129,7 @@ const weightChartData = computed(() => {
 
 <template>
   <div class="pb-20 bg-white dark:bg-slate-900 min-h-full transition-colors duration-300">
+    <!-- Header -->
     <div class="sticky top-0 bg-white dark:bg-slate-900 z-20 pt-4 px-4 pb-2 shadow-sm">
       <h2 class="text-xl font-rpg text-slate-800 dark:text-slate-100 mb-4 flex items-center justify-between">
         <span><i class="fas fa-scroll text-purple-600 mr-2"></i> 冒险手札</span>
@@ -180,7 +183,7 @@ const weightChartData = computed(() => {
         <div class="mt-8 text-center">
           <div class="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-1">Total Mana Output</div>
           <div class="text-4xl font-rpg text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 drop-shadow-lg">
-            {{ store.todayMacros.cals }} <span class="text-sm text-slate-500">kcal</span>
+            {{ todayMacros.cals }} <span class="text-sm text-slate-500">kcal</span>
           </div>
         </div>
       </div>
@@ -198,13 +201,13 @@ const weightChartData = computed(() => {
     <!-- Tab 2: 冒险编年史 -->
     <div v-else-if="activeTab === 'week'" class="p-4 animate-fade-in">
       <div class="flex justify-between items-center mb-4 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-        <button @click="shiftWeek(-1)" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-all">
+        <button @click="shiftWeek(-1)" class="w-10 h-8 flex items-center justify-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-all active:scale-95">
           <i class="fas fa-chevron-left"></i>
         </button>
-        <span class="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">
+        <span class="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono tracking-tighter">
             {{ weekRangeDateText }}
         </span>
-        <button @click="shiftWeek(1)" :disabled="isCurrentWeek" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-all disabled:opacity-30">
+        <button @click="shiftWeek(1)" class="w-10 h-8 flex items-center justify-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-all active:scale-95">
           <i class="fas fa-chevron-right"></i>
         </button>
       </div>
@@ -253,7 +256,7 @@ const weightChartData = computed(() => {
       </div>
     </div>
 
-    <!-- Tab 3: 体态趋势 (SVG 重构版) -->
+    <!-- Tab 3: 体态趋势 (Stable SVG) -->
     <div v-else class="p-4 animate-fade-in">
       <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm text-center" v-if="!weightChartData">
         <div class="text-4xl mb-2 grayscale opacity-50">⚖️</div>
@@ -264,11 +267,11 @@ const weightChartData = computed(() => {
       <div v-else class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
         <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-6 flex items-center justify-between">
           <span><i class="fas fa-weight mr-2 text-blue-500"></i> 近期体态变化</span>
-          <span class="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">最近7次</span>
+          <span class="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">最近14次</span>
         </h3>
 
         <!-- SVG Chart -->
-        <div class="relative w-full aspect-[2/1] rounded-xl select-none">
+        <div class="relative w-full aspect-[2/1] rounded-xl select-none touch-none">
           <svg viewBox="0 0 300 150" class="w-full h-full overflow-visible">
             <defs>
               <linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1">
@@ -286,24 +289,37 @@ const weightChartData = computed(() => {
             <path :d="weightChartData.areaPathD" fill="url(#areaGradient)" />
 
             <!-- Path Line -->
-            <path :d="weightChartData.pathD" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-sm" />
+            <path :d="weightChartData.pathD" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-sm" />
 
-            <!-- Points -->
-            <circle v-for="(p, i) in weightChartData.points" :key="i"
-                    :cx="p.x" :cy="p.y" r="5" fill="#3b82f6" stroke="white" stroke-width="2" class="dark:stroke-slate-800 cursor-pointer transition-all hover:scale-125"
-                    @click="selectedPoint = i" />
+            <!-- Points Layer (Static) -->
+            <g v-for="(p, i) in weightChartData.points" :key="'p'+i">
+              <circle :cx="p.x" :cy="p.y" r="3" fill="#3b82f6" stroke="#fff" stroke-width="1.5" />
+            </g>
 
-            <!-- Labels (Always show date, show value on click or last point) -->
-            <g v-for="(p, i) in weightChartData.points" :key="'l'+i">
-              <!-- Value Label -->
-              <text v-if="selectedPoint === i || i === weightChartData.points.length - 1"
-                    :x="p.x" :y="p.y - 12" font-size="10" text-anchor="middle" fill="#3b82f6" font-weight="bold" class="drop-shadow-md bg-white">
-                {{ p.val }}
-              </text>
-              <!-- Date Label -->
-              <text :x="p.x" :y="165" font-size="8" text-anchor="middle" fill="currentColor" class="text-slate-400 dark:text-slate-500">
-                {{ p.date }}
-              </text>
+            <!-- Interaction Layer (Invisible Hit Targets) -->
+            <g v-for="(p, i) in weightChartData.points" :key="'hit'+i">
+              <circle :cx="p.x" :cy="p.y" r="15" fill="transparent" class="cursor-pointer" @mouseenter="selectedPoint = i" @click="selectedPoint = i" />
+            </g>
+
+            <!-- Highlight Layer (On Top) -->
+            <!-- 修复 5: pointer-events-none 彻底消除交互抖动 (鼠标穿透) -->
+            <g v-if="selectedPoint !== null && weightChartData.points[selectedPoint]" class="pointer-events-none transition-all duration-200">
+              <!-- Highlight Circle -->
+              <circle :cx="weightChartData.points[selectedPoint].x" :cy="weightChartData.points[selectedPoint].y" r="6" fill="#fff" stroke="#3b82f6" stroke-width="3" />
+
+              <!-- Tooltip Group -->
+              <g>
+                <rect :x="weightChartData.points[selectedPoint].x - 24" :y="weightChartData.points[selectedPoint].y - 45" width="48" height="24" rx="6" fill="#1e293b" class="shadow-lg" />
+                <!-- Triangle -->
+                <path :d="`M ${weightChartData.points[selectedPoint].x} ${weightChartData.points[selectedPoint].y - 21} L ${weightChartData.points[selectedPoint].x - 6} ${weightChartData.points[selectedPoint].y - 12} L ${weightChartData.points[selectedPoint].x + 6} ${weightChartData.points[selectedPoint].y - 12} Z`" fill="#1e293b" />
+
+                <text :x="weightChartData.points[selectedPoint].x" :y="weightChartData.points[selectedPoint].y - 29" font-size="11" text-anchor="middle" fill="#ffffff" font-weight="bold">
+                  {{ weightChartData.points[selectedPoint].val }}kg
+                </text>
+              </g>
+
+              <!-- Vertical Line -->
+              <line :x1="weightChartData.points[selectedPoint].x" :y1="weightChartData.points[selectedPoint].y + 6" :x2="weightChartData.points[selectedPoint].x" y2="150" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2 2" opacity="0.5" />
             </g>
           </svg>
         </div>

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { reactive, computed, toRaw } from 'vue';
-import type { FoodLog } from '@/types';
+import type { FoodLog, FoodItem } from '@/types';
 import { MONSTERS, RACES } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
 import { getLocalDateStr } from '@/utils/dateUtils';
@@ -10,13 +10,12 @@ import { useHeroStore } from './useHeroStore';
 import { useCollectionStore } from './useCollectionStore';
 
 const MINIONS_POOL = [
-  { name: '糖分小鬼', icon: '🍬', weakness: '忌高糖', weaknessType: 'LOW_CARB' },
-  { name: '油腻史莱姆', icon: '💧', weakness: '忌油腻', weaknessType: 'LOW_FAT' },
-  { name: '碳水强盗', icon: '🍞', weakness: '忌高碳', weaknessType: 'LOW_CARB' },
-  { name: '懒惰炸弹', icon: '💣', weakness: '需高蛋白', weaknessType: 'HIGH_PRO' }
+  { name: '糖分小鬼', icon: '🍬', weakness: '忌高糖', weaknessType: '低碳' },
+  { name: '油腻史莱姆', icon: '💧', weakness: '忌油腻', weaknessType: '低脂' },
+  { name: '碳水强盗', icon: '🍞', weakness: '忌高碳', weaknessType: '低碳' },
+  { name: '懒惰炸弹', icon: '💣', weakness: '需高蛋白', weaknessType: '高蛋白' }
 ];
 
-// Combo 有效时间窗口 (3小时)
 const COMBO_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 export const useBattleStore = defineStore('battle', () => {
@@ -26,20 +25,14 @@ export const useBattleStore = defineStore('battle', () => {
 
   const logs = reactive<Record<string, FoodLog[]>>({});
 
-  // NEW V2.4: 全局属性缓存 (Global Stats Cache)
-  // 解决每次计算 heroStats 都要遍历数千条 log 的 O(N) 性能问题
   const globalStats = reactive({
-    totalP: 0,
-    totalC: 0,
-    totalF: 0,
-    totalCals: 0
+    totalP: 0, totalC: 0, totalF: 0, totalCals: 0
   });
 
-  // 连击状态追踪
   const comboState = reactive({
     count: 0,
     lastLogTime: 0,
-    lastLogId: 0
+    lastLogId: 0 as string | number
   });
 
   const todayLogs = computed((): FoodLog[] => {
@@ -58,7 +51,6 @@ export const useBattleStore = defineStore('battle', () => {
     }), { cals: 0, p: 0, c: 0, f: 0 });
   });
 
-  // 优化：直接从缓存读取，性能 O(1)
   const historyTotalMacros = computed(() => {
     return {
       totalP: globalStats.totalP,
@@ -68,25 +60,19 @@ export const useBattleStore = defineStore('battle', () => {
     };
   });
 
-  // --- 初始化/重算缓存逻辑 ---
-  // 仅在 loadState 时调用一次，或者在数据导入时调用
   function recalculateGlobalStats() {
     let p = 0, c = 0, f = 0, cals = 0;
     Object.values(logs).forEach((dayLogs) => {
       if (Array.isArray(dayLogs)) {
         dayLogs.forEach(l => {
-          p += (l.p || 0);
-          c += (l.c || 0);
-          f += (l.f || 0);
-          cals += (l.calories || 0);
+          p += (l.p || 0); c += (l.c || 0); f += (l.f || 0); cals += (l.calories || 0);
         });
       }
     });
-    globalStats.totalP = p;
-    globalStats.totalC = c;
-    globalStats.totalF = f;
-    globalStats.totalCals = cals;
-    console.log('[BattleStore] Global stats recalculated:', globalStats);
+    globalStats.totalP = Math.round(p);
+    globalStats.totalC = Math.round(c);
+    globalStats.totalF = Math.round(f);
+    globalStats.totalCals = Math.round(cals);
   }
 
   const dailyMonster = computed(() => {
@@ -101,10 +87,11 @@ export const useBattleStore = defineStore('battle', () => {
     const yLogs = logs[yKey] || [];
     const yStats = yLogs.reduce((acc, l) => ({ c: acc.c+(l.c||0), f: acc.f+(l.f||0), p: acc.p+(l.p||0) }), {c:0, f:0, p:0});
 
-    let monsterType = 'BALANCED';
-    if (yStats.c > 300) monsterType = 'LOW_CARB';
-    else if (yStats.f > 80) monsterType = 'LOW_FAT';
-    else if (yStats.p < 30 && yLogs.length > 0) monsterType = 'HIGH_PRO';
+    // 逻辑判定：根据昨日饮食倾向生成今日 Boss
+    let monsterType = '均衡';
+    if (yStats.c > 300) monsterType = '低碳';
+    else if (yStats.f > 80) monsterType = '低脂';
+    else if (yStats.p < 30 && yLogs.length > 0) monsterType = '高蛋白';
 
     const candidates = MONSTERS.filter(m => m.weaknessType === monsterType);
     const seed = todayStr.split('').reduce((a,b)=>a+b.charCodeAt(0),0);
@@ -115,7 +102,6 @@ export const useBattleStore = defineStore('battle', () => {
     const target = heroStore.dailyTarget;
     const consumed = todayMacros.value.cals;
 
-    // V2.1: Boss 血量动态平衡
     const bossReserveHP = Math.max(500, Math.floor(target * 0.4));
     const minionHP = 500;
     const minionPool = Math.max(0, target - bossReserveHP);
@@ -196,23 +182,24 @@ export const useBattleStore = defineStore('battle', () => {
     return days;
   });
 
-  function commitLog(logItem: any) {
+  function commitLog(logItem: FoodLog) {
     const dateKey = systemStore.currentDate || getLocalDateStr();
     if (!logs[dateKey]) logs[dateKey] = [];
     const cleanLogItem = JSON.parse(JSON.stringify(toRaw(logItem)));
 
-    logs[dateKey].unshift({
-      id: Date.now(),
+    const newLog: FoodLog = {
       ...cleanLogItem,
+      id: Date.now(),
       mealType: systemStore.temp.activeMealType,
       timestamp: new Date().toISOString()
-    });
+    };
 
-    // 增量更新缓存
-    globalStats.totalP += (cleanLogItem.p || 0);
-    globalStats.totalC += (cleanLogItem.c || 0);
-    globalStats.totalF += (cleanLogItem.f || 0);
-    globalStats.totalCals += (cleanLogItem.calories || 0);
+    logs[dateKey].unshift(newLog);
+
+    globalStats.totalP = Math.round(globalStats.totalP + (cleanLogItem.p || 0));
+    globalStats.totalC = Math.round(globalStats.totalC + (cleanLogItem.c || 0));
+    globalStats.totalF = Math.round(globalStats.totalF + (cleanLogItem.f || 0));
+    globalStats.totalCals = Math.round(globalStats.totalCals + (cleanLogItem.calories || 0));
 
     collectionStore.checkDailyQuests(cleanLogItem);
     checkAchievements(false);
@@ -229,9 +216,15 @@ export const useBattleStore = defineStore('battle', () => {
     collectionStore.achievements.forEach(ach => {
       if (ach.unlocked) return;
       let pass = false;
+      // 检查逻辑 (ID对应)
       if (ach.id===1 && list.length>0) pass=true;
       if (ach.id===2 && stats.p>100) pass=true;
       if (ach.id===3 && list.some(l=>l.category==='VEG') && list.reduce((a,b)=>a+(b.grams||0),0)>300) pass=true;
+
+      // 新增成就检查逻辑
+      if (ach.id===7 && list.some(l=>l.tags?.includes('均衡'))) pass=true;
+      if (ach.id===8 && comboState.count >= 10) pass=true;
+
       if (pass) {
         if(!isInitCheck) collectionStore.unlockAch(ach.id);
         else ach.unlocked = true;
@@ -282,15 +275,13 @@ export const useBattleStore = defineStore('battle', () => {
     if (!dayLogs) return;
     const idx = dayLogs.findIndex(l => l.id === log.id);
     if (idx !== -1) {
-      const anyLog = log as any;
-      if (anyLog.gainedExp) heroStore.addExp(-anyLog.gainedExp);
+      if (log.gainedExp) heroStore.addExp(-log.gainedExp);
       if (log.damageTaken) heroStore.heal(log.damageTaken);
 
-      // 增量更新缓存 (减去)
-      globalStats.totalP -= (log.p || 0);
-      globalStats.totalC -= (log.c || 0);
-      globalStats.totalF -= (log.f || 0);
-      globalStats.totalCals -= (log.calories || 0);
+      globalStats.totalP = Math.round(globalStats.totalP - (log.p || 0));
+      globalStats.totalC = Math.round(globalStats.totalC - (log.c || 0));
+      globalStats.totalF = Math.round(globalStats.totalF - (log.f || 0));
+      globalStats.totalCals = Math.round(globalStats.totalCals - (log.calories || 0));
 
       dayLogs.splice(idx, 1);
       comboState.count = Math.max(0, comboState.count - 1);
@@ -298,12 +289,12 @@ export const useBattleStore = defineStore('battle', () => {
     }
   }
 
-  // --- Combo 逻辑 ---
+  // [Fix: Chinese Tags] 连击判断使用中文标签
   function calculateCombo(tags: string[], timestamp: number) {
     const now = Date.now();
     const isWithinWindow = (now - comboState.lastLogTime) < COMBO_WINDOW_MS;
-    const isBadFood = tags.includes('HIGH_SUGAR') || tags.includes('HIGH_FAT') || tags.includes('HIGH_SODIUM');
-    const isGoodFood = tags.includes('CLEAN') || tags.includes('HIGH_PRO') || tags.includes('BALANCED');
+    const isBadFood = tags.includes('高糖') || tags.includes('高油') || tags.includes('高盐');
+    const isGoodFood = tags.includes('纯净') || tags.includes('高蛋白') || tags.includes('均衡');
 
     let newCombo = comboState.count;
     let comboMultiplier = 1.0;
@@ -324,90 +315,151 @@ export const useBattleStore = defineStore('battle', () => {
     return { newCombo, comboMultiplier, comboMsg };
   }
 
-  function battleCommit(item: any) {
+  function battleCommit(item: FoodItem) {
     let tags = item.tags || [];
     const c = Number(item.c)||0, f = Number(item.f)||0, p = Number(item.p)||0;
     const grams = Number(item.grams)||100;
 
     const newTags = new Set<string>();
     if (item.tags) item.tags.forEach((t: string) => {
-      if (t === 'CLEAN' || t === 'BALANCED') newTags.add(t);
+      // 保留原有 tag (已经是中文了)
+      newTags.add(t);
     });
 
-    if (c > 20 && (c/grams > 0.2)) newTags.add('HIGH_CARB');
-    if (f > 10 && (f/grams > 0.1)) newTags.add('HIGH_FAT');
-    if (p > 15 && (p/grams > 0.15)) newTags.add('HIGH_PRO');
-    if (item.name.includes('糖') || item.name.includes('奶茶') || item.name.includes('蛋糕')) newTags.add('HIGH_SUGAR');
+    // [Fix: Auto-tagging in Chinese] 自动打标逻辑
+    if (c > 20 && (c/grams > 0.2)) newTags.add('高碳');
+    if (f > 10 && (f/grams > 0.1)) newTags.add('高油');
+    if (p > 15 && (p/grams > 0.15)) newTags.add('高蛋白');
+    if (item.name.includes('糖') || item.name.includes('奶茶') || item.name.includes('蛋糕')) newTags.add('高糖');
+    if (newTags.has('高碳') && newTags.has('高蛋白') && newTags.has('纯净')) newTags.add('均衡');
 
-    item.tags = Array.from(newTags);
-    collectionStore.saveToFoodDb(item);
+    // 构造一个可修改的副本
+    const battleItem: FoodLog = {
+      ...item,
+      tags: Array.from(newTags),
+      mealType: systemStore.temp.activeMealType,
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      collectionStore.saveToFoodDb(battleItem);
+    } catch (e) {
+      console.warn('Failed to auto-save food to DB, but continuing commit...', e);
+    }
 
     const monster = stageInfo.value.currentObj?.data;
     const stats = getHeroStatsForBattle();
+
+    const activeSkill = heroStore.consumeSkillEffect();
+    if (activeSkill) {
+      battleItem.skillEffect = activeSkill.id;
+    }
 
     let multiplier = 1.0;
     let isResist = false;
     let resistReason = '';
     const isBossOverloaded = stageInfo.value.isOverloaded;
 
-    if (monster) {
-      if (monster.weaknessType === 'LOW_CARB' && (newTags.has('HIGH_CARB') || c > 30)) {
+    const ignoreResist = activeSkill?.effectType === 'IGNORE_RESIST';
+
+    // [Fix: Weakness Logic in Chinese] 弱点判定使用中文标签
+    if (monster && !ignoreResist) {
+      if (monster.weaknessType === '低碳' && (newTags.has('高碳') || c > 30)) {
         multiplier = 0.3; isResist = true; resistReason = 'Boss 厌恶碳水！';
-      } else if (monster.weaknessType === 'LOW_FAT' && (newTags.has('HIGH_FAT') || f > 15)) {
+      } else if (monster.weaknessType === '低脂' && (newTags.has('高油') || f > 15)) {
         multiplier = 0.3; isResist = true; resistReason = 'Boss 厌恶油腻！';
       }
     }
 
-    const { newCombo, comboMultiplier, comboMsg } = calculateCombo(item.tags, Date.now());
+    const { newCombo, comboMultiplier, comboMsg } = calculateCombo(battleItem.tags || [], Date.now());
     comboState.count = newCombo;
 
     if (!isResist) {
       multiplier *= comboMultiplier;
     }
 
-    item.multiplier = multiplier;
-    item.comboCount = newCombo;
-
-    const xp = item.isComposite ? 60 : 30;
-    item.gainedExp = xp;
-
-    if (isResist || isBossOverloaded) {
-      systemStore.triggerShake();
-      let baseDamage = 30;
-      if (isBossOverloaded) {
-        baseDamage *= 2;
-        resistReason = resistReason ? `${resistReason} (暴走)` : 'Boss 处于暴走状态！';
-      }
-      const damage = Math.max(1, baseDamage - stats.blockValue);
-
-      if (Math.random() < stats.dodgeChance) {
-        item.dodged = true;
-        showNotify({ type: 'success', message: '⚡ 装备生效！完美闪避！' });
-      } else {
-        heroStore.user.heroCurrentHp = Math.max(0, heroStore.user.heroCurrentHp - damage);
-        item.damageTaken = damage;
-        item.blocked = stats.blockValue;
-        showNotify({ type: 'danger', message: `💔 ${resistReason || '受到反击'} (-${damage} HP)` });
-      }
-    } else {
-      const heal = Math.floor((item.calories||0)/20);
-      if (heal>0) {
-        heroStore.heal(heal);
-        let msg = `恢复 ${heal} HP`;
-        if (newCombo > 1) msg += ` | 连击 x${newCombo} 🔥`;
-        showToast(msg);
-      }
+    if (activeSkill?.effectType === 'CRIT_GUARANTEE') {
+      if (activeSkill.id === 'ORC_RAGE') multiplier = 3.0;
+      else multiplier = Math.max(multiplier, 1.5);
     }
 
-    commitLog(item);
+    battleItem.multiplier = multiplier;
+    battleItem.comboCount = newCombo;
+
+    let xp = battleItem.isComposite ? 60 : 30;
+    if (activeSkill?.effectType === 'DOUBLE_EXP') {
+      xp *= 2;
+    }
+    battleItem.gainedExp = xp;
+
+    if (activeSkill?.effectType === 'DOUBLE_EXP' && activeSkill.id === 'HUMAN_PRAYER') {
+      const healAmt = Math.floor((battleItem.calories || 0) * 0.5);
+      heroStore.heal(healAmt);
+      showNotify({ type: 'success', message: `🙏 圣光转化：恢复 ${healAmt} HP`, duration: 2000 });
+    }
+    else if (isResist || isBossOverloaded) {
+      const isBlockAll = activeSkill?.id === 'DWARF_DRINK';
+
+      if (!isBlockAll) {
+        systemStore.triggerShake();
+        let baseDamage = 30;
+        if (isBossOverloaded) {
+          baseDamage *= 2;
+          resistReason = resistReason ? `${resistReason} (暴走)` : 'Boss 处于暴走状态！';
+        }
+        const damage = Math.max(1, baseDamage - stats.blockValue);
+
+        if (Math.random() < stats.dodgeChance) {
+          battleItem.dodged = true;
+          showNotify({ type: 'success', message: '⚡ 装备生效！完美闪避！', duration: 2000 });
+        } else {
+          heroStore.damage(damage);
+          battleItem.damageTaken = damage;
+          battleItem.blocked = stats.blockValue;
+          showNotify({ type: 'danger', message: `💔 ${resistReason || '受到反击'} (-${damage} HP)`, duration: 3000 });
+        }
+      } else {
+        showNotify({ type: 'primary', message: '🍺 酒仙护体！格挡了反击！', duration: 2000 });
+        battleItem.blocked = 999;
+      }
+    }
+    else {
+      let heal = Math.floor((battleItem.calories||0)/20);
+
+      if (activeSkill?.effectType === 'LIFESTEAL') {
+        heal += Math.floor((battleItem.calories * battleItem.multiplier!) * 0.1);
+      }
+      if (activeSkill?.id === 'ORC_RAGE') {
+        heroStore.damage(50);
+        showNotify({ type: 'warning', message: '🩸 血祭：自身扣除 50 HP', duration: 2000 });
+      }
+
+      let msg = `✅ 已记录：${battleItem.name}`;
+      if (heal > 0) {
+        heroStore.heal(heal);
+        msg += `\n❤️ 恢复 ${heal} HP`;
+      }
+      if (newCombo > 1) msg += ` | 连击 x${newCombo}`;
+      if (activeSkill) msg += ` | ${activeSkill.name}`;
+
+      showNotify({ type: 'success', message: msg, duration: 2000 });
+    }
+
+    commitLog(battleItem);
     heroStore.addExp(xp);
 
-    const quests = collectionStore.dailyQuests;
-    const completedCount = quests.filter(q => q.completed).length;
+    const quests = collectionStore.quests.filter(q => q.status === 'ACCEPTED');
+    const completedCount = quests.filter(q => q.current >= q.target).length;
     if (completedCount === quests.length && quests.length > 0) {
-      showNotify({ type: 'success', message: '🎉 今日任务全部完成！' });
+      setTimeout(() => {
+        showNotify({ type: 'success', message: '🎉 今日任务全部完成！', background: '#f59e0b' });
+      }, 500);
     }
   }
 
-  return { logs, todayLogs, todayMacros, historyTotalMacros, stageInfo, weeklyStats, logsReverse, comboState, battleCommit, deleteLog, checkAchievements, commitLog, recalculateGlobalStats };
+  return {
+    logs, todayLogs, todayMacros, historyTotalMacros, stageInfo, weeklyStats,
+    logsReverse, comboState,
+    battleCommit, deleteLog, checkAchievements, commitLog, recalculateGlobalStats
+  };
 });

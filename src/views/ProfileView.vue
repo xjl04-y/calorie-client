@@ -4,9 +4,10 @@ import { useGameStore } from '@/stores/counter';
 import { showToast, Dialog } from 'vant';
 import { getLocalDateStr } from '@/utils/dateUtils';
 import { getCombatRank, downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
+import type { Achievement } from '@/types'; // Import types
 
 const store = useGameStore();
-// 注意：在 script 中访问 computed 需要 .value，但在 template 中不需要
+// 注意: 在脚本中访问 user 需要 .value，在模板中不需要
 const user = computed(() => store.user);
 const heroStats = computed(() => store.heroStats);
 
@@ -22,10 +23,12 @@ const equipment = computed(() => {
     { id: 'ACCESSORY', name: '饰品', icon: 'fas fa-ring' }
   ];
   return slotDefinitions.map(def => {
-    // script 中需要 user.value
+    // 脚本中访问 user.value
     const equippedId = user.value.equipped[def.id as keyof typeof user.value.equipped];
-    // @ts-ignore
-    const equippedItem = equippedId ? store.achievements.find(a => a.id === equippedId) : null;
+    // [Fix 3.3] 显式类型检查，移除 @ts-ignore
+    const equippedItem = equippedId
+      ? store.achievements.find((a: Achievement) => a.id === equippedId)
+      : null;
     return { slotId: def.id, slotName: def.name, defaultIcon: def.icon, item: equippedItem || null };
   });
 });
@@ -60,7 +63,7 @@ const changeAvatar = () => {
 };
 
 const startEditProfile = () => {
-  // script 中需要 .value
+  // 使用 .value
   editData.height = user.value.height;
   editData.weight = user.value.weight;
   editData.age = user.value.age;
@@ -86,6 +89,7 @@ const validate = () => {
 const saveProfile = () => {
   if (!validate()) return;
   store.user.height = editData.height;
+  // 此处调用 store 方法更新体重并推入历史记录
   store.updateWeight(editData.weight);
   store.user.age = editData.age;
   store.saveState();
@@ -154,7 +158,7 @@ const expPercent = computed(() => {
 
 <template>
   <div class="pb-24 bg-slate-900 min-h-full text-white">
-    <!-- 头部背景 -->
+    <!-- Header -->
     <div class="relative h-64 bg-gradient-to-b from-purple-900 to-slate-900">
       <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 
@@ -169,7 +173,7 @@ const expPercent = computed(() => {
       <div class="absolute -bottom-16 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-20 w-full px-6">
         <div class="relative group cursor-pointer mb-2" @click="changeAvatar">
           <div class="w-28 h-28 rounded-full border-4 border-slate-800 p-1 bg-slate-700 shadow-2xl relative z-10 overflow-hidden">
-            <!-- 修复：Template 中移除 .value -->
+            <!-- 模板中访问无需 .value -->
             <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full rounded-full object-cover" />
             <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-600" />
           </div>
@@ -195,11 +199,10 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- 基础数值 & 战力展示 -->
+    <!-- Base Stats -->
     <div class="mt-20 text-center px-6">
       <div class="flex justify-center mb-4">
         <span class="bg-slate-800 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold flex items-center">
-            <!-- 修复：Template 中移除 .value -->
             <span class="mr-1 text-lg">{{ heroStats.raceIcon }}</span> {{ heroStats.raceName }}
         </span>
       </div>
@@ -223,7 +226,7 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- 核心属性 -->
+    <!-- Core Attributes -->
     <div class="px-4 mt-6">
       <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
         <h3 class="text-sm font-bold text-slate-400 mb-5 flex items-center"><i class="fas fa-chart-bar mr-2 text-purple-500"></i> 核心属性</h3>
@@ -252,7 +255,7 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- 装备栏 -->
+    <!-- Equipment -->
     <div class="px-4 mt-4">
       <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] relative overflow-hidden">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-leather.png')] opacity-20 pointer-events-none"></div>
@@ -278,7 +281,7 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- 数据安全区 V2.4 Improved -->
+    <!-- Data Management -->
     <div class="px-4 mt-6 mb-6">
       <div class="bg-slate-800/30 border border-slate-700 rounded-2xl p-4">
         <h3 class="text-xs font-bold text-slate-500 mb-3 flex items-center">
@@ -291,7 +294,7 @@ const expPercent = computed(() => {
           <button @click="triggerFileImport" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-2 rounded-lg transition border border-slate-600 active:scale-95">
             <i class="fas fa-file-upload mr-1"></i> 读取卷轴
           </button>
-          <!-- 隐藏的文件输入框 -->
+          <!-- Hidden Input -->
           <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
         </div>
         <p class="text-[10px] text-slate-600 mt-2 text-center">存档已启用 RPG 协议，请妥善保管您的卷轴。</p>

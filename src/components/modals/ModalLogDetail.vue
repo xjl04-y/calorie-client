@@ -21,12 +21,19 @@ const handleDelete = () => {
       confirmButtonText: '确认撤销',
       confirmButtonColor: '#7c3aed'
     }).then(() => {
-      // @ts-ignore
-      store.deleteLog(log.value);
+      // [Fix] 空值检查，确保 log.value 存在
+      if (log.value) {
+        store.deleteLog(log.value);
+        show.value = false; // 关闭弹窗
+      }
     }).catch(() => {
       // 取消操作
     });
   }
+};
+
+const MEAL_LABELS: Record<string, string> = {
+  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食'
 };
 </script>
 
@@ -40,7 +47,7 @@ const handleDelete = () => {
       <!-- 标签 -->
       <div class="flex flex-wrap justify-center gap-1 mb-4" v-if="log.damageTaken === undefined">
                 <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1 rounded">
-                    {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label }}
+                    {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
                 </span>
       </div>
 
@@ -80,6 +87,12 @@ const handleDelete = () => {
           <div class="text-xs text-slate-400">时间</div>
           <div class="font-bold text-xs dark:text-white">{{ log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '--:--' }}</div>
         </div>
+
+        <!-- [Fix] 使用中文显示 -->
+        <div class="text-left">
+          <div class="text-xs text-slate-400">类型</div>
+          <div class="font-bold text-xs dark:text-white">{{ MEAL_LABELS[log.mealType] || log.mealType }}</div>
+        </div>
       </div>
 
       <!-- 营养成分 -->
@@ -100,10 +113,5 @@ const handleDelete = () => {
 </template>
 
 <style scoped>
-.tag-HIGH_SUGAR { @apply bg-red-100 text-red-800 border-red-200 border; }
-.tag-HIGH_FAT { @apply bg-yellow-100 text-yellow-800 border-yellow-200 border; }
-.tag-HIGH_SODIUM { @apply bg-slate-200 text-slate-700 border-slate-300 border; }
-.tag-HIGH_CARB { @apply bg-orange-100 text-orange-800 border-orange-200 border; }
-.tag-HIGH_PRO { @apply bg-green-100 text-green-800 border-green-200 border; }
-.tag-CLEAN { @apply bg-cyan-100 text-cyan-800 border-cyan-200 border; }
+/* 使用 style.css 中的全局样式 */
 </style>

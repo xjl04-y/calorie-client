@@ -23,41 +23,41 @@ const RACE_STYLES: Record<string, { prefixes: string[], style: string }> = {
   }
 };
 
-// --- 2. 种族专属数据池 (本地 RPG 引擎) ---
+// --- 2. 种族专属数据池 (本地 RPG 引擎 - 中文标签版) ---
 const RACE_MOCK_DB: Record<string, any[]> = {
   HUMAN: [
-    { name: '烤鸡', cals: 200, p: 20, c: 0, f: 10, unit: '只', icon: '🍗', tags: ['HIGH_PRO'] },
-    { name: '面包', cals: 150, p: 5, c: 30, f: 2, unit: '块', icon: '🍞', tags: ['HIGH_CARB'] },
-    { name: '炖菜', cals: 180, p: 10, c: 15, f: 8, unit: '碗', icon: '🍲', tags: ['BALANCED'], isComposite: true },
-    { name: '苹果派', cals: 300, p: 2, c: 40, f: 15, unit: '块', icon: '🥧', tags: ['HIGH_SUGAR', 'HIGH_CARB'] },
-    { name: '啤酒', cals: 100, p: 1, c: 10, f: 0, unit: '杯', icon: '🍺', tags: ['HIGH_CARB'] }
+    { name: '烤鸡', cals: 200, p: 20, c: 0, f: 10, unit: '只', icon: '🍗', tags: ['高蛋白'] },
+    { name: '面包', cals: 150, p: 5, c: 30, f: 2, unit: '块', icon: '🍞', tags: ['高碳'] },
+    { name: '炖菜', cals: 180, p: 10, c: 15, f: 8, unit: '碗', icon: '🍲', tags: ['均衡'], isComposite: true },
+    { name: '苹果派', cals: 300, p: 2, c: 40, f: 15, unit: '块', icon: '🥧', tags: ['高糖', '高碳'] },
+    { name: '啤酒', cals: 100, p: 1, c: 10, f: 0, unit: '杯', icon: '🍺', tags: ['高碳'] }
   ],
   ELF: [
-    { name: '精灵饼干', cals: 100, p: 2, c: 20, f: 2, unit: '块', icon: '🍪', tags: ['HIGH_CARB', 'CLEAN'] },
-    { name: '森林沙拉', cals: 80, p: 2, c: 15, f: 1, unit: '盘', icon: '🥗', tags: ['CLEAN'], isComposite: true },
-    { name: '月亮井水', cals: 0, p: 0, c: 0, f: 0, unit: '瓶', icon: '💧', tags: ['CLEAN'] },
-    { name: '野果拼盘', cals: 120, p: 1, c: 25, f: 0, unit: '份', icon: '🍇', tags: ['CLEAN', 'HIGH_SUGAR'] },
-    { name: '花蜜', cals: 50, p: 0, c: 12, f: 0, unit: '勺', icon: '🍯', tags: ['HIGH_SUGAR'] }
+    { name: '精灵饼干', cals: 100, p: 2, c: 20, f: 2, unit: '块', icon: '🍪', tags: ['高碳', '纯净'] },
+    { name: '森林沙拉', cals: 80, p: 2, c: 15, f: 1, unit: '盘', icon: '🥗', tags: ['纯净'], isComposite: true },
+    { name: '月亮井水', cals: 0, p: 0, c: 0, f: 0, unit: '瓶', icon: '💧', tags: ['纯净'] },
+    { name: '野果拼盘', cals: 120, p: 1, c: 25, f: 0, unit: '份', icon: '🍇', tags: ['纯净', '高糖'] },
+    { name: '花蜜', cals: 50, p: 0, c: 12, f: 0, unit: '勺', icon: '🍯', tags: ['高糖'] }
   ],
   ORC: [
-    { name: '带骨肉排', cals: 400, p: 35, c: 0, f: 25, unit: '块', icon: '🍖', tags: ['HIGH_PRO', 'HIGH_FAT'] },
-    { name: '烤全羊', cals: 800, p: 60, c: 0, f: 50, unit: '只', icon: '🐐', tags: ['HIGH_PRO', 'HIGH_FAT'] },
-    { name: '乱炖肉汤', cals: 350, p: 25, c: 10, f: 20, unit: '桶', icon: '🥘', tags: ['HIGH_FAT'], isComposite: true },
-    { name: '生鱼片', cals: 150, p: 20, c: 0, f: 5, unit: '条', icon: '🐟', tags: ['HIGH_PRO'] },
-    { name: '大骨棒', cals: 100, p: 5, c: 0, f: 8, unit: '根', icon: '🦴', tags: ['HIGH_FAT'] }
+    { name: '带骨肉排', cals: 400, p: 35, c: 0, f: 25, unit: '块', icon: '🍖', tags: ['高蛋白', '高油'] },
+    { name: '烤全羊', cals: 800, p: 60, c: 0, f: 50, unit: '只', icon: '🐐', tags: ['高蛋白', '高油'] },
+    { name: '乱炖肉汤', cals: 350, p: 25, c: 10, f: 20, unit: '桶', icon: '🥘', tags: ['高油'], isComposite: true },
+    { name: '生鱼片', cals: 150, p: 20, c: 0, f: 5, unit: '条', icon: '🐟', tags: ['高蛋白'] },
+    { name: '大骨棒', cals: 100, p: 5, c: 0, f: 8, unit: '根', icon: '🦴', tags: ['高油'] }
   ],
   DWARF: [
-    { name: '黑麦面包', cals: 250, p: 8, c: 45, f: 3, unit: '块', icon: '🥖', tags: ['HIGH_CARB'] },
-    { name: '烤猪肘', cals: 600, p: 40, c: 0, f: 45, unit: '个', icon: '🥓', tags: ['HIGH_FAT', 'HIGH_PRO'] },
-    { name: '烈酒', cals: 200, p: 0, c: 15, f: 0, unit: '桶', icon: '🍺', tags: ['HIGH_CARB'] },
-    { name: '咸鱼干', cals: 180, p: 30, c: 0, f: 5, unit: '条', icon: '🐟', tags: ['HIGH_PRO', 'HIGH_SODIUM'] },
-    { name: '矿工馅饼', cals: 400, p: 15, c: 40, f: 20, unit: '个', icon: '🥟', tags: ['HIGH_CARB', 'HIGH_FAT'], isComposite: true }
+    { name: '黑麦面包', cals: 250, p: 8, c: 45, f: 3, unit: '块', icon: '🥖', tags: ['高碳'] },
+    { name: '烤猪肘', cals: 600, p: 40, c: 0, f: 45, unit: '个', icon: '🥓', tags: ['高油', '高蛋白'] },
+    { name: '烈酒', cals: 200, p: 0, c: 15, f: 0, unit: '桶', icon: '🍺', tags: ['高碳'] },
+    { name: '咸鱼干', cals: 180, p: 30, c: 0, f: 5, unit: '条', icon: '🐟', tags: ['高蛋白', '高盐'] },
+    { name: '矿工馅饼', cals: 400, p: 15, c: 40, f: 20, unit: '个', icon: '🥟', tags: ['高碳', '高油'], isComposite: true }
   ]
 };
 
 const COMMON_DB = [
-  { name: '米饭', cals: 116, p: 2.6, c: 25, f: 0.3, unit: '碗', icon: '🍚', tags: ['HIGH_CARB'] },
-  { name: '鸡蛋', cals: 70, p: 6, c: 0.6, f: 5, unit: '个', icon: '🥚', tags: ['HIGH_PRO', 'BALANCED'] }
+  { name: '米饭', cals: 116, p: 2.6, c: 25, f: 0.3, unit: '碗', icon: '🍚', tags: ['高碳'] },
+  { name: '鸡蛋', cals: 70, p: 6, c: 0.6, f: 5, unit: '个', icon: '🥚', tags: ['高蛋白', '均衡'] }
 ];
 
 interface AiPayload {
@@ -102,28 +102,27 @@ export const AiService = {
     }
   },
 
-  // 核心：强制格式命名逻辑
   rpgify(item: any, raceKey: string) {
     const race = RACE_STYLES[raceKey] || RACE_STYLES.HUMAN;
     const hash = item.name.split('').reduce((a: number, b: string) => a + b.charCodeAt(0), 0);
     const prefix = race?.prefixes?.[hash % (race.prefixes?.length || 1)] || '普通';
 
-    // 严谨格式：前缀·名字 (原名)
     const originalName = item.originalName || item.name;
     const rpgName = `${prefix}·${originalName}`;
     const displayName = `${rpgName} (${originalName})`;
 
     let tips = '';
+    // Tip 逻辑也适配中文标签
     switch(raceKey) {
-      case 'ELF': tips = item.tags?.includes('HIGH_FAT') ? '这种油腻的东西...精灵无法下咽。' : '充满了自然的魔力。'; break;
-      case 'ORC': tips = item.tags?.includes('HIGH_PRO') ? '这就对了！吃肉！长肌肉！' : '这玩意塞牙缝都不够。'; break;
-      case 'DWARF': tips = item.tags?.includes('HIGH_CARB') ? '像石头一样顶饱！好极了！' : '不够劲，再来点酒！'; break;
+      case 'ELF': tips = item.tags?.includes('高油') ? '这种油腻的东西...精灵无法下咽。' : '充满了自然的魔力。'; break;
+      case 'ORC': tips = item.tags?.includes('高蛋白') ? '这就对了！吃肉！长肌肉！' : '这玩意塞牙缝都不够。'; break;
+      case 'DWARF': tips = item.tags?.includes('高碳') ? '像石头一样顶饱！好极了！' : '不够劲，再来点酒！'; break;
       default: tips = '看起来很普通的补给品。';
     }
 
     return {
       ...item,
-      name: displayName, // UI 显示用这个复合名字
+      name: displayName,
       originalName: originalName,
       tips: tips,
       grams: 100
@@ -144,13 +143,13 @@ export const AiService = {
   },
 
   async estimateText(query: string, userRaceName: string) {
-    const raceInfo = RACE_STYLES[userRaceName] || RACE_STYLES.HUMAN;
-    // 提示词要求返回标准原名，后续由 rpgify 统一包装格式
+    // 提示词要求返回中文标签
     const systemPrompt = `
     Role: RPG Dietitian. Race: ${userRaceName}. Input: "${query}".
     Return strict JSON Array.
     Rename foods to fit theme, but keep original name key.
-    Format: [{"name": "Steak", "cals": 200, "p": 20, "c": 0, "f": 10, "tags": ["HIGH_PRO"]}]
+    Use Chinese tags only: ["高糖", "高油", "高盐", "高碳", "高蛋白", "纯净", "均衡"]
+    Format: [{"name": "Steak", "cals": 200, "p": 20, "c": 0, "f": 10, "tags": ["高蛋白"]}]
     `;
 
     const text = await this.callGemini({
@@ -174,7 +173,7 @@ export const AiService = {
     const text = await this.callGemini({
       contents: [{
         parts: [
-          { text: "Identify food, return JSON array. Format: [{'name': '...', 'cals': ...}]" },
+          { text: "Identify food, return JSON array. Tags must be one of: 高糖, 高油, 高盐, 高碳, 高蛋白, 纯净, 均衡. Format: [{'name': '...', 'cals': ..., 'tags': ['高蛋白']}]" },
           { inlineData: { mimeType: "image/jpeg", data: base64Data || '' } }
         ]
       }]
@@ -183,7 +182,7 @@ export const AiService = {
     if (!text) {
       await new Promise(r => setTimeout(r, 800));
       return [this.rpgify({
-        name: '神秘黑暗料理', cals: 300, p: 10, c: 30, f: 15, unit: '盘', icon: '🍲', tags: ['HIGH_FAT'], isComposite: true
+        name: '神秘黑暗料理', cals: 300, p: 10, c: 30, f: 15, unit: '盘', icon: '🍲', tags: ['高油'], isComposite: true
       }, userRaceName)];
     }
     const data = this.safeParseJSON(text);

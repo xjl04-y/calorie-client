@@ -1,41 +1,37 @@
 import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import { RACES } from '@/constants/gameData';
-import { getLocalDateStr } from '@/utils/dateUtils';
-import { encodeSaveData, decodeSaveData, getCombatRank } from '@/utils/gameUtils';
+import { getCombatRank, debounce } from '@/utils/gameUtils';
+import type { FoodItem, FoodLog, Achievement } from '@/types'; // 引入类型
 
-// 引入子 Stores
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore';
 import { useBattleStore } from '@/stores/useBattleStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
 
 export const useGameStore = defineStore('game', () => {
-  // 1. 初始化所有子 Store
   const system = useSystemStore();
   const hero = useHeroStore();
   const battle = useBattleStore();
   const collection = useCollectionStore();
 
-  // 2. 暴露 State (通过 getter 或直接返回 reactive 对象)
-  // 注意：在 Setup Store 中，直接返回 system.isDarkMode 即可保持响应式，
-  // 无需在此处解构。外部组件使用 store.isDarkMode 时会自动解包。
-
-  // Computed: 聚合英雄属性 (Performance Optimized)
   const heroStats = computed(() => {
-    // 这里 battle.historyTotalMacros 已经是 O(1) 的缓存读取了
     const { totalP, totalC, totalF } = battle.historyTotalMacros;
     const userData = hero.user;
     const race = RACES[userData.race] || RACES.HUMAN;
     const statCap = 50 + (userData.level * 20);
 
+    const bonuses = hero.passiveBonuses;
+
+    // 基础属性计算
     let rawStr = Math.floor(totalP / 70) + 10;
     let rawAgi = Math.floor(totalC / 180) + 10;
     let rawVit = Math.floor(totalF / 40) + 10;
 
-    rawStr = Math.floor(rawStr * (race?.growth?.str || 1));
-    rawAgi = Math.floor(rawAgi * (race?.growth?.agi || 1));
-    rawVit = Math.floor(rawVit * (race?.growth?.vit || 1));
+    // 应用种族和被动加成
+    rawStr = Math.floor(rawStr * (race?.growth?.str || 1) * (1 + bonuses.statMult.str));
+    rawAgi = Math.floor(rawAgi * (race?.growth?.agi || 1) * (1 + bonuses.statMult.agi));
+    rawVit = Math.floor(rawVit * (race?.growth?.vit || 1) * (1 + bonuses.statMult.vit));
 
     let gearPower = 0;
     Object.values(userData.equipped).forEach(id => {
@@ -49,7 +45,21 @@ export const useGameStore = defineStore('game', () => {
     const blockValue = Math.floor(rawStr * 0.8);
     const dodgeChance = Math.min(rawAgi * 0.003, 0.60);
 
-    const combatPower = Math.floor((userData.currentExp * 0.5) + (userData.level * 50) + (rawStr * 5) + (rawAgi * 5) + (rawVit * 5) + gearPower);
+    // [Fix 3.2] 数值压缩算法
+    // 原公式: (Exp * 0.5) + (Level * 50) + ... -> 线性叠加导致 EXP 权重过大
+    // 新公式: 基础 + (等级 * 权重) + (属性总和 * 权重) + (装备) + (经验值的对数加成)
+    // 这里的 Math.pow(exp, 0.45) 确保经验值依然有贡献，但不会导致几百万战力
+    const expContribution = Math.floor(Math.pow(userData.currentExp, 0.45) * 5);
+    const levelContribution = userData.level * 100; // 提高等级权重
+    const statContribution = (rawStr + rawAgi + rawVit) * 8; // 属性权重
+
+    const combatPower = Math.floor(
+      levelContribution +
+      statContribution +
+      gearPower +
+      expContribution
+    );
+
     const rank = getCombatRank(combatPower);
 
     return {
@@ -63,7 +73,7 @@ export const useGameStore = defineStore('game', () => {
     };
   });
 
-  function saveState() {
+  const _performSave = () => {
     try {
       const stateToSave = {
         user: hero.user,
@@ -71,49 +81,48 @@ export const useGameStore = defineStore('game', () => {
         achievements: collection.achievements,
         foodDb: collection.foodDb,
         isDarkMode: system.isDarkMode,
-        guideStep: system.guideStep,
-        dailyQuests: collection.dailyQuests,
-        lastQuestDate: collection.lastQuestDate,
-        questTemplate: collection.questTemplate
+        activeQuests: collection.quests,
+        questPoolDay: collection.questPoolDay
       };
       localStorage.setItem('health_rpg_save_v2', JSON.stringify(stateToSave));
     } catch (e) { console.error("Save failed:", e); }
-  }
+  };
+
+  const saveState = debounce(_performSave, 1000);
+  const forceSave = () => _performSave();
 
   function loadState() {
     const saved = localStorage.getItem('health_rpg_save_v2');
     if (saved) {
       try {
         const data = JSON.parse(saved);
-        if (data.user) Object.assign(hero.user, data.user);
-
-        // V2.1 Migration Fix
-        if (!hero.user.weightHistory) {
-          hero.user.weightHistory = [];
-        }
-        if (hero.user.weightHistory.length === 0 && hero.user.weight > 0) {
-          hero.user.weightHistory.push({
-            date: getLocalDateStr(),
-            weight: hero.user.weight
-          });
+        if (data.user) {
+          Object.assign(hero.user, data.user);
+          if (!hero.user.skillPoints) hero.user.skillPoints = 0;
+          if (!hero.user.learnedSkills) hero.user.learnedSkills = {};
         }
 
         if (data.logs) Object.assign(battle.logs, data.logs);
-        // 重要：加载日志后，立即重算统计缓存
         battle.recalculateGlobalStats();
 
         if (data.isDarkMode !== undefined) system.isDarkMode = data.isDarkMode;
-        if (data.guideStep !== undefined) system.guideStep = data.guideStep;
 
-        if (data.dailyQuests) collection.dailyQuests = data.dailyQuests;
-        if (data.lastQuestDate) collection.lastQuestDate = data.lastQuestDate;
-        if (data.questTemplate) collection.questTemplate = data.questTemplate;
+        if (data.activeQuests) collection.quests = data.activeQuests;
+        if (data.questPoolDay) collection.questPoolDay = data.questPoolDay;
 
-        if (data.foodDb && Array.isArray(data.foodDb)) {
-          const uniqueMap = new Map();
-          data.foodDb.forEach((item: any) => uniqueMap.set(item.name.trim(), item));
-          collection.foodDb = Array.from(uniqueMap.values());
+        let loadedFood = false;
+        if (data.foodDb && Array.isArray(data.foodDb) && data.foodDb.length > 0) {
+          collection.foodDb = data.foodDb;
+          loadedFood = true;
         }
+
+        if (!loadedFood || !collection.foodDb || collection.foodDb.length === 0) {
+          console.warn('[GameStore] FoodDB empty/invalid, forcing init...');
+          collection.initFoodDb(hero.user.race || 'HUMAN', true);
+        } else {
+          collection.initFoodDb(hero.user.race || 'HUMAN', false);
+        }
+
         if (data.achievements) {
           data.achievements.forEach((oldAch: any) => {
             const e = collection.achievements.find(a => a.id === oldAch.id);
@@ -124,116 +133,72 @@ export const useGameStore = defineStore('game', () => {
         if (hero.user.isInitialized) {
           system.modals.onboarding = false;
         }
-      } catch (e) { console.error('Failed to parse', e); }
-    }
-  }
 
-  // V2.4 废弃旧的字符串导出，改为对象导出给 ProfileView 下载文件
-  function getExportData() {
-    saveState(); // 确保最新
-    const rawJson = localStorage.getItem('health_rpg_save_v2');
-    return rawJson ? JSON.parse(rawJson) : null;
-  }
-
-  // 保留旧方法以兼容
-  function exportSaveData() {
-    const data = getExportData();
-    return data ? encodeSaveData(data) : '';
-  }
-
-  function importSaveDataObj(data: any) {
-    try {
-      if (!data.user || !data.logs) throw new Error('Invalid Save Data Structure');
-      localStorage.setItem('health_rpg_save_v2', JSON.stringify(data));
-      loadState();
-      return true;
-    } catch (e) {
-      console.error('Import failed', e);
-      return false;
-    }
-  }
-
-  // 兼容旧的 Base64 导入
-  function importSaveData(encryptedStr: string) {
-    try {
-      const data = decodeSaveData(encryptedStr);
-      if (!data) throw new Error('Decryption failed');
-      return importSaveDataObj(data);
-    } catch (e) {
-      console.error('Import failed', e);
-      return false;
+      } catch (e) {
+        console.error('Save parse error', e);
+        collection.initFoodDb(hero.user.race || 'HUMAN', true);
+      }
+    } else {
+      collection.initFoodDb(hero.user.race || 'HUMAN', true);
     }
   }
 
   function initUser(formData: any) {
     hero.initUser(formData);
-    collection.initFoodDb(hero.user.race);
+    collection.initFoodDb(hero.user.race || 'HUMAN', true);
     system.setModal('onboarding', false);
-    system.setModal('npcGuide', true);
-    saveState();
-  }
-
-  function equipItem(item: any) {
-    // @ts-ignore
-    hero.user.equipped[item.slot] = item.id;
-    saveState();
+    forceSave();
   }
 
   return {
-    // State Proxies (直接暴露 Refs)
     isDarkMode: computed({ get: () => system.isDarkMode, set: (v) => system.isDarkMode = v }),
     currentDate: computed({ get: () => system.currentDate, set: (v) => system.currentDate = v }),
     analysisRefDate: computed({ get: () => system.analysisRefDate, set: (v) => system.analysisRefDate = v }),
+
     modals: system.modals,
     temp: system.temp,
-    guideStep: computed({ get: () => system.guideStep, set: (v) => system.guideStep = v }),
-
-    // User & Stats
     user: hero.user,
+    heroStore: hero,
     dailyTarget: hero.dailyTarget,
     heroStats,
 
-    // Collection
-    achievements: collection.achievements,
-    foodDb: collection.foodDb,
-    dailyQuests: collection.dailyQuests,
-    questTemplate: computed(() => collection.questTemplate), // Readonly access via game store usually
-    lastQuestDate: computed(() => collection.lastQuestDate),
+    achievements: computed(() => collection.achievements),
+    foodDb: computed(() => collection.foodDb),
 
-    // Battle
-    logs: battle.logs,
-    todayLogs: battle.todayLogs,
-    todayMacros: battle.todayMacros,
-    logsReverse: battle.logsReverse,
-    stageInfo: battle.stageInfo,
-    weeklyStats: battle.weeklyStats,
-    comboState: battle.comboState,
+    userQuests: computed(() => collection.quests),
+    availableQuests: computed(() => collection.availableQuests),
 
-    // Actions
+    logs: computed(() => battle.logs),
+    todayLogs: computed(() => battle.todayLogs),
+    logsReverse: computed(() => battle.logsReverse),
+
+    todayMacros: computed(() => battle.todayMacros),
+    weeklyStats: computed(() => battle.weeklyStats),
+    historyTotalMacros: computed(() => battle.historyTotalMacros),
+    stageInfo: computed(() => battle.stageInfo),
+    comboState: computed(() => battle.comboState),
+
     setModal: system.setModal,
     triggerShake: system.triggerShake,
     recalcBMR: hero.recalcBMR,
     updateWeight: hero.updateWeight,
     saveToDb: collection.saveToFoodDb,
-    unlockAch: collection.unlockAch,
-    generateDailyQuests: collection.generateDailyQuests,
-    selectTemplateAndGenerate: collection.selectTemplateAndGenerate,
-    setQuestTemplate: collection.setQuestTemplate,
-    checkAchievements: battle.checkAchievements,
 
-    // Wrapped Actions
-    commitLog: (item: any) => { battle.commitLog(item); saveState(); },
-    deleteLog: (log: any) => { battle.deleteLog(log); saveState(); },
-    battleCommit: (item: any) => { battle.battleCommit(item); saveState(); },
+    refreshQuestHall: collection.refreshQuestHall,
+    acceptQuest: collection.acceptQuest,
+    claimQuest: collection.claimQuest,
 
-    // System Actions
+    // [Fix 3.3] 为参数添加具体类型
+    commitLog: (item: FoodLog) => { battle.commitLog(item); saveState(); },
+    deleteLog: (log: FoodLog) => { battle.deleteLog(log); saveState(); },
+    battleCommit: (item: FoodItem) => { battle.battleCommit(item); saveState(); },
+
     saveState,
+    forceSave,
     loadState,
-    exportSaveData,
-    importSaveData,
-    getExportData, // New V2.4
-    importSaveDataObj, // New V2.4
     initUser,
-    equipItem
+    equipItem: (item: Achievement) => { hero.user.equipped[item.slot] = item.id; saveState(); },
+    getExportData: () => { _performSave(); return JSON.parse(localStorage.getItem('health_rpg_save_v2') || '{}'); },
+    importSaveDataObj: (data: any) => { localStorage.setItem('health_rpg_save_v2', JSON.stringify(data)); loadState(); return true; }
   };
 });

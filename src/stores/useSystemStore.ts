@@ -1,45 +1,75 @@
 import { defineStore } from 'pinia';
-import { reactive, ref } from 'vue';
+import { reactive, ref, onUnmounted } from 'vue';
 import { getLocalDateStr } from '@/utils/dateUtils';
+import type { SystemTempState, ModalState } from '@/types'; // 引入类型
 
 export const useSystemStore = defineStore('system', () => {
   // --- State ---
   const isDarkMode = ref(true);
-
-  // 修复：使用本地日期工具初始化，解决 UTC 跨天 bug
   const currentDate = ref(getLocalDateStr());
-
-  // 战报分析的基准日期
   const analysisRefDate = ref(getLocalDateStr());
-
-  // 引导步骤 (0: 欢迎, 1: 首页介绍, 2: 战报介绍, 3: 档案介绍, 4: 结束)
   const guideStep = ref(0);
 
-  // 所有弹窗的状态管理
-  const modals = reactive({
-    addFood: false, quantity: false, levelUp: false, achievements: false,
-    unlock: false, onboarding: true, itemDetail: false, equipmentSwap: false,
-    historyDetail: false, logDetail: false, hpHistory: false,
-    npcGuide: false
+  // 全局心跳时间戳
+  const timestamp = ref(Date.now());
+  let timerInterval: number | null = null;
+
+  function startHeartbeat() {
+    if (timerInterval) return;
+    timerInterval = window.setInterval(() => {
+      timestamp.value = Date.now();
+    }, 1000);
+  }
+
+  function stopHeartbeat() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  startHeartbeat();
+
+  onUnmounted(() => {
+    stopHeartbeat();
   });
 
-  // UI 临时状态
-  const temp = reactive({
-    activeMealType: 'SNACK' as const,
+  // [Fix 3.3] 使用严格的类型接口
+  const modals = reactive<ModalState>({
+    addFood: false,
+    quantity: false,
+    levelUp: false,
+    achievements: false,
+    unlock: false,
+    onboarding: true,
+    itemDetail: false,
+    equipmentSwap: false,
+    historyDetail: false,
+    logDetail: false,
+    hpHistory: false,
+    questBoard: false,
+    skillTree: false
+  });
+
+  // [Fix 3.3] 使用 SystemTempState 接口，消除 any
+  const temp = reactive<SystemTempState>({
+    activeMealType: 'SNACK',
     isBuilding: false,
-    basket: [] as any[], // 即使我们有 FoodItem 类型，这里暂保持 any 以兼容 UI 层的灵活性，但在逻辑层要转换
+    basket: [],
     isShaking: false,
     isDamaged: false,
     searchResetTrigger: 0,
-    activeSlot: null as string | null,
-    selectedHistoryDate: null as string | null,
-    selectedItem: null as any,
-    unlockedAchievement: null as any,
-    selectedLog: null as any
+    activeSlot: null,
+    selectedHistoryDate: null,
+    selectedItem: null,
+    unlockedAchievement: null,
+    selectedLog: null,
+    pendingItem: undefined
   });
 
   // --- Actions ---
-  function setModal(key: keyof typeof modals, val: boolean) {
+  // [Fix 3.3] 移除 @ts-ignore，key 现在被约束为 ModalState 的键
+  function setModal(key: keyof ModalState, val: boolean) {
     modals[key] = val;
   }
 
@@ -50,5 +80,15 @@ export const useSystemStore = defineStore('system', () => {
     setTimeout(() => { temp.isShaking = false; temp.isDamaged = false; }, 500);
   }
 
-  return { isDarkMode, currentDate, analysisRefDate, guideStep, modals, temp, setModal, triggerShake };
+  return {
+    isDarkMode,
+    currentDate,
+    analysisRefDate,
+    guideStep,
+    modals,
+    temp,
+    timestamp,
+    setModal,
+    triggerShake
+  };
 });
