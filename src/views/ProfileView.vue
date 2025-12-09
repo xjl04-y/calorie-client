@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
-import { showToast, showDialog } from 'vant';
+import { showToast, Dialog } from 'vant';
+import { getLocalDateStr } from '@/utils/dateUtils';
+import { getCombatRank, downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
 
 const store = useGameStore();
-const { user, heroStats } = storeToRefs(store);
+// 注意：在 script 中访问 computed 需要 .value，但在 template 中不需要
+const user = computed(() => store.user);
+const heroStats = computed(() => store.heroStats);
 
+// 计算装备槽位显示数据
 const equipment = computed(() => {
   const slotDefinitions = [
     { id: 'HEAD', name: '头部', icon: 'fas fa-hat-wizard' },
@@ -18,6 +22,7 @@ const equipment = computed(() => {
     { id: 'ACCESSORY', name: '饰品', icon: 'fas fa-ring' }
   ];
   return slotDefinitions.map(def => {
+    // script 中需要 user.value
     const equippedId = user.value.equipped[def.id as keyof typeof user.value.equipped];
     // @ts-ignore
     const equippedItem = equippedId ? store.achievements.find(a => a.id === equippedId) : null;
@@ -27,10 +32,9 @@ const equipment = computed(() => {
 
 const showEdit = ref(false);
 const editData = reactive({ height: 0, weight: 0, age: 0 });
+const fileInput = ref<HTMLInputElement | null>(null);
 
-// 处理自定义上传
 const onAvatarRead = (file: any) => {
-  // 保存 Base64 到 Store
   store.user.avatarType = 'CUSTOM';
   store.user.customAvatar = file.content;
   store.saveState();
@@ -38,9 +42,8 @@ const onAvatarRead = (file: any) => {
   return true;
 };
 
-// 头像点击交互
 const changeAvatar = () => {
-  showDialog({
+  Dialog.confirm({
     title: '重塑容貌',
     message: '想要改变你的英雄形象吗？',
     showCancelButton: true,
@@ -48,18 +51,16 @@ const changeAvatar = () => {
     cancelButtonText: '取消',
     confirmButtonColor: '#7c3aed',
   }).then(() => {
-    // 随机
     const newSeed = Math.random().toString(36).substring(7);
     store.user.avatarType = 'SEED';
     store.user.avatarSeed = newSeed;
     store.saveState();
     showToast('容貌已焕然一新！');
-  }).catch(() => {
-    // 取消
-  });
+  }).catch(() => {});
 };
 
 const startEditProfile = () => {
+  // script 中需要 .value
   editData.height = user.value.height;
   editData.weight = user.value.weight;
   editData.age = user.value.age;
@@ -85,9 +86,8 @@ const validate = () => {
 const saveProfile = () => {
   if (!validate()) return;
   store.user.height = editData.height;
-  store.user.weight = editData.weight;
+  store.updateWeight(editData.weight);
   store.user.age = editData.age;
-  store.recalcBMR();
   store.saveState();
   showToast('档案已更新，Boss数值重算中...');
 };
@@ -101,15 +101,63 @@ const openSwap = (slotId: string) => {
   store.temp.activeSlot = slotId;
   store.setModal('equipmentSwap', true);
 };
+
+const handleFileExport = () => {
+  const data = store.getExportData();
+  if (!data) {
+    showToast('没有可导出的数据');
+    return;
+  }
+  const filename = `RPG_SAVE_${store.user.nickname}_${getLocalDateStr()}`;
+  const success = downloadJsonFile(filename, data);
+  if (success) showToast('📜 存档卷轴已生成！');
+  else showToast('导出失败');
+};
+
+const triggerFileImport = () => {
+  fileInput.value?.click();
+};
+
+const onFileSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  try {
+    const data = await readJsonFile(file);
+    Dialog.confirm({
+      title: '读取神谕 (导入存档)',
+      message: '⚠️ 导入将覆盖当前所有进度！确定要读取这份卷轴吗？',
+      confirmButtonText: '读取并覆盖',
+      confirmButtonColor: '#7c3aed'
+    }).then(() => {
+      const success = store.importSaveDataObj(data);
+      if (success) {
+        showToast('神谕已生效！存档读取成功。');
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast('卷轴内容破损，无法读取。');
+      }
+    }).catch(() => {
+      if (fileInput.value) fileInput.value.value = '';
+    });
+  } catch (e) {
+    showToast('文件格式错误');
+  }
+};
+
+const expPercent = computed(() => {
+  if (user.value.nextLevelExp <= 0) return 0;
+  return Math.min(100, (user.value.currentExp / user.value.nextLevelExp) * 100);
+});
 </script>
 
 <template>
   <div class="pb-24 bg-slate-900 min-h-full text-white">
-    <!-- 头部背景：移除了 overflow-hidden 以解决头像截断问题 -->
-    <div class="relative h-56 bg-gradient-to-b from-purple-900 to-slate-900">
+    <!-- 头部背景 -->
+    <div class="relative h-64 bg-gradient-to-b from-purple-900 to-slate-900">
       <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 
-      <!-- 右上角上传按钮 -->
       <div class="absolute top-4 right-4 z-30">
         <van-uploader :after-read="onAvatarRead">
           <div class="bg-black/30 backdrop-blur px-3 py-1 rounded-full text-xs border border-white/20 flex items-center active:scale-95 transition">
@@ -118,39 +166,56 @@ const openSwap = (slotId: string) => {
         </van-uploader>
       </div>
 
-      <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-20">
-        <!-- 头像区域 -->
-        <div class="relative group cursor-pointer" @click="changeAvatar">
+      <div class="absolute -bottom-16 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-20 w-full px-6">
+        <div class="relative group cursor-pointer mb-2" @click="changeAvatar">
           <div class="w-28 h-28 rounded-full border-4 border-slate-800 p-1 bg-slate-700 shadow-2xl relative z-10 overflow-hidden">
-            <!-- 严谨的判断逻辑：优先显示自定义头像 -->
+            <!-- 修复：Template 中移除 .value -->
             <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full rounded-full object-cover" />
             <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-600" />
           </div>
           <div class="absolute bottom-0 right-0 bg-yellow-500 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full border-2 border-slate-800 shadow-lg z-20">Lv.{{ user.level }}</div>
-          <!-- 悬停/点击提示 -->
-          <div class="absolute inset-0 z-20 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-            <i class="fas fa-random text-white text-xl"></i>
+        </div>
+
+        <h2 class="text-3xl font-rpg text-yellow-400 tracking-wide mb-1">{{ user.nickname }}</h2>
+
+        <div class="w-48 mb-2">
+          <div class="flex justify-between text-[10px] text-slate-400 px-1 mb-0.5">
+            <span>EXP</span>
+            <span>{{ Math.floor(user.currentExp) }} / {{ user.nextLevelExp }}</span>
           </div>
+          <div class="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+            <div class="h-full bg-gradient-to-r from-purple-600 to-blue-500 transition-all duration-500" :style="{ width: expPercent + '%' }"></div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-center gap-2 text-slate-400 text-xs">
+          <span><i :class="user.gender === 'MALE' ? 'fas fa-mars text-blue-400' : 'fas fa-venus text-pink-400'"></i> {{ user.age }}岁</span>
+          <span>|</span><span>{{ user.height }}cm</span><span>|</span><span>{{ user.weight }}kg</span>
         </div>
       </div>
     </div>
 
-    <div class="mt-16 text-center px-6">
-      <h2 class="text-3xl font-rpg text-yellow-400 tracking-wide">{{ user.nickname }}</h2>
-      <div class="flex items-center justify-center gap-2 mt-1 text-slate-400 text-xs">
-        <span><i :class="user.gender === 'MALE' ? 'fas fa-mars text-blue-400' : 'fas fa-venus text-pink-400'"></i> {{ user.age }}岁</span>
-        <span>|</span><span>{{ user.height }}cm</span><span>|</span><span>{{ user.weight }}kg</span>
-      </div>
-
-      <div class="flex justify-center mt-2 mb-2">
+    <!-- 基础数值 & 战力展示 -->
+    <div class="mt-20 text-center px-6">
+      <div class="flex justify-center mb-4">
         <span class="bg-slate-800 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold flex items-center">
+            <!-- 修复：Template 中移除 .value -->
             <span class="mr-1 text-lg">{{ heroStats.raceIcon }}</span> {{ heroStats.raceName }}
         </span>
       </div>
 
-      <div class="mt-2 flex justify-center gap-3">
-        <div class="bg-slate-800 px-3 py-1 rounded border border-slate-700 text-xs text-blue-300 font-bold">战力: {{ heroStats.combatPower }}</div>
-        <div class="bg-slate-800 px-3 py-1 rounded border border-slate-700 text-xs text-yellow-500 font-bold">每日目标: {{ store.dailyTarget }}</div>
+      <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700 shadow-inner mb-4 relative overflow-hidden group hover:border-purple-500/50 transition-colors">
+        <div class="absolute -right-4 -top-4 text-6xl opacity-10 rotate-12 group-hover:scale-110 transition-transform">{{ heroStats.rankIcon }}</div>
+
+        <div class="text-xs text-slate-400 uppercase tracking-widest mb-1">Combat Rank</div>
+        <div class="text-2xl font-black flex items-center justify-center gap-2 mb-2" :class="heroStats.rankColor">
+          {{ heroStats.rankTitle }} <span class="text-sm text-slate-500 font-mono">({{ heroStats.combatPower }})</span>
+        </div>
+
+        <div class="bg-black/30 rounded-lg py-2 px-3 text-xs inline-block border border-white/5">
+          <span class="text-yellow-500 font-bold mr-1">✦ 阶位特权:</span>
+          <span class="text-slate-300">{{ getCombatRank(heroStats.combatPower).passive }}</span>
+        </div>
       </div>
 
       <div class="mt-3">
@@ -158,7 +223,8 @@ const openSwap = (slotId: string) => {
       </div>
     </div>
 
-    <div class="px-4 mt-8">
+    <!-- 核心属性 -->
+    <div class="px-4 mt-6">
       <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
         <h3 class="text-sm font-bold text-slate-400 mb-5 flex items-center"><i class="fas fa-chart-bar mr-2 text-purple-500"></i> 核心属性</h3>
         <div class="space-y-5">
@@ -186,6 +252,7 @@ const openSwap = (slotId: string) => {
       </div>
     </div>
 
+    <!-- 装备栏 -->
     <div class="px-4 mt-4">
       <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] relative overflow-hidden">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-leather.png')] opacity-20 pointer-events-none"></div>
@@ -208,12 +275,26 @@ const openSwap = (slotId: string) => {
             </div>
           </div>
         </div>
+      </div>
+    </div>
 
-        <div class="mt-4 text-center relative z-10">
-          <button class="text-xs text-slate-500 hover:text-yellow-500 transition-colors flex items-center justify-center mx-auto" @click="store.setModal('achievements', true)">
-            <i class="fas fa-book mr-1"></i> 查看图鉴
+    <!-- 数据安全区 V2.4 Improved -->
+    <div class="px-4 mt-6 mb-6">
+      <div class="bg-slate-800/30 border border-slate-700 rounded-2xl p-4">
+        <h3 class="text-xs font-bold text-slate-500 mb-3 flex items-center">
+          <i class="fas fa-save mr-2"></i> 记忆水晶 (存档管理)
+        </h3>
+        <div class="flex gap-3">
+          <button @click="handleFileExport" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-2 rounded-lg transition border border-slate-600 active:scale-95">
+            <i class="fas fa-file-download mr-1"></i> 下载卷轴 (JSON)
           </button>
+          <button @click="triggerFileImport" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-2 rounded-lg transition border border-slate-600 active:scale-95">
+            <i class="fas fa-file-upload mr-1"></i> 读取卷轴
+          </button>
+          <!-- 隐藏的文件输入框 -->
+          <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
         </div>
+        <p class="text-[10px] text-slate-600 mt-2 text-center">存档已启用 RPG 协议，请妥善保管您的卷轴。</p>
       </div>
     </div>
 

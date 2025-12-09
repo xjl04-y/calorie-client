@@ -1,37 +1,36 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
 import { showToast } from 'vant';
 
 const store = useGameStore();
-const { user, achievements, temp } = storeToRefs(store);
+// Remove storeToRefs
+// const { user, achievements, temp } = storeToRefs(store);
 
 const show = computed({
   get: () => store.modals.equipmentSwap,
   set: (val) => store.setModal('equipmentSwap', val)
 });
 
-const slotId = computed(() => temp.value.activeSlot);
+const slotId = computed(() => store.temp.activeSlot);
 
-// 获取槽位名称的映射 (简单版本，也可以从常量取)
+// 获取槽位名称的映射
 const slotNameMap: Record<string, string> = {
   HEAD: '头部', BODY: '身体', LEGS: '腿部', WEAPON: '主手',
   OFFHAND: '副手', BACK: '背部', ACCESSORY: '饰品'
 };
 const slotName = computed(() => slotNameMap[slotId.value || ''] || '未知部位');
 
-// 筛选当前部位的已解锁装备
 const availableItems = computed(() => {
-  return achievements.value.filter(a => a.unlocked && a.slot === slotId.value);
+  return store.achievements.filter(a => a.unlocked && a.slot === slotId.value);
 });
 
-const isEquipped = (id: number) => user.value.equipped[slotId.value as keyof typeof user.value.equipped] === id;
+const isEquipped = (id: number) => store.user.equipped[slotId.value as keyof typeof store.user.equipped] === id;
 
 const equip = (item: any) => {
   if (slotId.value) {
     // @ts-ignore
-    user.value.equipped[slotId.value] = item.id;
+    store.user.equipped[slotId.value] = item.id;
     show.value = false;
     store.saveState();
     showToast(`已装备: ${item.reward}\nBoss血量已调整`);

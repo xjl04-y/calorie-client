@@ -1,32 +1,36 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
+// 修复问题3：移除 storeToRefs 以解决 Proxy 报错
+// import { storeToRefs } from 'pinia';
 
 const store = useGameStore();
-// 使用 storeToRefs 保持响应性，避免解构丢失引用
-const { analysisRefDate } = storeToRefs(store);
+
+// 改为直接访问或使用 computed
+const analysisRefDate = computed({
+  get: () => store.analysisRefDate,
+  set: (val) => store.analysisRefDate = val
+});
+const user = computed(() => store.user);
+const weeklyStats = computed(() => store.weeklyStats);
+const todayMacros = computed(() => store.todayMacros);
+const topFoods = computed(() => store.todayLogs.slice(0, 8));
 
 const activeTab = ref('today');
+// 选中的图表点（用于显示 Tooltip）
+const selectedPoint = ref<number | null>(null);
 
-// 获取周报数据
-const weeklyStats = computed(() => store.weeklyStats); // 注意：Pinia getter 不需要括号调用
-
-// 计算当前周期的显示文本 (e.g., "2023年10月1日 - 10月7日")
 const weekRangeDateText = computed(() => {
   const stats = weeklyStats.value;
   if(!stats.length || !stats[0] || !stats[6]) return '';
   const start = new Date(stats[0].date);
   const end = new Date(stats[6].date);
-  return `${start.getFullYear()}年${start.getMonth()+1}月${start.getDate()}日 - ${end.getMonth()+1}月${end.getDate()}日`;
+  return `${start.getFullYear()}.${start.getMonth()+1}.${start.getDate()} - ${end.getMonth()+1}.${end.getDate()}`;
 });
 
-// 判断是否是当前周（用于禁用“下一章”按钮）
 const isCurrentWeek = computed(() => {
   const today = new Date();
   const refDate = new Date(analysisRefDate.value);
-
-  // 获取当周周一的辅助函数
   const getMonday = (d: Date) => {
     const day = d.getDay() || 7;
     const temp = new Date(d);
@@ -34,13 +38,12 @@ const isCurrentWeek = computed(() => {
     temp.setDate(temp.getDate() - day + 1);
     return temp;
   };
-  return getMonday(refDate) >= getMonday(today);
+  return getMonday(refDate).getTime() >= getMonday(today).getTime();
 });
 
-// 计算今日宏量营养素百分比 (用于元素共鸣图表)
 const macroPct = computed(() => {
-  const m = store.todayMacros;
-  const total = (m.p + m.c + m.f) || 1; // 防止除以0
+  const m = todayMacros.value;
+  const total = (m.p + m.c + m.f) || 1;
   return {
     p: Math.round(m.p/total*100),
     c: Math.round(m.c/total*100),
@@ -48,34 +51,31 @@ const macroPct = computed(() => {
   };
 });
 
-// 获取今日前8条记录作为“战利品”展示
-const topFoods = computed(() => store.todayLogs.slice(0, 8));
-
-// RPG 风味文案生成器
 const getDayFlavorText = (status: string) => {
   switch(status) {
-    case 'VICTORY': return "完美的胜利！Boss被击退。";
-    case 'DEFEAT': return "防线失守... Boss狂暴化！";
-    case 'ONGOING': return "战斗正在激烈进行中...";
-    case 'SKIPPED': return "英雄在营地休息。";
-    default: return "未知的时空...";
+    case 'VICTORY': return "大捷！Boss已被击退";
+    case 'DEFEAT': return "防线失守... Boss狂暴";
+    case 'ONGOING': return "战斗正在进行中";
+    case 'SKIPPED': return "英雄在营地休息";
+    default: return "未知的时空";
   }
 };
 
-// 切换周次 Action
 const shiftWeek = (offset: number) => {
-  // 这里需要调用 store 中定义的 action (假设 store 中有 shiftAnalysisWeek)
-  // 如果之前未定义，建议在 store 中补充此逻辑
-  // store.shiftAnalysisWeek(offset);
-
-  // 临时逻辑：手动修改 store 中的 refDate
   const [y, m, d] = analysisRefDate.value.split('-').map(Number);
   const date = new Date(y || 2024, (m || 1) - 1, d || 1);
   date.setDate(date.getDate() + (offset * 7));
-
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
+  store.analysisRefDate = `${year}-${month}-${day}`;
+};
+
+const resetToCurrentWeek = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
   store.analysisRefDate = `${year}-${month}-${day}`;
 };
 
@@ -83,62 +83,93 @@ const openDetail = (date: string) => {
   store.temp.selectedHistoryDate = date;
   store.setModal('historyDetail', true);
 }
+
+// 深度监听触发 SVG 更新
+const weightHistory = computed(() => {
+  return user.value.weightHistory ? [...user.value.weightHistory] : [];
+});
+
+const weightChartData = computed(() => {
+  const history = weightHistory.value;
+  if (history.length === 0) return null;
+
+  const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const recent = sorted.slice(-7); // 只取最近7次，保持图表稀疏度适中
+
+  const weights = recent.map(r => r.weight);
+  const minW = Math.min(...weights) - 0.5;
+  const maxW = Math.max(...weights) + 0.5;
+  const range = maxW - minW || 1;
+
+  const width = 300;
+  const height = 150;
+  const padding = 20; // 增加内边距
+
+  const points = recent.map((r, i) => {
+    const x = padding + (i / (Math.max(1, recent.length - 1))) * (width - 2 * padding);
+    const y = height - padding - ((r.weight - minW) / range) * (height - 2 * padding);
+    return { x, y, val: r.weight, date: r.date.slice(5) };
+  });
+
+  // 生成折线路径
+  const pathD = points.length > 1
+    ? `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')
+    : points.length === 1 ? `M ${padding} ${points[0].y} L ${width-padding} ${points[0].y}` : '';
+
+  // 生成填充区域路径 (闭合到底部)
+  const areaPathD = points.length > 1
+    ? `${pathD} L ${points[points.length-1].x} ${height} L ${points[0].x} ${height} Z`
+    : '';
+
+  return { points, pathD, areaPathD, minW, maxW };
+});
 </script>
 
 <template>
   <div class="pb-20 bg-white dark:bg-slate-900 min-h-full transition-colors duration-300">
-    <!-- 顶部 Tab 导航 -->
-    <div class="sticky top-0 bg-white dark:bg-slate-900 z-20 pt-4 px-4 pb-2 transition-colors duration-300 shadow-sm">
-      <h2 class="text-xl font-rpg text-slate-800 dark:text-slate-100 mb-4 flex items-center">
-        <i class="fas fa-scroll text-purple-600 mr-2"></i> 冒险手札
+    <div class="sticky top-0 bg-white dark:bg-slate-900 z-20 pt-4 px-4 pb-2 shadow-sm">
+      <h2 class="text-xl font-rpg text-slate-800 dark:text-slate-100 mb-4 flex items-center justify-between">
+        <span><i class="fas fa-scroll text-purple-600 mr-2"></i> 冒险手札</span>
+        <button v-if="!isCurrentWeek" @click="resetToCurrentWeek" class="text-xs bg-purple-100 text-purple-600 px-3 py-1 rounded-full font-bold border border-purple-200 active:scale-95 transition">
+          <i class="fas fa-undo mr-1"></i> 回到本周
+        </button>
       </h2>
       <van-tabs v-model:active="activeTab" type="card" color="#7c3aed" class="w-full" background="transparent">
         <van-tab title="元素共鸣" name="today"></van-tab>
         <van-tab title="冒险编年史" name="week"></van-tab>
+        <van-tab title="体态趋势" name="body"></van-tab>
       </van-tabs>
     </div>
 
-    <!-- 视图 1: 元素共鸣 (Today) -->
+    <!-- Tab 1: 元素共鸣 -->
     <div v-if="activeTab === 'today'" class="p-4 animate-fade-in">
-      <!-- 魔法卡片容器 -->
       <div class="bg-slate-900 rounded-3xl p-6 border-4 border-double border-slate-700 shadow-2xl relative overflow-hidden magic-border">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-20"></div>
-
         <h3 class="font-bold text-slate-200 w-full mb-6 flex items-center justify-center relative z-10 text-lg font-rpg">
           <i class="fas fa-atom mr-2 text-purple-400 animate-spin-slow"></i> 元素魔力池
         </h3>
-
-        <!-- 三大元素进度条 -->
         <div class="space-y-6 relative z-10">
-          <!-- 力量之火 (Protein) -->
           <div>
             <div class="flex justify-between text-xs font-bold text-red-400 mb-1 uppercase tracking-widest">
-              <span><i class="fas fa-fire mr-1"></i> 力量之火 (Pro)</span>
-              <span>{{ macroPct.p }}%</span>
+              <span><i class="fas fa-fire mr-1"></i> 力量 (Pro)</span><span>{{ macroPct.p }}%</span>
             </div>
             <div class="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
               <div class="absolute inset-0 bg-red-900/30"></div>
               <div class="h-full bg-gradient-to-r from-red-600 to-orange-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] transition-all duration-1000" :style="{ width: macroPct.p + '%' }"></div>
             </div>
           </div>
-
-          <!-- 敏捷之雷 (Carb) -->
           <div>
             <div class="flex justify-between text-xs font-bold text-yellow-400 mb-1 uppercase tracking-widest">
-              <span><i class="fas fa-bolt mr-1"></i> 敏捷之雷 (Carb)</span>
-              <span>{{ macroPct.c }}%</span>
+              <span><i class="fas fa-bolt mr-1"></i> 敏捷 (Carb)</span><span>{{ macroPct.c }}%</span>
             </div>
             <div class="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
               <div class="absolute inset-0 bg-yellow-900/30"></div>
               <div class="h-full bg-gradient-to-r from-yellow-500 to-amber-300 shadow-[0_0_10px_rgba(234,179,8,0.5)] transition-all duration-1000" :style="{ width: macroPct.c + '%' }"></div>
             </div>
           </div>
-
-          <!-- 坚韧之土 (Fat) -->
           <div>
             <div class="flex justify-between text-xs font-bold text-green-400 mb-1 uppercase tracking-widest">
-              <span><i class="fas fa-shield-alt mr-1"></i> 坚韧之土 (Fat)</span>
-              <span>{{ macroPct.f }}%</span>
+              <span><i class="fas fa-shield-alt mr-1"></i> 坚韧 (Fat)</span><span>{{ macroPct.f }}%</span>
             </div>
             <div class="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
               <div class="absolute inset-0 bg-green-900/30"></div>
@@ -146,7 +177,6 @@ const openDetail = (date: string) => {
             </div>
           </div>
         </div>
-
         <div class="mt-8 text-center">
           <div class="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-1">Total Mana Output</div>
           <div class="text-4xl font-rpg text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 drop-shadow-lg">
@@ -154,72 +184,60 @@ const openDetail = (date: string) => {
           </div>
         </div>
       </div>
-
-      <!-- 战利品列表 -->
       <div class="mt-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
         <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">今日狩猎战利品</h4>
         <div class="flex flex-wrap gap-2">
-                    <span v-for="(item, i) in topFoods" :key="i" class="px-2 py-1 bg-white dark:bg-slate-700 rounded border border-slate-100 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-300 shadow-sm flex items-center">
-                        {{ item.icon }} {{ item.name }}
-                    </span>
+          <span v-for="(item, i) in topFoods" :key="i" class="px-2 py-1 bg-white dark:bg-slate-700 rounded border border-slate-100 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-300 shadow-sm flex items-center">
+              {{ item.icon }} {{ item.name }}
+          </span>
           <span v-if="topFoods.length === 0" class="text-xs text-slate-400 italic">暂无记录...</span>
         </div>
       </div>
     </div>
 
-    <!-- 视图 2: 冒险编年史 (Week - RPG Style) -->
-    <div v-else class="p-4 animate-fade-in">
-      <!-- 周切换导航 -->
-      <div class="flex justify-between items-center mb-4">
-        <button @click="shiftWeek(-1)" class="text-slate-400 hover:text-white px-2">
-          <i class="fas fa-chevron-left"></i> 上一章
+    <!-- Tab 2: 冒险编年史 -->
+    <div v-else-if="activeTab === 'week'" class="p-4 animate-fade-in">
+      <div class="flex justify-between items-center mb-4 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+        <button @click="shiftWeek(-1)" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-all">
+          <i class="fas fa-chevron-left"></i>
         </button>
-        <span class="text-xs font-bold text-purple-500 bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded-full border border-purple-200 dark:border-purple-800">
-                    {{ weekRangeDateText }}
-                </span>
-        <button @click="shiftWeek(1)" :disabled="isCurrentWeek" class="text-slate-400 hover:text-white disabled:opacity-30 px-2">
-          下一章 <i class="fas fa-chevron-right"></i>
+        <span class="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">
+            {{ weekRangeDateText }}
+        </span>
+        <button @click="shiftWeek(1)" :disabled="isCurrentWeek" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-all disabled:opacity-30">
+          <i class="fas fa-chevron-right"></i>
         </button>
       </div>
-
-      <!-- 周历列表 -->
-      <div class="space-y-4">
+      <div class="space-y-3">
         <div v-for="(day, idx) in weeklyStats" :key="idx" class="relative group" @click="!day.isFuture && openDetail(day.date)">
-          <!-- 时间轴连接线 -->
-          <div v-if="idx < weeklyStats.length - 1" class="absolute left-6 top-10 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700 -z-10 h-16"></div>
-
+          <div v-if="idx < weeklyStats.length - 1" class="absolute left-6 top-10 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700 -z-10 h-full"></div>
           <div class="flex items-center bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm transition-all"
                :class="[
-                             day.isToday ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-900' : '',
-                             day.isFuture ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer active:scale-95 hover:border-purple-300 dark:hover:border-purple-700'
-                         ]">
-            <!-- 状态图标 -->
-            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mr-4 shrink-0 shadow-inner"
+                   day.isToday ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-900 z-10' : 'opacity-90',
+                   day.isFuture ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer active:scale-95'
+               ]">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl mr-4 shrink-0 shadow-inner"
                  :class="{
-                                 'bg-slate-100 dark:bg-slate-700 text-slate-400': day.rpgStatus === 'UNKNOWN' || day.rpgStatus === 'SKIPPED',
-                                 'bg-green-100 dark:bg-green-900/30 text-green-600': day.rpgStatus === 'VICTORY',
-                                 'bg-red-100 dark:bg-red-900/30 text-red-500': day.rpgStatus === 'DEFEAT',
-                                 'bg-blue-100 dark:bg-blue-900/30 text-blue-500': day.rpgStatus === 'ONGOING'
-                             }">
-              <i v-if="day.isFuture" class="fas fa-lock"></i>
-              <i v-else-if="day.rpgStatus === 'VICTORY'" class="fas fa-trophy animate-pulse"></i>
-              <i v-else-if="day.rpgStatus === 'DEFEAT'" class="fas fa-skull-crossbones"></i>
-              <i v-else-if="day.rpgStatus === 'ONGOING'" class="fas fa-hourglass-half"></i>
+                     'bg-slate-100 dark:bg-slate-700 text-slate-400': day.rpgStatus === 'UNKNOWN' || day.rpgStatus === 'SKIPPED',
+                     'bg-green-100 dark:bg-green-900/30 text-green-600': day.rpgStatus === 'VICTORY',
+                     'bg-red-100 dark:bg-red-900/30 text-red-500': day.rpgStatus === 'DEFEAT',
+                     'bg-blue-100 dark:bg-blue-900/30 text-blue-500': day.rpgStatus === 'ONGOING'
+                 }">
+              <i v-if="day.isFuture" class="fas fa-lock text-xs"></i>
+              <i v-else-if="day.rpgStatus === 'VICTORY'" class="fas fa-crown"></i>
+              <i v-else-if="day.rpgStatus === 'DEFEAT'" class="fas fa-skull"></i>
+              <i v-else-if="day.rpgStatus === 'ONGOING'" class="fas fa-running"></i>
               <i v-else class="fas fa-bed"></i>
             </div>
-
-            <!-- 详情内容 -->
             <div class="flex-1">
               <div class="flex justify-between items-center mb-1">
                 <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">
-                  {{ day.label }} <span class="text-xs font-normal text-slate-400">周{{ day.weekday }}</span>
-                  <span v-if="day.isToday" class="ml-2 text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded">进行中</span>
+                  {{ day.label }} <span class="text-xs font-normal text-slate-400 ml-1">周{{ day.weekday }}</span>
                 </div>
                 <div class="text-xs font-bold font-mono" :class="day.val > store.dailyTarget ? 'text-red-500' : 'text-slate-500'">
-                  {{ day.val }} <span class="text-[10px]">kcal</span>
+                  {{ day.val }}
                 </div>
               </div>
-              <!-- 热量条 -->
               <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                 <div class="h-full rounded-full"
                      :style="{ width: Math.min((day.val / store.dailyTarget) * 100, 100) + '%' }"
@@ -228,10 +246,71 @@ const openDetail = (date: string) => {
               </div>
               <div class="text-[10px] text-slate-400 mt-1 italic flex justify-between">
                 <span>{{ day.isFuture ? '迷雾未散...' : getDayFlavorText(day.rpgStatus) }}</span>
-                <span v-if="!day.isFuture" class="text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">查看详情 <i class="fas fa-chevron-right text-[8px]"></i></span>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: 体态趋势 (SVG 重构版) -->
+    <div v-else class="p-4 animate-fade-in">
+      <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm text-center" v-if="!weightChartData">
+        <div class="text-4xl mb-2 grayscale opacity-50">⚖️</div>
+        <div class="text-sm text-slate-500">暂无体重记录</div>
+        <div class="text-xs text-slate-400 mt-1">请前往「英雄档案」更新你的体重数据</div>
+      </div>
+
+      <div v-else class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+        <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-6 flex items-center justify-between">
+          <span><i class="fas fa-weight mr-2 text-blue-500"></i> 近期体态变化</span>
+          <span class="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">最近7次</span>
+        </h3>
+
+        <!-- SVG Chart -->
+        <div class="relative w-full aspect-[2/1] rounded-xl select-none">
+          <svg viewBox="0 0 300 150" class="w-full h-full overflow-visible">
+            <defs>
+              <linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.2" />
+                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+
+            <!-- Grid Lines -->
+            <line x1="0" y1="0" x2="300" y2="0" stroke="currentColor" class="text-slate-100 dark:text-slate-700" stroke-width="1" />
+            <line x1="0" y1="75" x2="300" y2="75" stroke="currentColor" class="text-slate-100 dark:text-slate-700" stroke-width="1" stroke-dasharray="4 4" />
+            <line x1="0" y1="150" x2="300" y2="150" stroke="currentColor" class="text-slate-100 dark:text-slate-700" stroke-width="1" />
+
+            <!-- Area Fill -->
+            <path :d="weightChartData.areaPathD" fill="url(#areaGradient)" />
+
+            <!-- Path Line -->
+            <path :d="weightChartData.pathD" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-sm" />
+
+            <!-- Points -->
+            <circle v-for="(p, i) in weightChartData.points" :key="i"
+                    :cx="p.x" :cy="p.y" r="5" fill="#3b82f6" stroke="white" stroke-width="2" class="dark:stroke-slate-800 cursor-pointer transition-all hover:scale-125"
+                    @click="selectedPoint = i" />
+
+            <!-- Labels (Always show date, show value on click or last point) -->
+            <g v-for="(p, i) in weightChartData.points" :key="'l'+i">
+              <!-- Value Label -->
+              <text v-if="selectedPoint === i || i === weightChartData.points.length - 1"
+                    :x="p.x" :y="p.y - 12" font-size="10" text-anchor="middle" fill="#3b82f6" font-weight="bold" class="drop-shadow-md bg-white">
+                {{ p.val }}
+              </text>
+              <!-- Date Label -->
+              <text :x="p.x" :y="165" font-size="8" text-anchor="middle" fill="currentColor" class="text-slate-400 dark:text-slate-500">
+                {{ p.date }}
+              </text>
+            </g>
+          </svg>
+        </div>
+
+        <div class="mt-6 flex justify-between text-xs text-slate-400 px-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg py-2">
+          <span><i class="fas fa-arrow-down text-green-500 mr-1"></i>Min: {{ weightChartData.minW.toFixed(1) }}</span>
+          <span><i class="fas fa-arrow-up text-red-500 mr-1"></i>Max: {{ weightChartData.maxW.toFixed(1) }}</span>
         </div>
       </div>
     </div>
@@ -246,6 +325,6 @@ const openDetail = (date: string) => {
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; opacity: 0.5;
 }
-.anim-spin-slow { animation: spin-slow 12s linear infinite; }
-@keyframes spin-slow { 100% { transform: rotate(360deg); } }
+.animate-spin-slow { animation: spin 10s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
 </style>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
 
 const store = useGameStore();
-const { achievements } = storeToRefs(store);
+// Remove storeToRefs
+// const { achievements } = storeToRefs(store);
 
 const show = computed({
   get: () => store.modals.achievements,
@@ -13,15 +13,20 @@ const show = computed({
 </script>
 
 <template>
-  <van-popup v-model:show="show" round position="center" :style="{ width: '90%', maxHeight: '80%' }" class="overflow-visible">
+  <van-popup v-model:show="show" round position="center" :style="{ width: '90%', maxHeight: '80%' }" class="overflow-visible" close-on-click-overlay>
     <div class="p-6 bg-white dark:bg-slate-800 border-4 border-slate-800 dark:border-slate-600 rounded-3xl relative">
       <!-- 标题 Badge -->
       <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-slate-800 dark:bg-slate-700 text-white px-4 py-1 rounded-full text-xs font-bold font-rpg tracking-widest border-2 border-white dark:border-slate-500">
         荣誉殿堂
       </div>
 
+      <!-- 显式关闭按钮 -->
+      <div class="absolute -top-3 -right-3 w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded-full flex items-center justify-center border-2 border-slate-400 cursor-pointer shadow-md active:scale-95" @click="show = false">
+        <i class="fas fa-times text-slate-500 dark:text-slate-300"></i>
+      </div>
+
       <div class="grid grid-cols-2 gap-3 mt-4 max-h-[400px] overflow-y-auto no-scrollbar">
-        <div v-for="ach in achievements" :key="ach.id"
+        <div v-for="ach in store.achievements" :key="ach.id"
              class="border-2 rounded-xl p-3 flex flex-col items-center text-center transition-all"
              :class="ach.unlocked ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 dark:border-yellow-600 shadow-md' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 grayscale opacity-60'">
 

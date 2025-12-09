@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
 
 const store = useGameStore();
-const { user, modals } = storeToRefs(store);
+// Remove storeToRefs
+// const { user, modals } = storeToRefs(store);
 
 const show = computed({
-  get: () => modals.value.levelUp,
+  get: () => store.modals.levelUp,
   set: (val) => store.setModal('levelUp', val)
 });
 
 // 计算当前属性上限 (公式: 50 + Lv * 20)
-const statCap = computed(() => 50 + (user.value.level * 20));
-const prevStatCap = computed(() => 50 + ((user.value.level - 1) * 20));
+const statCap = computed(() => 50 + (store.user.level * 20));
+const prevStatCap = computed(() => 50 + ((store.user.level - 1) * 20));
 
 const close = () => {
   show.value = false;
@@ -34,7 +34,7 @@ const close = () => {
       <h2 class="text-3xl font-rpg text-yellow-600 dark:text-yellow-400 mb-1 relative z-10 drop-shadow-sm">LEVEL UP!</h2>
 
       <div class="text-lg text-slate-500 dark:text-slate-300 mb-6 relative z-10">
-        恭喜达到 <span class="text-yellow-600 dark:text-yellow-400 font-black text-3xl">Lv.{{ user.level }}</span>
+        恭喜达到 <span class="text-yellow-600 dark:text-yellow-400 font-black text-3xl">Lv.{{ store.user.level }}</span>
       </div>
 
       <!-- 奖励列表 -->

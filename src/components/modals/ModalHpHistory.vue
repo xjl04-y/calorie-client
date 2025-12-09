@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
 
 const store = useGameStore();
-const { heroStats } = storeToRefs(store);
+// Remove storeToRefs
+// const { heroStats } = storeToRefs(store);
 
 const show = computed({
   get: () => store.modals.hpHistory,
@@ -14,7 +14,6 @@ const show = computed({
 // 筛选所有受伤或闪避的日志
 const hpLogs = computed(() => {
   const allLogs: any[] = [];
-  // 遍历 store.logs 中的所有日期
   Object.values(store.logs).forEach(dayLogs => {
     dayLogs.forEach(log => {
       if (log.damageTaken !== undefined || log.dodged) {
@@ -22,7 +21,6 @@ const hpLogs = computed(() => {
       }
     });
   });
-  // 按时间倒序
   return allLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 });
 </script>
@@ -38,14 +36,14 @@ const hpLogs = computed(() => {
           <div class="text-2xl mr-2">🛡️</div>
           <div>
             <div class="text-xs text-slate-500">物理格挡</div>
-            <div class="font-bold text-blue-600 dark:text-blue-400">{{ heroStats.blockValue }} 点</div>
+            <div class="font-bold text-blue-600 dark:text-blue-400">{{ store.heroStats.blockValue }} 点</div>
           </div>
         </div>
         <div class="bg-green-50 dark:bg-slate-800 p-3 rounded-xl border border-green-100 dark:border-slate-700 flex items-center">
           <div class="text-2xl mr-2">⚡</div>
           <div>
             <div class="text-xs text-slate-500">闪避几率</div>
-            <div class="font-bold text-green-600 dark:text-green-400">{{ (heroStats.dodgeChance * 100).toFixed(1) }}%</div>
+            <div class="font-bold text-green-600 dark:text-green-400">{{ (store.heroStats.dodgeChance * 100).toFixed(1) }}%</div>
           </div>
         </div>
       </div>

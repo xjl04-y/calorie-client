@@ -1,29 +1,26 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
+// 移除 storeToRefs，避免在此架构下出现解包错误
+// import { storeToRefs } from 'pinia';
 import { showToast } from 'vant';
+import { getLocalDateStr, isSameDay } from '@/utils/dateUtils';
 
 const store = useGameStore();
-const { currentDate } = storeToRefs(store);
+// 移除 storeToRefs 调用
+// const { currentDate } = storeToRefs(store);
 
 const showCalendar = ref(false);
 
 // 日期显示格式化
 const dateText = computed(() => {
-  const [y, m, d] = currentDate.value.split('-').map(Number);
+  // 直接通过 store.currentDate 访问（Pinia 会自动解包，不需要 .value）
+  const [y, m, d] = store.currentDate.split('-').map(Number);
   return `${m}月${d}日`;
 });
 
-// 获取本地日期字符串 YYYY-MM-DD
-const getLocalDateStr = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const isToday = computed(() => currentDate.value === getLocalDateStr());
+// 直接使用 store.currentDate
+const isToday = computed(() => store.currentDate === getLocalDateStr());
 
 // 确认选择日期
 const onConfirm = (date: Date) => {

@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { storeToRefs } from 'pinia';
 import { TAG_DEFS } from '@/constants/gameData';
 
 const store = useGameStore();
-const { temp, modals, stageInfo } = storeToRefs(store);
+// Remove storeToRefs
+// const { temp, modals, stageInfo } = storeToRefs(store);
 
-// 控制弹窗显示
+// Use direct access or computed wrappers
 const show = computed({
-  get: () => modals.value.quantity,
+  get: () => store.modals.quantity,
   set: (val) => store.setModal('quantity', val)
 });
 
-const item = computed(() => temp.value.pendingItem);
+const item = computed(() => store.temp.pendingItem);
 const multiplier = ref(1.0);
 const currentGrams = ref(0);
 
@@ -51,9 +51,9 @@ const calcMacros = computed(() => {
 
 // 伤害预测逻辑 V2.0 (RPG 核心逻辑)
 const dmgPrediction = computed(() => {
-  if (!item.value || !stageInfo.value.currentObj) return null;
+  if (!item.value || !store.stageInfo.currentObj) return null;
 
-  const monster = stageInfo.value.currentObj.data;
+  const monster = store.stageInfo.currentObj.data;
   const tags = item.value.tags || [];
   const finalFat = calcMacros.value.f;
   const finalCarb = calcMacros.value.c;
@@ -96,7 +96,7 @@ const confirm = () => {
   };
 
   // 如果是“配菜模式”
-  if (temp.value.isBuilding) {
+  if (store.temp.isBuilding) {
     store.temp.basket.push({ ...finalLog, isComposite: false });
     store.setModal('quantity', false);
     return;
@@ -118,9 +118,9 @@ const confirm = () => {
         <div class="text-6xl mb-3 animate-bounce">{{ item.icon }}</div>
         <h3 class="font-black text-2xl text-slate-800 dark:text-white">{{ item.name }}</h3>
         <div class="flex justify-center gap-1 mt-2 mb-2" v-if="item.tags && item.tags.length">
-                    <span v-for="tag in item.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1">
-                        {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label }}
-                    </span>
+          <span v-for="tag in item.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1">
+            {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label }}
+          </span>
         </div>
 
         <!-- 伤害预测胶囊 -->
@@ -181,7 +181,7 @@ const confirm = () => {
         @click="confirm"
         class="shadow-lg shadow-purple-200 dark:shadow-none font-bold"
       >
-        {{ temp.isBuilding ? '加入碗里' : '确认记录' }}
+        {{ store.temp.isBuilding ? '加入碗里' : '确认记录' }}
       </van-button>
     </div>
   </van-popup>
