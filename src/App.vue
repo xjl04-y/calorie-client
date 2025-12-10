@@ -21,6 +21,10 @@ const store = useGameStore();
 
 onMounted(() => {
   store.loadState();
+  // [New V2.1] 启动时检查签到连胜
+  if (store.user.isInitialized) {
+    store.heroStore.checkLoginStreak();
+  }
   if (store.isDarkMode) document.documentElement.classList.add('dark');
 });
 

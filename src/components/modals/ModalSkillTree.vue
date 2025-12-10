@@ -18,7 +18,7 @@ const sp = computed(() => user.value.skillPoints);
 
 const getSkillLevel = (id: string) => learned.value[id] || 0;
 // 按层级获取节点，用于渲染树
-const getTierNodes = (tier: number) => skills.value.filter(s => s.tier === tier);
+const getTierNodes = (tier: number) => (skills.value || []).filter(s => s.tier === tier);
 
 const canUpgrade = (node: SkillNode) => {
   if (getSkillLevel(node.id) >= node.maxLevel) return false;
@@ -68,17 +68,37 @@ const zoom = (delta: number) => {
 
 const onTouchStart = (e: TouchEvent | MouseEvent) => {
   isDragging.value = true;
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  let clientX = 0;
+  let clientY = 0;
+
+  if ('touches' in e && e.touches && e.touches.length > 0 && e.touches[0]) {
+    clientX = (e as TouchEvent).touches[0].clientX;
+    clientY = (e as TouchEvent).touches[0].clientY;
+  } else if ('clientX' in e) {
+    clientX = (e as MouseEvent).clientX;
+    clientY = (e as MouseEvent).clientY;
+  }
+
   startX.value = clientX - translateX.value;
   startY.value = clientY - translateY.value;
 };
 
 const onTouchMove = (e: TouchEvent | MouseEvent) => {
   if (!isDragging.value) return;
-  e.preventDefault(); // 防止页面滚动
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  // [Fix Bug] 移除 e.preventDefault()，改由 template 修饰符控制
+  // e.preventDefault();
+
+  let clientX = 0;
+  let clientY = 0;
+
+  if ('touches' in e && e.touches && e.touches.length > 0 && e.touches[0]) {
+    clientX = (e as TouchEvent).touches[0].clientX;
+    clientY = (e as TouchEvent).touches[0].clientY;
+  } else if ('clientX' in e) {
+    clientX = (e as MouseEvent).clientX;
+    clientY = (e as MouseEvent).clientY;
+  }
+
   translateX.value = clientX - startX.value;
   translateY.value = clientY - startY.value;
 };
@@ -138,9 +158,10 @@ onUnmounted(() => {
       </div>
 
       <!-- Draggable Area -->
+      <!-- [Fix Bug] 使用 .prevent 修饰符阻止默认滚动，替换 passive -->
       <div class="flex-1 overflow-hidden relative cursor-move bg-slate-900/50"
            @mousedown="onTouchStart" @mousemove="onTouchMove"
-           @touchstart.passive="onTouchStart" @touchmove.passive="onTouchMove">
+           @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove">
 
         <div class="absolute inset-0 flex items-start justify-center pt-20 transition-transform duration-75 ease-linear origin-top"
              :style="{ transform: `translate(${translateX}px, ${translateY}px) scale(${scale})` }">

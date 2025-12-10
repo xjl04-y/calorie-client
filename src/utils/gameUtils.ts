@@ -1,7 +1,23 @@
 import { RACES } from '@/constants/gameData';
 
-// --- 工具函数：防抖 (新增) ---
-// 用于优化高频存档操作，避免阻塞 UI 线程
+// --- 工具函数：ID 生成器 (新增) ---
+export const generateId = (): number => {
+  return Date.now() + Math.floor(Math.random() * 10000);
+};
+
+// --- 工具函数：安全震动 (新增) ---
+// 兼容 Capacitor Haptics 和 Web Vibration API
+export const safeVibrate = (pattern: number | number[] = 200) => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try {
+      navigator.vibrate(pattern);
+    } catch (e) {
+      // 忽略不支持的情况
+    }
+  }
+};
+
+// --- 工具函数：防抖 (保持不变) ---
 export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   return function(this: any, ...args: Parameters<T>) {
@@ -79,41 +95,46 @@ export const readJsonFile = (file: File): Promise<any> => {
   });
 };
 
-// --- 食物命名逻辑 ---
+// --- [Fix V3.2] 严格的食物命名逻辑 ---
 export const formatRpgFoodName = (foodName: string, raceKey: string, originalName?: string): string => {
   const race = RACES[raceKey] || RACES.HUMAN;
 
   if (foodName && foodName.includes('·') && foodName.includes('(')) return foodName;
 
-  const realOrigin = originalName || foodName;
+  const realOrigin = (originalName || foodName).trim();
   if (!realOrigin) return '未知食物';
 
   const seed = realOrigin.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-  const prefix = race.prefixes[seed % race.prefixes.length];
+  const prefix = race?.prefixes?.[seed % (race.prefixes?.length || 1)] || '普通';
 
   return `${prefix}·${realOrigin} (${realOrigin})`;
 };
 
-// --- 战力阶位与特权 ---
+// --- 战力阶位与特权 (V3.0 Updated) ---
 export const getCombatRank = (cp: number) => {
   if (cp < 500) return {
     title: '见习冒险者', color: 'text-slate-500', icon: '🪵',
-    passive: '无被动效果', desc: '继续努力，从砍柴开始。'
+    passive: '无被动效果', desc: '继续努力，从砍柴开始。',
+    next: 500
   };
   if (cp < 1200) return {
     title: '资深猎人', color: 'text-green-500', icon: '🏹',
-    passive: '野性直觉', desc: '每日任务经验 +5%'
+    passive: '野性直觉', desc: '每日任务经验 +5%',
+    next: 1200
   };
   if (cp < 2500) return {
     title: '皇家护卫', color: 'text-blue-500', icon: '🛡️',
-    passive: '坚韧体魄', desc: '连击判定时间延长 30分钟'
+    passive: '坚韧体魄', desc: '连击判定时间延长 30分钟',
+    next: 2500
   };
   if (cp < 5000) return {
     title: '战争领主', color: 'text-purple-500', icon: '👑',
-    passive: '统御之力', desc: '全属性加成 +5%'
+    passive: '统御之力', desc: '全属性加成 +5%',
+    next: 5000
   };
   return {
     title: '传说英雄', color: 'text-orange-500', icon: '🌟',
-    passive: '半神之躯', desc: '基础代谢 (BMR) 计算值 +100'
+    passive: '半神之躯', desc: '基础代谢 (BMR) 计算值 +100',
+    next: null // Max rank
   };
 };

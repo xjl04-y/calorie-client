@@ -8,14 +8,15 @@ const user = computed(() => store.user);
 const weeklyStats = computed(() => store.weeklyStats || []);
 const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
 const topFoods = computed(() => (store.todayLogs || []).slice(0, 8));
+const dailyTarget = computed(() => store.dailyTarget); // BMR 目标
 
 const activeTab = ref('today');
 const selectedPoint = ref<number | null>(null);
 
 const currentDateObj = computed(() => {
-  const dateStr = store.analysisRefDate || new Date().toISOString().split('T')[0];
+  const dateStr = store.analysisRefDate || new Date().toISOString().split('T')[0] || '';
   const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  return new Date(y || 0, (m || 0) - 1, d || 0);
 });
 
 const weekRangeDateText = computed(() => {
@@ -39,15 +40,30 @@ const isCurrentWeek = computed(() => {
   return getMonday(ref).getTime() === getMonday(today).getTime();
 });
 
-const macroPct = computed(() => {
+// PM Fix: 计算营养素的热量贡献 (1g P/C = 4kcal, 1g F = 9kcal)
+const macroCals = computed(() => {
   const m = todayMacros.value;
-  if (!m) return { p: 0, c: 0, f: 0 };
-  const total = (m.p + m.c + m.f) || 1;
   return {
-    p: Math.round(m.p/total*100),
-    c: Math.round(m.c/total*100),
-    f: Math.round(m.f/total*100)
+    p: m.p * 4,
+    c: m.c * 4,
+    f: m.f * 9
   };
+});
+
+// 计算百分比
+const macroPct = computed(() => {
+  const total = todayMacros.value.cals || 1;
+  const cals = macroCals.value;
+  return {
+    p: Math.round(cals.p/total*100),
+    c: Math.round(cals.c/total*100),
+    f: Math.round(cals.f/total*100)
+  };
+});
+
+// 总体进度百分比 (摄入 / BMR)
+const totalProgress = computed(() => {
+  return Math.min(100, Math.round((todayMacros.value.cals / dailyTarget.value) * 100));
 });
 
 const getDayFlavorText = (status: string) => {
@@ -60,16 +76,12 @@ const getDayFlavorText = (status: string) => {
   }
 };
 
-// 修复 4: 严格的日期格式化 (YYYY-MM-DD)，确保与 store 中的 key 匹配
 const shiftWeek = (offset: number) => {
   const d = new Date(currentDateObj.value);
   d.setDate(d.getDate() + (offset * 7));
-
   const y = d.getFullYear();
-  // 必须补零，否则匹配不到 store 中的 key (如 2023-5-1 vs 2023-05-01)
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-
   store.analysisRefDate = `${y}-${m}-${day}`;
 };
 
@@ -86,7 +98,6 @@ const openDetail = (date: string) => {
   store.setModal('historyDetail', true);
 }
 
-// 确保体重历史记录是响应式的
 const weightHistory = computed(() => {
   return store.user.weightHistory ? [...store.user.weightHistory] : [];
 });
@@ -96,7 +107,7 @@ const weightChartData = computed(() => {
   if (!history || history.length === 0) return null;
 
   const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const recent = sorted.slice(-14); // 取最近14条
+  const recent = sorted.slice(-14);
 
   const weights = recent.map(r => r.weight);
   const minW = Math.min(...weights) - 1;
@@ -116,11 +127,11 @@ const weightChartData = computed(() => {
   });
 
   const pathD = points.length > 1
-    ? `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')
-    : points.length === 1 ? `M ${padding} ${points[0].y} L ${width-padding} ${points[0].y}` : '';
+    ? `M ${points[0]?.x || 0} ${points[0]?.y || 0} ` + points.slice(1).map(p => `L ${p?.x || 0} ${p?.y || 0}`).join(' ')
+    : points.length === 1 ? `M ${padding} ${points[0]?.y || 0} L ${width-padding} ${points[0]?.y || 0}` : '';
 
   const areaPathD = points.length > 1
-    ? `${pathD} L ${points[points.length-1].x} ${height} L ${points[0].x} ${height} Z`
+    ? `${pathD} L ${points[points.length-1]?.x || 0} ${height} L ${points[0]?.x || 0} ${height} Z`
     : '';
 
   return { points, pathD, areaPathD, minW, maxW };
@@ -138,57 +149,72 @@ const weightChartData = computed(() => {
         </button>
       </h2>
       <van-tabs v-model:active="activeTab" type="card" color="#7c3aed" class="w-full" background="transparent">
-        <van-tab title="元素共鸣" name="today"></van-tab>
+        <van-tab title="今日热量" name="today"></van-tab>
         <van-tab title="冒险编年史" name="week"></van-tab>
         <van-tab title="体态趋势" name="body"></van-tab>
       </van-tabs>
     </div>
 
-    <!-- Tab 1: 元素共鸣 -->
+    <!-- Tab 1: 今日热量 (原元素共鸣) -->
     <div v-if="activeTab === 'today'" class="p-4 animate-fade-in">
       <div class="bg-slate-900 rounded-3xl p-6 border-4 border-double border-slate-700 shadow-2xl relative overflow-hidden magic-border">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-20"></div>
+
         <h3 class="font-bold text-slate-200 w-full mb-6 flex items-center justify-center relative z-10 text-lg font-rpg">
-          <i class="fas fa-atom mr-2 text-purple-400 animate-spin-slow"></i> 元素魔力池
+          <i class="fas fa-fire-alt mr-2 text-orange-500 animate-pulse"></i> 今日能量摄入
         </h3>
-        <div class="space-y-6 relative z-10">
+
+        <!-- 主仪表盘 -->
+        <div class="text-center relative z-10 mb-8">
+          <div class="text-5xl font-black font-mono text-white drop-shadow-md tracking-tighter">
+            {{ todayMacros.cals }}
+            <span class="text-lg text-slate-400 font-normal">/ {{ dailyTarget }}</span>
+          </div>
+          <div class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Daily Intake vs BMR</div>
+
+          <!-- 总进度条 -->
+          <div class="w-full h-3 bg-slate-800 rounded-full mt-4 overflow-hidden border border-slate-600 relative">
+            <div class="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-1000"
+                 :style="{ width: totalProgress + '%' }"></div>
+          </div>
+          <div class="flex justify-between text-xs text-slate-500 mt-1 font-mono">
+            <span>0%</span>
+            <span>{{ totalProgress }}%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <div class="space-y-4 relative z-10 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+          <div class="text-xs font-bold text-slate-400 text-center mb-2">能量来源占比 (Calories Source)</div>
           <div>
             <div class="flex justify-between text-xs font-bold text-red-400 mb-1 uppercase tracking-widest">
-              <span><i class="fas fa-fire mr-1"></i> 力量 (Pro)</span><span>{{ macroPct.p }}%</span>
+              <span>蛋白质 (Pro)</span><span>{{ macroCals.p }} kcal ({{ macroPct.p }}%)</span>
             </div>
-            <div class="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
-              <div class="absolute inset-0 bg-red-900/30"></div>
-              <div class="h-full bg-gradient-to-r from-red-600 to-orange-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] transition-all duration-1000" :style="{ width: macroPct.p + '%' }"></div>
+            <div class="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+              <div class="h-full bg-red-600" :style="{ width: macroPct.p + '%' }"></div>
             </div>
           </div>
           <div>
             <div class="flex justify-between text-xs font-bold text-yellow-400 mb-1 uppercase tracking-widest">
-              <span><i class="fas fa-bolt mr-1"></i> 敏捷 (Carb)</span><span>{{ macroPct.c }}%</span>
+              <span>碳水 (Carb)</span><span>{{ macroCals.c }} kcal ({{ macroPct.c }}%)</span>
             </div>
-            <div class="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
-              <div class="absolute inset-0 bg-yellow-900/30"></div>
-              <div class="h-full bg-gradient-to-r from-yellow-500 to-amber-300 shadow-[0_0_10px_rgba(234,179,8,0.5)] transition-all duration-1000" :style="{ width: macroPct.c + '%' }"></div>
+            <div class="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+              <div class="h-full bg-yellow-500" :style="{ width: macroPct.c + '%' }"></div>
             </div>
           </div>
           <div>
             <div class="flex justify-between text-xs font-bold text-green-400 mb-1 uppercase tracking-widest">
-              <span><i class="fas fa-shield-alt mr-1"></i> 坚韧 (Fat)</span><span>{{ macroPct.f }}%</span>
+              <span>脂肪 (Fat)</span><span>{{ macroCals.f }} kcal ({{ macroPct.f }}%)</span>
             </div>
-            <div class="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
-              <div class="absolute inset-0 bg-green-900/30"></div>
-              <div class="h-full bg-gradient-to-r from-green-600 to-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-1000" :style="{ width: macroPct.f + '%' }"></div>
+            <div class="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+              <div class="h-full bg-green-500" :style="{ width: macroPct.f + '%' }"></div>
             </div>
-          </div>
-        </div>
-        <div class="mt-8 text-center">
-          <div class="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-1">Total Mana Output</div>
-          <div class="text-4xl font-rpg text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 drop-shadow-lg">
-            {{ todayMacros.cals }} <span class="text-sm text-slate-500">kcal</span>
           </div>
         </div>
       </div>
+
       <div class="mt-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-        <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">今日狩猎战利品</h4>
+        <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">今日狩猎战利品 (Top 8)</h4>
         <div class="flex flex-wrap gap-2">
           <span v-for="(item, i) in topFoods" :key="i" class="px-2 py-1 bg-white dark:bg-slate-700 rounded border border-slate-100 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-300 shadow-sm flex items-center">
               {{ item.icon }} {{ item.name }}
@@ -256,7 +282,7 @@ const weightChartData = computed(() => {
       </div>
     </div>
 
-    <!-- Tab 3: 体态趋势 (Stable SVG) -->
+    <!-- Tab 3: 体态趋势 -->
     <div v-else class="p-4 animate-fade-in">
       <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm text-center" v-if="!weightChartData">
         <div class="text-4xl mb-2 grayscale opacity-50">⚖️</div>
@@ -302,24 +328,23 @@ const weightChartData = computed(() => {
             </g>
 
             <!-- Highlight Layer (On Top) -->
-            <!-- 修复 5: pointer-events-none 彻底消除交互抖动 (鼠标穿透) -->
             <g v-if="selectedPoint !== null && weightChartData.points[selectedPoint]" class="pointer-events-none transition-all duration-200">
               <!-- Highlight Circle -->
-              <circle :cx="weightChartData.points[selectedPoint].x" :cy="weightChartData.points[selectedPoint].y" r="6" fill="#fff" stroke="#3b82f6" stroke-width="3" />
+              <circle :cx="weightChartData.points[selectedPoint]?.x || 0" :cy="weightChartData.points[selectedPoint]?.y || 0" r="6" fill="#fff" stroke="#3b82f6" stroke-width="3" />
 
               <!-- Tooltip Group -->
               <g>
-                <rect :x="weightChartData.points[selectedPoint].x - 24" :y="weightChartData.points[selectedPoint].y - 45" width="48" height="24" rx="6" fill="#1e293b" class="shadow-lg" />
+                <rect :x="(weightChartData.points[selectedPoint]?.x || 0) - 24" :y="(weightChartData.points[selectedPoint]?.y || 0) - 45" width="48" height="24" rx="6" fill="#1e293b" class="shadow-lg" />
                 <!-- Triangle -->
-                <path :d="`M ${weightChartData.points[selectedPoint].x} ${weightChartData.points[selectedPoint].y - 21} L ${weightChartData.points[selectedPoint].x - 6} ${weightChartData.points[selectedPoint].y - 12} L ${weightChartData.points[selectedPoint].x + 6} ${weightChartData.points[selectedPoint].y - 12} Z`" fill="#1e293b" />
+                <path :d="`M ${weightChartData.points[selectedPoint]?.x || 0} ${(weightChartData.points[selectedPoint]?.y || 0) - 21} L ${(weightChartData.points[selectedPoint]?.x || 0) - 6} ${(weightChartData.points[selectedPoint]?.y || 0) - 12} L ${(weightChartData.points[selectedPoint]?.x || 0) + 6} ${(weightChartData.points[selectedPoint]?.y || 0) - 12} Z`" fill="#1e293b" />
 
-                <text :x="weightChartData.points[selectedPoint].x" :y="weightChartData.points[selectedPoint].y - 29" font-size="11" text-anchor="middle" fill="#ffffff" font-weight="bold">
-                  {{ weightChartData.points[selectedPoint].val }}kg
+                <text :x="weightChartData.points[selectedPoint]?.x || 0" :y="(weightChartData.points[selectedPoint]?.y || 0) - 29" font-size="11" text-anchor="middle" fill="#ffffff" font-weight="bold">
+                  {{ weightChartData.points[selectedPoint]?.val || 0 }}kg
                 </text>
               </g>
 
               <!-- Vertical Line -->
-              <line :x1="weightChartData.points[selectedPoint].x" :y1="weightChartData.points[selectedPoint].y + 6" :x2="weightChartData.points[selectedPoint].x" y2="150" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2 2" opacity="0.5" />
+              <line :x1="weightChartData.points[selectedPoint]?.x || 0" :y1="(weightChartData.points[selectedPoint]?.y || 0) + 6" :x2="weightChartData.points[selectedPoint]?.x || 0" y2="150" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2 2" opacity="0.5" />
             </g>
           </svg>
         </div>

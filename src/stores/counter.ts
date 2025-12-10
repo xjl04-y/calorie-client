@@ -130,16 +130,26 @@ export const useGameStore = defineStore('game', () => {
           });
         }
 
+        // [Fix Bug] 强制同步引导页状态
+        // 如果已初始化，关闭引导；否则（即使有部分数据但未完成初始化），强制开启引导
         if (hero.user.isInitialized) {
           system.modals.onboarding = false;
+        } else {
+          system.modals.onboarding = true;
         }
 
       } catch (e) {
         console.error('Save parse error', e);
+        // 存档损坏，强制重置为新手状态
         collection.initFoodDb(hero.user.race || 'HUMAN', true);
+        hero.user.isInitialized = false;
+        system.modals.onboarding = true;
       }
     } else {
+      // 无存档，强制重置为新手状态
       collection.initFoodDb(hero.user.race || 'HUMAN', true);
+      hero.user.isInitialized = false;
+      system.modals.onboarding = true;
     }
   }
 
@@ -177,6 +187,8 @@ export const useGameStore = defineStore('game', () => {
     historyTotalMacros: computed(() => battle.historyTotalMacros),
     stageInfo: computed(() => battle.stageInfo),
     comboState: computed(() => battle.comboState),
+    // [Fix Bug] 显式暴露 environment，解决 HomeView 中的 undefined 报错
+    environment: computed(() => battle.environment),
 
     setModal: system.setModal,
     triggerShake: system.triggerShake,

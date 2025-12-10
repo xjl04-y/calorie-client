@@ -37,6 +37,12 @@ const showEdit = ref(false);
 const editData = reactive({ height: 0, weight: 0, age: 0 });
 const fileInput = ref<HTMLInputElement | null>(null);
 
+const rankInfo = computed(() => getCombatRank(heroStats.value.combatPower));
+const nextRankProgress = computed(() => {
+  if (!rankInfo.value.next) return 100;
+  return Math.min(100, (heroStats.value.combatPower / rankInfo.value.next) * 100);
+});
+
 const onAvatarRead = (file: any) => {
   store.user.avatarType = 'CUSTOM';
   store.user.customAvatar = file.content;
@@ -199,7 +205,7 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- Base Stats -->
+    <!-- Base Stats & Rank Info (V3.0) -->
     <div class="mt-20 text-center px-6">
       <div class="flex justify-center mb-4">
         <span class="bg-slate-800 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold flex items-center">
@@ -215,9 +221,23 @@ const expPercent = computed(() => {
           {{ heroStats.rankTitle }} <span class="text-sm text-slate-500 font-mono">({{ heroStats.combatPower }})</span>
         </div>
 
-        <div class="bg-black/30 rounded-lg py-2 px-3 text-xs inline-block border border-white/5">
+        <div class="bg-black/30 rounded-lg py-2 px-3 text-xs inline-block border border-white/5 mb-3">
           <span class="text-yellow-500 font-bold mr-1">✦ 阶位特权:</span>
-          <span class="text-slate-300">{{ getCombatRank(heroStats.combatPower).passive }}</span>
+          <span class="text-slate-300">{{ rankInfo.passive }}</span>
+        </div>
+
+        <!-- 晋升进度条 (New) -->
+        <div v-if="rankInfo.next" class="mt-2 px-4">
+          <div class="flex justify-between text-[10px] text-slate-500 mb-1">
+            <span>距离下一阶位</span>
+            <span>{{ heroStats.combatPower }} / {{ rankInfo.next }}</span>
+          </div>
+          <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+            <div class="h-full bg-yellow-600 transition-all duration-500" :style="{ width: nextRankProgress + '%' }"></div>
+          </div>
+        </div>
+        <div v-else class="mt-2 text-[10px] text-orange-500 font-bold">
+          已达巅峰传说！
         </div>
       </div>
 

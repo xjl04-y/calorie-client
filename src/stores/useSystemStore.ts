@@ -48,7 +48,8 @@ export const useSystemStore = defineStore('system', () => {
     logDetail: false,
     hpHistory: false,
     questBoard: false,
-    skillTree: false
+    skillTree: false,
+    npcGuide: false
   });
 
   // [Fix 3.3] 使用 SystemTempState 接口，消除 any

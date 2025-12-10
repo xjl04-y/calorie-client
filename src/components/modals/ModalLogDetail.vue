@@ -35,20 +35,36 @@ const handleDelete = () => {
 const MEAL_LABELS: Record<string, string> = {
   BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食'
 };
+
+const getTagDesc = (tag: string) => {
+  if(tag === '高糖') return '容易被 [糖霜魔像] 克制，中断连击';
+  if(tag === '高油') return '容易被 [油泥软怪] 克制，中断连击';
+  if(tag === '高碳') return '容易被 [碳水强盗] 克制';
+  if(tag === '纯净' || tag === '均衡') return '对大多数怪物有额外伤害加成，且容易触发连击';
+  return '普通属性';
+};
 </script>
 
 <template>
-  <van-popup v-model:show="show" round position="center" :style="{ width: '85%' }" class="dark:bg-slate-800">
-    <div class="p-6 text-center" v-if="log">
+  <van-popup v-model:show="show" round position="center" :style="{ width: '85%', maxHeight: '90%' }" class="dark:bg-slate-800 flex flex-col overflow-hidden">
+    <div class="p-6 text-center overflow-y-auto" v-if="log">
       <!-- 图标与名称 -->
-      <div class="text-6xl mb-4">{{ log.icon }}</div>
+      <div class="text-6xl mb-4 filter drop-shadow-md">{{ log.icon }}</div>
       <h3 class="font-bold text-xl dark:text-white mb-2">{{ log.name }}</h3>
 
-      <!-- 标签 -->
+      <!-- 标签展示区 -->
       <div class="flex flex-wrap justify-center gap-1 mb-4" v-if="log.damageTaken === undefined">
-                <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1 rounded">
-                    {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
-                </span>
+        <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1 rounded">
+            {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
+        </span>
+      </div>
+
+      <!-- [New Feature] 标签战斗情报 -->
+      <div v-if="log.tags && log.tags.length > 0 && log.damageTaken === undefined" class="mb-4 bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg text-left">
+        <div v-for="tag in log.tags" :key="tag" class="text-[10px] text-slate-500 dark:text-slate-400 mb-1 last:mb-0 flex items-start">
+          <i class="fas fa-info-circle mr-1 mt-0.5 text-blue-400"></i>
+          <span><strong :class="'text-'+tag">{{ tag }}</strong>: {{ getTagDesc(tag) }}</span>
+        </div>
       </div>
 
       <!-- 数据网格 -->
@@ -81,6 +97,7 @@ const MEAL_LABELS: Record<string, string> = {
             {{ Math.floor(log.calories * (log.multiplier || 1)) }}
           </div>
           <div v-if="(log.multiplier || 1) < 1" class="text-[8px] text-red-500 font-bold">严重抵抗 (x{{ log.multiplier?.toFixed(2) }})</div>
+          <div v-else-if="(log.multiplier || 1) > 1" class="text-[8px] text-green-500 font-bold">效果拔群 (x{{ log.multiplier?.toFixed(2) }})</div>
         </div>
 
         <div class="text-left">
@@ -102,7 +119,25 @@ const MEAL_LABELS: Record<string, string> = {
         <div class="flex justify-between text-xs"><span class="text-slate-500">脂肪</span><span class="font-bold text-orange-500">{{ log.f }}g</span></div>
       </div>
 
-      <div class="flex gap-3">
+      <!-- [New Feature] 复合食物成分表 -->
+      <div v-if="log.isComposite && log.ingredients && log.ingredients.length > 0" class="bg-purple-50 dark:bg-slate-700/50 rounded-xl p-3 mb-4 text-left border border-purple-100 dark:border-slate-600">
+        <div class="text-xs font-bold text-purple-600 dark:text-purple-400 mb-2 flex items-center">
+          <i class="fas fa-utensils mr-1"></i> 料理成分表
+        </div>
+        <div class="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+          <div v-for="(ing, idx) in log.ingredients" :key="idx" class="flex items-center justify-between bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center">
+              <span class="text-lg mr-2">{{ ing.icon }}</span>
+              <span class="text-xs font-bold dark:text-slate-200">{{ ing.name }}</span>
+            </div>
+            <div class="text-[10px] text-slate-400">
+              {{ ing.calories }} kcal
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-4">
         <van-button class="flex-1 border-slate-200 dark:border-slate-600 text-slate-500" plain round @click="handleDelete">
           <i class="fas fa-undo mr-1"></i> 撤销记录
         </van-button>
@@ -113,5 +148,12 @@ const MEAL_LABELS: Record<string, string> = {
 </template>
 
 <style scoped>
-/* 使用 style.css 中的全局样式 */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #d8b4fe; border-radius: 4px; }
+/* 简单的 Tag 颜色映射 */
+.text-高糖 { color: #dc2626; }
+.text-高油 { color: #d97706; }
+.text-纯净 { color: #0891b2; }
+.text-均衡 { color: #7c3aed; }
 </style>

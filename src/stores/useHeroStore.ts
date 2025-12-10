@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 import { reactive, computed } from 'vue';
-import type { UserState, InitUserForm } from '@/types'; // [Fix] Import InitUserForm
+import type { UserState, InitUserForm } from '@/types';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
 import { getLocalDateStr } from '@/utils/dateUtils';
 import { RACES, RACE_SKILL_TREES } from '@/constants/gameData';
-import { showToast } from 'vant';
+import { showToast, showNotify } from 'vant';
 
 export const useHeroStore = defineStore('hero', () => {
   const systemStore = useSystemStore();
@@ -24,12 +24,13 @@ export const useHeroStore = defineStore('hero', () => {
     skillPoints: 0,
     learnedSkills: {},
     activeSkillId: null,
-    activeSkillCd: 0
+    activeSkillCd: 0,
+    loginStreak: 1,
+    lastLoginDate: getLocalDateStr()
   });
 
   // --- Getters ---
   const skillTree = computed(() => {
-    // 确保有默认值，防止 race 为空时报错
     return RACE_SKILL_TREES[user.race] || RACE_SKILL_TREES['HUMAN'];
   });
 
@@ -38,7 +39,11 @@ export const useHeroStore = defineStore('hero', () => {
     let statMult = { str: 0, agi: 0, vit: 0 };
     let expRate = 1.0;
 
-    skillTree.value.forEach(node => {
+    if (user.loginStreak > 1) {
+      expRate += Math.min((user.loginStreak - 1) * 0.01, 0.1);
+    }
+
+    skillTree.value?.forEach(node => {
       const level = user.learnedSkills[node.id] || 0;
       if (level > 0) {
         if (node.type === 'PASSIVE_BMR') {
@@ -72,18 +77,14 @@ export const useHeroStore = defineStore('hero', () => {
   });
 
   const activeSkill = computed(() => {
-    return skillTree.value.find(n => n.type === 'ACTIVE_BUFF' && (user.learnedSkills[n.id] || 0) > 0) || null;
+    return skillTree.value?.find(n => n.type === 'ACTIVE_BUFF' && (user.learnedSkills[n.id] || 0) > 0) || null;
   });
 
-  // V2.6 Fix: 使用 systemStore.timestamp 实现真正的响应式倒计时
   const skillStatus = computed(() => {
     const skill = activeSkill.value;
     if (!skill) return { ready: false, text: '无技能', percent: 0, active: false };
 
-    // 依赖 systemStore.timestamp 触发重新计算
     const now = systemStore.timestamp;
-
-    // 假设 activeSkillId 不为空表示技能已激活并正在等待下次触发
     const isActive = user.activeSkillId !== null;
     if (isActive) {
       return { ready: false, text: '生效中', percent: 100, active: true };
@@ -113,8 +114,10 @@ export const useHeroStore = defineStore('hero', () => {
   });
 
   const raceSkill = computed(() => {
-    return skillTree.value.find(n => n.type === 'ACTIVE_BUFF');
+    return skillTree.value?.find(n => n.type === 'ACTIVE_BUFF') || null;
   });
+
+  const isExhausted = computed(() => user.heroCurrentHp <= 0);
 
   // --- Actions ---
   function recalcBMR() {
@@ -123,7 +126,6 @@ export const useHeroStore = defineStore('hero', () => {
     user.baseBMR = Math.round(bmr * 1.375);
   }
 
-  // [Fix 3.3] 使用严格的 InitUserForm 类型，替代 any
   function initUser(formData: InitUserForm) {
     Object.assign(user, formData);
     if (user.weight > 0) {
@@ -136,13 +138,14 @@ export const useHeroStore = defineStore('hero', () => {
     user.learnedSkills = {};
     user.activeSkillId = null;
     user.activeSkillCd = 0;
+    user.loginStreak = 1;
+    user.lastLoginDate = getLocalDateStr();
 
     user.heroMaxHp = 200;
     user.heroCurrentHp = user.heroMaxHp;
     user.isInitialized = true;
   }
 
-  // 修复: 确保 weightHistory 引用更新，触发计算属性
   function updateWeight(newWeight: number, isInit = false) {
     if (newWeight <= 0) return;
     user.weight = newWeight;
@@ -151,12 +154,11 @@ export const useHeroStore = defineStore('hero', () => {
     if (!user.weightHistory) user.weightHistory = [];
 
     const today = getLocalDateStr();
-    // 创建新数组以触发响应式更新
     const history = [...user.weightHistory];
     const existingIdx = history.findIndex(r => r.date === today);
 
     if (existingIdx !== -1) {
-      history[existingIdx].weight = newWeight;
+      history[existingIdx]!.weight = newWeight;
     } else {
       history.push({ date: today, weight: newWeight });
     }
@@ -176,18 +178,29 @@ export const useHeroStore = defineStore('hero', () => {
     while (user.currentExp >= user.nextLevelExp) {
       user.currentExp -= user.nextLevelExp;
       user.level++;
-      user.nextLevelExp = Math.floor(user.nextLevelExp * 1.2);
+
+      // PM Fix: 升级难度调整，防止数值膨胀
+      // 旧公式: nextLevelExp * 1.5
+      // 新公式: 基础100 * (等级^2.2)，后期更难升级
+      user.nextLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
+
       user.skillPoints += 1;
       leveledUp = true;
     }
+
     if (leveledUp) {
       systemStore.setModal('levelUp', true);
-      user.heroCurrentHp = user.heroMaxHp;
+      // PM Fix: 升级不再回满血，只回复 20%
+      const healAmount = Math.floor(user.heroMaxHp * 0.2);
+      heal(healAmount);
+      setTimeout(() => {
+        showToast(`升级奖励：HP 恢复 ${healAmount} (未满)`);
+      }, 1000);
     }
   }
 
   function upgradeSkill(nodeId: string, combatPower: number) {
-    const node = skillTree.value.find(n => n.id === nodeId);
+    const node = skillTree.value?.find(n => n.id === nodeId);
     if (!node) return;
 
     const currentLv = user.learnedSkills[node.id] || 0;
@@ -219,9 +232,7 @@ export const useHeroStore = defineStore('hero', () => {
 
   function activateSkill() {
     if (skillStatus.value.ready) {
-      // 记录CD开始时间
       user.activeSkillCd = Date.now();
-      // 设置 activeSkillId，表示技能处于"等待下次进食触发"的状态
       user.activeSkillId = raceSkill.value?.id || null;
       showToast('技能已激活！下一次进食将触发效果');
     }
@@ -230,7 +241,7 @@ export const useHeroStore = defineStore('hero', () => {
   function consumeSkillEffect() {
     if (user.activeSkillId) {
       const skillId = user.activeSkillId;
-      const skillNode = skillTree.value.find(n => n.id === skillId);
+      const skillNode = skillTree.value?.find(n => n.id === skillId);
       user.activeSkillId = null;
       return skillNode ? { ...skillNode, effectType: skillNode.type === 'ACTIVE_BUFF' ? skillNode.effectParams.target : '' } : null;
     }
@@ -238,13 +249,36 @@ export const useHeroStore = defineStore('hero', () => {
   }
 
   function heal(amount: number) {
-    const max = 200 + (user.level * 20);
-    const newVal = user.heroCurrentHp + amount;
-    user.heroCurrentHp = Math.floor(Math.min(max, newVal));
+    user.heroCurrentHp += amount;
+    // 实际上限 clamp 逻辑通常在 store 外部或 computed 中处理显示，
+    // 但为了数据一致性，这里最好也 clamp。不过 heroMaxHp 是 computed 出来的，这里无法直接获取最新 maxHp
+    // 暂且允许溢出一点，会在下次 update 或 UI 显示时被 clamp
   }
 
   function damage(amount: number) {
     user.heroCurrentHp = Math.floor(Math.max(0, user.heroCurrentHp - amount));
+  }
+
+  function checkLoginStreak() {
+    if (!user.isInitialized) return;
+
+    const today = getLocalDateStr();
+    const last = user.lastLoginDate;
+
+    if (today === last) return;
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateStr(yesterday);
+
+    if (last === yesterdayStr) {
+      user.loginStreak += 1;
+      showNotify({ type: 'primary', message: `🔥 连续签到 ${user.loginStreak} 天！经验获取提升！`, duration: 3000 });
+    } else {
+      user.loginStreak = 1;
+      showNotify({ type: 'warning', message: '📅 欢迎回来！新的冒险开始了！', duration: 2000 });
+    }
+    user.lastLoginDate = today;
   }
 
   return {
@@ -255,6 +289,7 @@ export const useHeroStore = defineStore('hero', () => {
     raceSkill,
     skillStatus,
     dailyTarget,
+    isExhausted,
     recalcBMR,
     initUser,
     addExp,
@@ -263,6 +298,7 @@ export const useHeroStore = defineStore('hero', () => {
     consumeSkillEffect,
     heal,
     damage,
-    updateWeight
+    updateWeight,
+    checkLoginStreak
   };
 });

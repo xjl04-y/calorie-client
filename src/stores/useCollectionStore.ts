@@ -42,9 +42,12 @@ export const useCollectionStore = defineStore('collection', () => {
     // 确保默认有数据
     if (!defaultFoods || defaultFoods.length === 0) {
       console.warn('Race foods missing, loading Human defaults');
-      foodDb.value = RACE_DEFAULT_FOODS['HUMAN'].map((f, index) => ({
-        ...f, id: Date.now() + index, usageCount: 0
-      }));
+      const humanFoods = RACE_DEFAULT_FOODS['HUMAN'];
+      if (humanFoods && humanFoods.length > 0) {
+        foodDb.value = humanFoods.map((f, index) => ({
+          ...f, id: Date.now() + index, usageCount: 0
+        }));
+      }
       return;
     }
 
@@ -68,11 +71,13 @@ export const useCollectionStore = defineStore('collection', () => {
 
     if (existingIdx !== -1) {
       const existing = foodDb.value[existingIdx];
-      existing.usageCount = (existing.usageCount || 0) + 1;
-      // 合并标签
-      if (item.tags && item.tags.length > 0) {
-        const newTags = new Set([...(existing.tags || []), ...item.tags]);
-        existing.tags = Array.from(newTags);
+      if (existing) {
+        existing.usageCount = (existing.usageCount || 0) + 1;
+        // 合并标签
+        if (item.tags && item.tags.length > 0) {
+          const newTags = new Set([...(existing.tags || []), ...item.tags]);
+          existing.tags = Array.from(newTags);
+        }
       }
     } else {
       const cleanItem = JSON.parse(JSON.stringify(toRaw(item)));
@@ -131,10 +136,12 @@ export const useCollectionStore = defineStore('collection', () => {
     const idx = availableQuests.value.findIndex(q => q.id === questId);
     if (idx !== -1) {
       const quest = availableQuests.value[idx];
-      quest.status = 'ACCEPTED';
-      quests.value.push(quest);
-      availableQuests.value.splice(idx, 1);
-      showToast('⚔️ 接取成功！');
+      if (quest) {
+        quest.status = 'ACCEPTED';
+        quests.value.push(quest);
+        availableQuests.value.splice(idx, 1);
+        showToast('⚔️ 接取成功！');
+      }
     }
   }
 

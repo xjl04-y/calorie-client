@@ -41,8 +41,8 @@ const close = () => {
       <div class="bg-yellow-50 dark:bg-yellow-900/30 rounded-xl p-4 mb-6 relative z-10 text-left space-y-2 border border-yellow-100 dark:border-yellow-700">
         <div class="flex items-center text-sm">
           <span class="w-6 text-center mr-2">❤️</span>
-          <span class="flex-1 text-slate-700 dark:text-slate-200 font-bold">HP 完全恢复</span>
-          <span class="text-green-500 font-bold text-xs">FULL!</span>
+          <span class="flex-1 text-slate-700 dark:text-slate-200 font-bold">HP 部分恢复</span>
+          <span class="text-green-500 font-bold text-xs">+20%</span>
         </div>
         <div class="flex items-center text-sm">
           <span class="w-6 text-center mr-2">💪</span>

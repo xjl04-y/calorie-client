@@ -28,7 +28,7 @@ watch(multiplier, (v) => {
 const displayCals = computed(() => {
   if(!item.value) return 0;
   const baseGrams = item.value.grams || 100;
-  return Math.round(item.value.cals * (currentGrams.value / baseGrams));
+  return Math.round((item.value.calories || 0) * (currentGrams.value / baseGrams));
 });
 
 const calcMacros = computed(() => {
@@ -79,11 +79,11 @@ const confirm = () => {
 
   const finalLog = {
     ...item.value,
-    calories: Math.round(item.value.cals * ratio),
+    calories: Math.round((item.value.calories || 0) * ratio),
     grams: currentGrams.value,
-    p: Math.round(item.value.p * ratio),
-    c: Math.round(item.value.c * ratio),
-    f: Math.round(item.value.f * ratio)
+    p: Math.round((item.value.p || 0) * ratio),
+    c: Math.round((item.value.c || 0) * ratio),
+    f: Math.round((item.value.f || 0) * ratio)
   };
 
   if (store.temp.isBuilding) {
@@ -116,7 +116,7 @@ const confirm = () => {
           <div v-if="dmgPrediction.subtext" class="text-[9px] mt-0.5 opacity-80">{{ dmgPrediction.subtext }}</div>
         </div>
 
-        <div class="text-sm text-slate-400 mt-1">基准: {{ item.grams }}g = ~{{ item.cals }} kcal</div>
+        <div class="text-sm text-slate-400 mt-1">基准: {{ item.grams }}g = ~{{ item.calories }} kcal</div>
       </div>
 
       <div class="grid grid-cols-3 gap-2 mb-6">

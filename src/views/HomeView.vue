@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import AppHud from '@/components/AppHud.vue';
 import DateNavigator from '@/components/DateNavigator.vue';
 import ModalNpcGuide from '@/components/modals/ModalNpcGuide.vue';
-import { showConfirmDialog, showToast } from 'vant';
-import { TAG_DEFS } from '@/constants/gameData'; // [Fix] Import TAG_DEFS for local lookup
+import { showConfirmDialog } from 'vant';
+import { TAG_DEFS } from '@/constants/gameData';
 import type { FoodLog, MealType } from '@/types';
 
 const store = useGameStore();
@@ -17,8 +17,11 @@ const activeQuests = computed(() => store.userQuests.filter(q => q.status !== 'C
 const skillPoints = computed(() => store.user.skillPoints);
 const skillStatus = computed(() => store.heroStore.skillStatus);
 const raceSkill = computed(() => store.heroStore.raceSkill);
+const env = computed(() => store.environment);
+const floatingTexts = computed(() => store.temp.floatingTexts || []);
+// PM Note: 引入力竭状态
+const isExhausted = computed(() => store.heroStore.isExhausted);
 
-// [Fix] Meal Type Mapping
 const MEAL_LABELS: Record<string, string> = {
   BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食'
 };
@@ -32,11 +35,10 @@ onMounted(() => {
 const handleSkillClick = () => {
   if (!raceSkill.value) return;
   if (skillStatus.value.active) {
-    showToast('技能已激活，请去进食吧！');
+    store.setModal('addFood', true);
     return;
   }
   if (!skillStatus.value.ready) {
-    showToast(`技能冷却中: ${skillStatus.value.text}`);
     return;
   }
   store.heroStore.activateSkill();
@@ -99,12 +101,76 @@ const openLogDetail = (log: FoodLog) => {
 </script>
 
 <template>
-  <div class="pb-24">
+  <div class="pb-24 relative">
+    <!-- 战斗飘字层 -->
+    <div class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+      <transition-group name="float-up">
+        <div v-for="ft in floatingTexts" :key="ft.id"
+             class="absolute text-2xl font-black font-rpg drop-shadow-md text-stroke"
+             :class="{
+               'text-red-500': ft.type === 'DAMAGE',
+               'text-green-400': ft.type === 'HEAL',
+               'text-yellow-400 text-3xl': ft.type === 'CRIT',
+               'text-blue-400': ft.type === 'BLOCK',
+               'text-purple-300 text-sm': ft.type === 'EXP'
+             }"
+             :style="{ left: ft.x + '%', top: ft.y + '%' }">
+          {{ ft.text }}
+        </div>
+      </transition-group>
+    </div>
+
+    <!-- PM Fix: 优化后的力竭状态遮罩 -->
+    <!-- 1. 边缘红框 (Vignette) -->
+    <div v-if="isExhausted" class="fixed inset-0 pointer-events-none z-30 shadow-[inset_0_0_60px_20px_rgba(220,38,38,0.5)] animate-pulse"></div>
+
+    <!-- 2. 顶部警告条 (不遮挡中间内容) -->
+    <div v-if="isExhausted" class="absolute top-14 left-4 right-4 z-40 animate-bounce">
+      <div class="bg-red-600/90 text-white px-4 py-2 rounded-xl border-2 border-red-400 shadow-lg backdrop-blur flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-heart-broken text-xl"></i>
+          <div>
+            <div class="text-sm font-black">英雄力竭!</div>
+            <div class="text-[10px] opacity-90">伤害减半，请补充营养恢复HP</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <AppHud @open-achievements="store.setModal('achievements', true)" />
     <DateNavigator />
 
+    <!-- ... (战地情报保持不变) ... -->
+    <div class="px-4 mt-3 flex gap-3">
+      <!-- 连胜卡片 -->
+      <div class="flex-1 bg-gradient-to-br from-orange-50 to-red-50 dark:from-slate-800 dark:to-slate-800 rounded-xl p-2.5 border border-orange-100 dark:border-slate-700 flex items-center shadow-sm">
+        <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-500 flex items-center justify-center mr-2">
+          <i class="fas fa-fire-alt"></i>
+        </div>
+        <div>
+          <div class="text-[9px] text-slate-400 uppercase tracking-wide">连续讨伐</div>
+          <div class="text-sm font-black text-slate-700 dark:text-slate-200">
+            {{ user.loginStreak }} <span class="text-[9px] font-normal">天</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 环境卡片 -->
+      <div class="flex-[1.5] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 rounded-xl p-2.5 border border-blue-100 dark:border-slate-700 flex items-center shadow-sm">
+        <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center mr-2 text-lg">
+          {{ env.icon }}
+        </div>
+        <div>
+          <div class="text-[9px] text-slate-400 uppercase tracking-wide">今日环境: {{ env.name }}</div>
+          <div class="text-[10px] font-bold" :class="env.color">
+            {{ env.desc }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 公会与技能入口 -->
-    <div class="px-4 mt-4 grid grid-cols-2 gap-3">
+    <div class="px-4 mt-3 grid grid-cols-2 gap-3">
       <div @click="store.setModal('questBoard', true)"
            class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group">
         <div class="flex items-center gap-2 relative z-10">
@@ -137,7 +203,7 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 怪物卡片 -->
+    <!-- ... (Monster Card 保持不变) ... -->
     <div class="mx-4 mt-4 relative">
       <div v-if="raceSkill"
            class="absolute -top-3 -right-2 z-30 flex flex-col items-center"
@@ -223,7 +289,7 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 膳食入口 -->
+    <!-- ... (Meals/Logs FAB 保持不变) ... -->
     <div class="px-4 mt-6 mb-2 flex justify-between items-center">
       <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">冒险行动</h3>
       <button @click="store.setModal('npcGuide', true)" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700 active:scale-95 transition flex items-center">
@@ -267,7 +333,6 @@ const openLogDetail = (log: FoodLog) => {
                   <span v-if="log.skillEffect" class="ml-2 text-[8px] px-1 rounded bg-indigo-100 text-indigo-600 font-bold border border-indigo-200">✨天赋</span>
                   <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 text-purple-600 font-bold border border-purple-200">复合</span>
                 </div>
-                <!-- [Fix] 使用中文餐点名称显示 -->
                 <div class="text-[10px] text-slate-400 mt-0.5" v-if="!log.damageTaken">
                   {{ log.grams }}g · {{ MEAL_LABELS[log.mealType] || log.mealType }}
                 </div>
@@ -276,7 +341,7 @@ const openLogDetail = (log: FoodLog) => {
             </div>
             <div class="text-right relative z-10">
               <div v-if="!log.damageTaken">
-                <div class="font-rpg font-bold text-lg" :class="(log.multiplier || 1) < 1 ? 'text-slate-400' : 'text-red-500'">-{{ Math.floor(log.calories * (log.multiplier || 1)) }}</div>
+                <div class="font-rpg font-bold text-lg" :class="(log.multiplier || 1) < 1 ? 'text-slate-400' : 'text-red-500'">-{{ log.finalDamageValue || Math.floor(log.calories * (log.multiplier || 1)) }}</div>
                 <div class="text-[8px] text-slate-400">DMG</div>
               </div>
               <div v-else><div class="text-2xl">💔</div></div>
@@ -297,7 +362,6 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 弹窗组件 -->
     <ModalNpcGuide />
 
   </div>
@@ -311,4 +375,17 @@ const openLogDetail = (log: FoodLog) => {
 }
 .animate-pulse-slow { animation: pulse-red 2s infinite; }
 @keyframes pulse-red { 0%, 100% { border-color: rgba(239, 68, 68, 0.6); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 20px 0 rgba(239, 68, 68, 0.7); } }
+
+/* 战斗飘字动画 */
+.float-up-enter-active { animation: float-up 1s ease-out forwards; }
+.float-up-leave-active { transition: opacity 0.5s; opacity: 0; }
+@keyframes float-up {
+  0% { opacity: 0; transform: translate(-50%, 20px) scale(0.5); }
+  20% { opacity: 1; transform: translate(-50%, 0) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -60px) scale(1); }
+}
+.text-stroke {
+  -webkit-text-stroke: 1px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
 </style>

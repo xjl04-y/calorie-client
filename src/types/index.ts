@@ -1,4 +1,5 @@
 // 核心数据接口定义 - V2.7 Refactored (Type Safe)
+// PM Note: 保持原有结构，新增 VisualEffect 相关定义
 
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
@@ -23,11 +24,12 @@ export interface SkillNode {
 }
 
 // V2.5: 任务定义
+// [Fix V3.2] 增加 'SS' 稀有度
 export interface Quest {
   id: string;
   title: string;
   desc: string;
-  rarity: 'D' | 'C' | 'B' | 'A' | 'S';
+  rarity: 'D' | 'C' | 'B' | 'A' | 'S' | 'SS';
   target: number;
   current: number;
   type: 'COUNT' | 'PROTEIN' | 'VEG' | 'WATER' | 'CALORIE_CONTROL' | 'LOW_CARB' | 'LOW_FAT';
@@ -57,6 +59,17 @@ export interface NpcConfig {
   greeting: string;
 }
 
+// [New V2.1] 环境天气定义
+export interface EnvironmentEffect {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  type: 'BUFF' | 'DEBUFF';
+  multiplier: number; // 伤害倍率修正
+  color: string;
+}
+
 export interface UserState {
   isInitialized: boolean;
   level: number;
@@ -80,6 +93,9 @@ export interface UserState {
   learnedSkills: Record<string, number>;
   activeSkillId: string | null;
   activeSkillCd: number;
+  // [New V2.1] 签到系统
+  loginStreak: number;
+  lastLoginDate: string; // YYYY-MM-DD
 }
 
 // [New] 初始化表单接口，替代 any
@@ -109,6 +125,8 @@ export interface FoodItem {
   tags?: string[];
   tips?: string;
   isComposite?: boolean;
+  // PM Note: 新增 isPreset，用于标记已保存的套餐，避免重复进入编辑模式
+  isPreset?: boolean;
   usageCount?: number;
   // 制作模式下的额外字段
   ingredients?: FoodItem[];
@@ -127,6 +145,8 @@ export interface FoodLog extends FoodItem {
   gainedExp?: number;
   healed?: number;
   skillEffect?: string;
+  // PM Note: 新增，用于 UI 展示此次造成的实际最终伤害（包含溢出）
+  finalDamageValue?: number;
 }
 
 export interface Monster {
@@ -167,6 +187,17 @@ export interface SystemTempState {
   unlockedAchievement: Achievement | null;
   selectedLog: FoodLog | null; // 明确类型
   pendingItem?: FoodItem; // 用于 ModalQuantity
+  // PM Note: 战斗飘字队列
+  floatingTexts: FloatingText[];
+}
+
+// PM Note: 新增战斗飘字接口
+export interface FloatingText {
+  id: number;
+  text: string;
+  type: 'DAMAGE' | 'HEAL' | 'CRIT' | 'BLOCK' | 'EXP';
+  x: number; // 相对坐标 0-100
+  y: number; // 相对坐标 0-100
 }
 
 export interface ModalState {
@@ -183,5 +214,5 @@ export interface ModalState {
   hpHistory: boolean;
   questBoard: boolean;
   skillTree: boolean;
-  npcGuide: boolean; // 之前漏掉了这个
+  npcGuide: boolean;
 }
