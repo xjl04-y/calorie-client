@@ -17,7 +17,6 @@ const learned = computed(() => user.value.learnedSkills || {});
 const sp = computed(() => user.value.skillPoints);
 
 const getSkillLevel = (id: string) => learned.value[id] || 0;
-// 按层级获取节点，用于渲染树
 const getTierNodes = (tier: number) => (skills.value || []).filter(s => s.tier === tier);
 
 const canUpgrade = (node: SkillNode) => {
@@ -36,16 +35,12 @@ const handleUpgrade = (node: SkillNode) => {
   store.heroStore.upgradeSkill(node.id, heroStats.value.combatPower);
 };
 
-// 修复 2: 动态计算连接线样式，增加对复杂父子关系的支持
-// 简单逻辑：假设同列或相邻列，这里做通用垂直连线
 const getConnectorClass = (node: SkillNode) => {
   if (!node.parentId) return '';
   const parentUnlocked = getSkillLevel(node.parentId) > 0;
-  // 不同的父子关系可能需要不同的角度，这里简化为垂直高亮
   return parentUnlocked ? 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]' : 'bg-slate-700';
 };
 
-// --- 手搓 Pan & Zoom 逻辑 ---
 const scale = ref(1);
 const translateX = ref(0);
 const translateY = ref(0);
@@ -72,11 +67,15 @@ const onTouchStart = (e: TouchEvent | MouseEvent) => {
   let clientY = 0;
 
   if ('touches' in e && e.touches && e.touches.length > 0 && e.touches[0]) {
-    clientX = (e as TouchEvent).touches[0].clientX;
-    clientY = (e as TouchEvent).touches[0].clientY;
+    const touchEvent = e as TouchEvent;
+    if (touchEvent.touches && touchEvent.touches.length > 0 && touchEvent.touches[0]) {
+      clientX = touchEvent.touches[0].clientX;
+      clientY = touchEvent.touches[0].clientY;
+    }
   } else if ('clientX' in e) {
-    clientX = (e as MouseEvent).clientX;
-    clientY = (e as MouseEvent).clientY;
+    const mouseEvent = e as MouseEvent;
+    clientX = mouseEvent.clientX;
+    clientY = mouseEvent.clientY;
   }
 
   startX.value = clientX - translateX.value;
@@ -85,18 +84,20 @@ const onTouchStart = (e: TouchEvent | MouseEvent) => {
 
 const onTouchMove = (e: TouchEvent | MouseEvent) => {
   if (!isDragging.value) return;
-  // [Fix Bug] 移除 e.preventDefault()，改由 template 修饰符控制
-  // e.preventDefault();
 
   let clientX = 0;
   let clientY = 0;
 
   if ('touches' in e && e.touches && e.touches.length > 0 && e.touches[0]) {
-    clientX = (e as TouchEvent).touches[0].clientX;
-    clientY = (e as TouchEvent).touches[0].clientY;
+    const touchEvent = e as TouchEvent;
+    if (touchEvent.touches && touchEvent.touches.length > 0 && touchEvent.touches[0]) {
+      clientX = touchEvent.touches[0].clientX;
+      clientY = touchEvent.touches[0].clientY;
+    }
   } else if ('clientX' in e) {
-    clientX = (e as MouseEvent).clientX;
-    clientY = (e as MouseEvent).clientY;
+    const mouseEvent = e as MouseEvent;
+    clientX = mouseEvent.clientX;
+    clientY = mouseEvent.clientY;
   }
 
   translateX.value = clientX - startX.value;
@@ -107,7 +108,6 @@ const onTouchEnd = () => {
   isDragging.value = false;
 };
 
-// 确保在 PC 上也能拖拽
 onMounted(() => {
   window.addEventListener('mouseup', onTouchEnd);
   window.addEventListener('touchend', onTouchEnd);
@@ -124,8 +124,6 @@ onUnmounted(() => {
     <div class="flex flex-col h-full bg-[#0f172a] text-white relative overflow-hidden">
       <!-- 装饰背景 -->
       <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-20 pointer-events-none"></div>
-
-      <!-- 动态网格背景 -->
       <div class="absolute inset-0 bg-grid opacity-10 pointer-events-none"></div>
 
       <!-- Header -->
@@ -158,8 +156,9 @@ onUnmounted(() => {
       </div>
 
       <!-- Draggable Area -->
-      <!-- [Fix Bug] 使用 .prevent 修饰符阻止默认滚动，替换 passive -->
-      <div class="flex-1 overflow-hidden relative cursor-move bg-slate-900/50"
+      <!-- [Fix UX] 增加 touch-action: none 禁用浏览器默认滚动 -->
+      <div class="flex-1 overflow-hidden relative cursor-move bg-slate-900/50 touch-none"
+           style="touch-action: none;"
            @mousedown="onTouchStart" @mousemove="onTouchMove"
            @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove">
 
@@ -204,7 +203,6 @@ onUnmounted(() => {
                     <div class="node-icon">{{ node.icon }}</div>
                     <div class="node-level">{{ getSkillLevel(node.id) }}/{{ node.maxLevel }}</div>
                   </div>
-                  <!-- ... 信息浮层 ... -->
                   <div class="node-info">
                     <div class="font-bold text-sm mb-1 text-white">{{ node.name }}</div>
                     <div class="text-[10px] text-slate-300 leading-tight">{{ node.desc }}</div>
@@ -298,7 +296,6 @@ onUnmounted(() => {
   border: 1px solid #334155;
 }
 
-/* 修复 Hover 时的遮挡问题 */
 .skill-node-wrapper {
   display: flex;
   flex-direction: column;
@@ -310,10 +307,9 @@ onUnmounted(() => {
   z-index: 50;
 }
 
-/* 连接线样式 */
 .connector-line-vertical {
   position: absolute;
-  top: -100px; /* 向上连接到上一层 */
+  top: -100px;
   left: 50%;
   width: 2px;
   height: 100px;

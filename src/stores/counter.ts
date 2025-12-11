@@ -2,33 +2,34 @@ import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import { RACES } from '@/constants/gameData';
 import { getCombatRank, debounce } from '@/utils/gameUtils';
-import type { FoodItem, FoodLog, Achievement } from '@/types'; // 引入类型
+import type { FoodItem, FoodLog, Achievement } from '@/types';
 
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore';
 import { useBattleStore } from '@/stores/useBattleStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
+import { useLogStore } from '@/stores/useLogStore';
 
 export const useGameStore = defineStore('game', () => {
   const system = useSystemStore();
   const hero = useHeroStore();
   const battle = useBattleStore();
   const collection = useCollectionStore();
+  const logStore = useLogStore();
 
   const heroStats = computed(() => {
-    const { totalP, totalC, totalF } = battle.historyTotalMacros;
+    // 从 LogStore 获取历史数据
+    const { totalP, totalC, totalF } = logStore.historyTotalMacros;
     const userData = hero.user;
     const race = RACES[userData.race] || RACES.HUMAN;
     const statCap = 50 + (userData.level * 20);
 
     const bonuses = hero.passiveBonuses;
 
-    // 基础属性计算
     let rawStr = Math.floor(totalP / 70) + 10;
     let rawAgi = Math.floor(totalC / 180) + 10;
     let rawVit = Math.floor(totalF / 40) + 10;
 
-    // 应用种族和被动加成
     rawStr = Math.floor(rawStr * (race?.growth?.str || 1) * (1 + bonuses.statMult.str));
     rawAgi = Math.floor(rawAgi * (race?.growth?.agi || 1) * (1 + bonuses.statMult.agi));
     rawVit = Math.floor(rawVit * (race?.growth?.vit || 1) * (1 + bonuses.statMult.vit));
@@ -45,13 +46,9 @@ export const useGameStore = defineStore('game', () => {
     const blockValue = Math.floor(rawStr * 0.8);
     const dodgeChance = Math.min(rawAgi * 0.003, 0.60);
 
-    // [Fix 3.2] 数值压缩算法
-    // 原公式: (Exp * 0.5) + (Level * 50) + ... -> 线性叠加导致 EXP 权重过大
-    // 新公式: 基础 + (等级 * 权重) + (属性总和 * 权重) + (装备) + (经验值的对数加成)
-    // 这里的 Math.pow(exp, 0.45) 确保经验值依然有贡献，但不会导致几百万战力
     const expContribution = Math.floor(Math.pow(userData.currentExp, 0.45) * 5);
-    const levelContribution = userData.level * 100; // 提高等级权重
-    const statContribution = (rawStr + rawAgi + rawVit) * 8; // 属性权重
+    const levelContribution = userData.level * 100;
+    const statContribution = (rawStr + rawAgi + rawVit) * 8;
 
     const combatPower = Math.floor(
       levelContribution +
@@ -77,10 +74,11 @@ export const useGameStore = defineStore('game', () => {
     try {
       const stateToSave = {
         user: hero.user,
-        logs: battle.logs,
+        logs: logStore.logs,
         achievements: collection.achievements,
         foodDb: collection.foodDb,
         isDarkMode: system.isDarkMode,
+        isPureMode: system.isPureMode, // [Save] 保存纯净模式状态
         activeQuests: collection.quests,
         questPoolDay: collection.questPoolDay
       };
@@ -96,42 +94,44 @@ export const useGameStore = defineStore('game', () => {
     if (saved) {
       try {
         const data = JSON.parse(saved);
-        if (data.user) {
-          Object.assign(hero.user, data.user);
-          if (!hero.user.skillPoints) hero.user.skillPoints = 0;
-          if (!hero.user.learnedSkills) hero.user.learnedSkills = {};
+
+        // [Fix V3.5.1] 类型安全的加载检查
+        if (data && typeof data === 'object') {
+          if (data.user) {
+            Object.assign(hero.user, data.user);
+            if (!hero.user.skillPoints) hero.user.skillPoints = 0;
+            if (!hero.user.learnedSkills) hero.user.learnedSkills = {};
+          }
+
+          if (data.logs) Object.assign(logStore.logs, data.logs);
+          logStore.recalculateGlobalStats();
+
+          if (data.isDarkMode !== undefined) system.isDarkMode = !!data.isDarkMode;
+          if (data.isPureMode !== undefined) system.isPureMode = !!data.isPureMode;
+
+          if (data.activeQuests) collection.quests = data.activeQuests;
+          if (data.questPoolDay) collection.questPoolDay = data.questPoolDay;
+
+          let loadedFood = false;
+          if (data.foodDb && Array.isArray(data.foodDb) && data.foodDb.length > 0) {
+            collection.foodDb = data.foodDb;
+            loadedFood = true;
+          }
+
+          if (!loadedFood || !collection.foodDb || collection.foodDb.length === 0) {
+            collection.initFoodDb(hero.user.race || 'HUMAN', true);
+          } else {
+            collection.initFoodDb(hero.user.race || 'HUMAN', false);
+          }
+
+          if (data.achievements) {
+            data.achievements.forEach((oldAch: any) => {
+              const e = collection.achievements.find(a => a.id === oldAch.id);
+              if (e) e.unlocked = !!oldAch.unlocked;
+            });
+          }
         }
 
-        if (data.logs) Object.assign(battle.logs, data.logs);
-        battle.recalculateGlobalStats();
-
-        if (data.isDarkMode !== undefined) system.isDarkMode = data.isDarkMode;
-
-        if (data.activeQuests) collection.quests = data.activeQuests;
-        if (data.questPoolDay) collection.questPoolDay = data.questPoolDay;
-
-        let loadedFood = false;
-        if (data.foodDb && Array.isArray(data.foodDb) && data.foodDb.length > 0) {
-          collection.foodDb = data.foodDb;
-          loadedFood = true;
-        }
-
-        if (!loadedFood || !collection.foodDb || collection.foodDb.length === 0) {
-          console.warn('[GameStore] FoodDB empty/invalid, forcing init...');
-          collection.initFoodDb(hero.user.race || 'HUMAN', true);
-        } else {
-          collection.initFoodDb(hero.user.race || 'HUMAN', false);
-        }
-
-        if (data.achievements) {
-          data.achievements.forEach((oldAch: any) => {
-            const e = collection.achievements.find(a => a.id === oldAch.id);
-            if (e) e.unlocked = oldAch.unlocked;
-          });
-        }
-
-        // [Fix Bug] 强制同步引导页状态
-        // 如果已初始化，关闭引导；否则（即使有部分数据但未完成初始化），强制开启引导
         if (hero.user.isInitialized) {
           system.modals.onboarding = false;
         } else {
@@ -140,13 +140,11 @@ export const useGameStore = defineStore('game', () => {
 
       } catch (e) {
         console.error('Save parse error', e);
-        // 存档损坏，强制重置为新手状态
         collection.initFoodDb(hero.user.race || 'HUMAN', true);
         hero.user.isInitialized = false;
         system.modals.onboarding = true;
       }
     } else {
-      // 无存档，强制重置为新手状态
       collection.initFoodDb(hero.user.race || 'HUMAN', true);
       hero.user.isInitialized = false;
       system.modals.onboarding = true;
@@ -162,6 +160,7 @@ export const useGameStore = defineStore('game', () => {
 
   return {
     isDarkMode: computed({ get: () => system.isDarkMode, set: (v) => system.isDarkMode = v }),
+    isPureMode: computed({ get: () => system.isPureMode, set: (v) => system.isPureMode = v }), // 暴露给组件
     currentDate: computed({ get: () => system.currentDate, set: (v) => system.currentDate = v }),
     analysisRefDate: computed({ get: () => system.analysisRefDate, set: (v) => system.analysisRefDate = v }),
 
@@ -178,17 +177,17 @@ export const useGameStore = defineStore('game', () => {
     userQuests: computed(() => collection.quests),
     availableQuests: computed(() => collection.availableQuests),
 
-    logs: computed(() => battle.logs),
-    todayLogs: computed(() => battle.todayLogs),
-    logsReverse: computed(() => battle.logsReverse),
+    logs: computed(() => logStore.logs),
+    todayLogs: computed(() => logStore.todayLogs),
+    logsReverse: computed(() => logStore.logsReverse),
+    todayMacros: computed(() => logStore.todayMacros),
+    historyTotalMacros: computed(() => logStore.historyTotalMacros),
 
-    todayMacros: computed(() => battle.todayMacros),
     weeklyStats: computed(() => battle.weeklyStats),
-    historyTotalMacros: computed(() => battle.historyTotalMacros),
     stageInfo: computed(() => battle.stageInfo),
     comboState: computed(() => battle.comboState),
-    // [Fix Bug] 显式暴露 environment，解决 HomeView 中的 undefined 报错
     environment: computed(() => battle.environment),
+    todayDamage: computed(() => logStore.todayDamage),
 
     setModal: system.setModal,
     triggerShake: system.triggerShake,
@@ -200,7 +199,6 @@ export const useGameStore = defineStore('game', () => {
     acceptQuest: collection.acceptQuest,
     claimQuest: collection.claimQuest,
 
-    // [Fix 3.3] 为参数添加具体类型
     commitLog: (item: FoodLog) => { battle.commitLog(item); saveState(); },
     deleteLog: (log: FoodLog) => { battle.deleteLog(log); saveState(); },
     battleCommit: (item: FoodItem) => { battle.battleCommit(item); saveState(); },

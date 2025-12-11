@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, toRaw } from 'vue';
-import type { Achievement, Quest, FoodItem } from '@/types';
+import type { Achievement, Quest, FoodItem, FoodLog } from '@/types'; // Import FoodLog
 import { RACE_DEFAULT_FOODS, QUEST_POOL } from '@/constants/gameData';
 import { useSystemStore } from './useSystemStore';
 import { showToast } from 'vant';
@@ -113,16 +113,17 @@ export const useCollectionStore = defineStore('collection', () => {
 
       // 抽取任务逻辑：权重？暂时随机
       const count = Math.min(candidates.length, 5);
-      const newQuests = [...candidates]
+
+      // [Fix Type Safety] 显式转换类型，移除 @ts-ignore
+      const newQuests: Quest[] = [...candidates]
         .sort(() => 0.5 - Math.random())
         .slice(0, count)
         .map(q => ({
           ...q,
-          status: 'AVAILABLE' as const,
+          status: 'AVAILABLE', // 明确赋值字面量
           current: 0
-        }));
+        } as Quest)); // 显式断言为 Quest 类型
 
-      // @ts-ignore
       availableQuests.value = newQuests;
       questPoolDay.value = today;
     }
@@ -145,8 +146,8 @@ export const useCollectionStore = defineStore('collection', () => {
     }
   }
 
-  // [Fix: Chinese Tag Logic] 适配中文标签
-  function checkDailyQuests(log: any) {
+  // [Fix: Chinese Tag Logic] 适配中文标签，并修复参数类型 any -> FoodLog
+  function checkDailyQuests(log: FoodLog) {
     let updated = false;
     quests.value.forEach(q => {
       if (q.status !== 'ACCEPTED') return;

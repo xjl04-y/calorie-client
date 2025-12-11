@@ -1,5 +1,7 @@
 // AI 服务逻辑封装 (RPG 核心大脑)
-// 负责处理 Gemini API 调用及本地沉浸式数据生成
+// PM Note: 全面移除 any，增强接口定义的健壮性
+
+import type { FoodItem } from '@/types';
 
 const apiKey = "";
 
@@ -24,8 +26,8 @@ const RACE_STYLES: Record<string, { prefixes: string[], style: string }> = {
 };
 
 // --- 2. 种族专属数据池 (本地 RPG 引擎 - 中文标签版) ---
-// [Fix] 修正字段名 cals -> calories
-const RACE_MOCK_DB: Record<string, any[]> = {
+// [Fixed] 类型严格化为 Partial<FoodItem>[]，因为 mock 数据可能缺少部分字段由 rpgify 补全
+const RACE_MOCK_DB: Record<string, Partial<FoodItem>[]> = {
   HUMAN: [
     { name: '烤鸡', calories: 200, p: 20, c: 0, f: 10, unit: '只', icon: '🍗', tags: ['高蛋白'] },
     { name: '面包', calories: 150, p: 5, c: 30, f: 2, unit: '块', icon: '🍞', tags: ['高碳'] },
@@ -56,7 +58,7 @@ const RACE_MOCK_DB: Record<string, any[]> = {
   ]
 };
 
-const COMMON_DB = [
+const COMMON_DB: Partial<FoodItem>[] = [
   { name: '米饭', calories: 116, p: 2.6, c: 25, f: 0.3, unit: '碗', icon: '🍚', tags: ['高碳'] },
   { name: '鸡蛋', calories: 70, p: 6, c: 0.6, f: 5, unit: '个', icon: '🥚', tags: ['高蛋白', '均衡'] }
 ];
@@ -72,7 +74,12 @@ interface AiPayload {
 
 export const AiService = {
   async callGemini(payload: AiPayload): Promise<string | null> {
-    if (!apiKey) return null;
+    // [Fix Bug] 优雅降级：如果没有 API Key，直接返回 null，不进行网络请求
+    if (!apiKey) {
+      console.warn("AiService: No API Key provided. Returning mock data.");
+      return null;
+    }
+
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -88,7 +95,7 @@ export const AiService = {
     }
   },
 
-  safeParseJSON(text: string | null) {
+  safeParseJSON(text: string | null): Partial<FoodItem>[] | null {
     if (!text) return null;
     const cleanText = text.replace(/```json|```/g, '').trim();
     try {
@@ -103,12 +110,13 @@ export const AiService = {
     }
   },
 
-  rpgify(item: any, raceKey: string) {
+  rpgify(item: Partial<FoodItem>, raceKey: string): FoodItem {
     const race = RACE_STYLES[raceKey] || RACE_STYLES.HUMAN;
-    const hash = item.name.split('').reduce((a: number, b: string) => a + b.charCodeAt(0), 0);
+    const nameStr = item.name || '未知食物';
+    const hash = nameStr.split('').reduce((a: number, b: string) => a + b.charCodeAt(0), 0);
     const prefix = race?.prefixes?.[hash % (race.prefixes?.length || 1)] || '普通';
 
-    const originalName = item.originalName || item.name;
+    const originalName = item.originalName || nameStr;
     const rpgName = `${prefix}·${originalName}`;
     const displayName = `${rpgName} (${originalName})`;
 
@@ -122,20 +130,26 @@ export const AiService = {
     }
 
     return {
+      id: Date.now() + Math.random(), // Ensure ID
       ...item,
       name: displayName,
       originalName: originalName,
       tips: tips,
-      grams: 100
-    };
+      grams: item.grams || 100,
+      calories: item.calories || 0,
+      p: item.p || 0,
+      c: item.c || 0,
+      f: item.f || 0,
+      icon: item.icon || '🥘'
+    } as FoodItem;
   },
 
-  getMockResponse(query: string, raceKey: string): any[] {
+  getMockResponse(query: string, raceKey: string): FoodItem[] {
     const q = query.toLowerCase();
     const raceDB = RACE_MOCK_DB[raceKey] || RACE_MOCK_DB.HUMAN;
     const fullDB = [...(Array.isArray(raceDB) ? raceDB : []), ...COMMON_DB];
 
-    const matches = fullDB.filter(item => item.name.includes(q));
+    const matches = fullDB.filter(item => item.name && item.name.includes(q));
     const results = matches.length > 0
       ? matches
       : fullDB.sort(() => 0.5 - Math.random()).slice(0, 3);
@@ -143,7 +157,7 @@ export const AiService = {
     return results.map(item => this.rpgify(item, raceKey));
   },
 
-  async estimateText(query: string, userRaceName: string) {
+  async estimateText(query: string, userRaceName: string): Promise<FoodItem[]> {
     // 提示词要求返回中文标签，并且使用 calories
     const systemPrompt = `
     Role: RPG Dietitian. Race: ${userRaceName}. Input: "${query}".
@@ -169,7 +183,7 @@ export const AiService = {
     return this.getMockResponse(query, userRaceName);
   },
 
-  async identifyImage(fileContent: string, userRaceName: string) {
+  async identifyImage(fileContent: string, userRaceName: string): Promise<FoodItem[]> {
     const base64Data = fileContent.split(',')[1];
     const text = await this.callGemini({
       contents: [{

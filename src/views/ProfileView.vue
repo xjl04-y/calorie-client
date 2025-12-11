@@ -1,15 +1,23 @@
+<script lang="ts">
+export default { name: 'Profile' };
+</script>
+
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
+import { useSystemStore } from '@/stores/useSystemStore';
 import { showToast, Dialog } from 'vant';
 import { getLocalDateStr } from '@/utils/dateUtils';
 import { getCombatRank, downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
-import type { Achievement } from '@/types'; // Import types
+import type { Achievement } from '@/types';
+import type { UploaderFileListItem } from 'vant';
 
 const store = useGameStore();
-// 注意: 在脚本中访问 user 需要 .value，在模板中不需要
+const systemStore = useSystemStore();
+
 const user = computed(() => store.user);
 const heroStats = computed(() => store.heroStats);
+const isPure = computed(() => systemStore.isPureMode);
 
 // 计算装备槽位显示数据
 const equipment = computed(() => {
@@ -23,9 +31,7 @@ const equipment = computed(() => {
     { id: 'ACCESSORY', name: '饰品', icon: 'fas fa-ring' }
   ];
   return slotDefinitions.map(def => {
-    // 脚本中访问 user.value
     const equippedId = user.value.equipped[def.id as keyof typeof user.value.equipped];
-    // [Fix 3.3] 显式类型检查，移除 @ts-ignore
     const equippedItem = equippedId
       ? store.achievements.find((a: Achievement) => a.id === equippedId)
       : null;
@@ -43,18 +49,37 @@ const nextRankProgress = computed(() => {
   return Math.min(100, (heroStats.value.combatPower / rankInfo.value.next) * 100);
 });
 
-const onAvatarRead = (file: any) => {
-  store.user.avatarType = 'CUSTOM';
-  store.user.customAvatar = file.content;
-  store.saveState();
-  showToast('头像上传成功！');
-  return true;
+// [Pure Mode] 计算 BMI
+const bmi = computed(() => {
+  const h = user.value.height / 100;
+  if (h <= 0) return 0;
+  return (user.value.weight / (h * h)).toFixed(1);
+});
+
+// [Pure Mode] BMI 状态文本
+const bmiStatus = computed(() => {
+  const val = parseFloat(bmi.value);
+  if (val < 18.5) return { text: '偏瘦', color: 'text-blue-500' };
+  if (val < 24) return { text: '正常', color: 'text-green-500' };
+  if (val < 28) return { text: '超重', color: 'text-orange-500' };
+  return { text: '肥胖', color: 'text-red-500' };
+});
+
+const onAvatarRead = (file: UploaderFileListItem) => {
+  if (file.content) {
+    store.user.avatarType = 'CUSTOM';
+    store.user.customAvatar = file.content;
+    store.saveState();
+    showToast('头像上传成功！');
+  } else {
+    showToast('图片读取失败');
+  }
 };
 
 const changeAvatar = () => {
   Dialog.confirm({
-    title: '重塑容貌',
-    message: '想要改变你的英雄形象吗？',
+    title: isPure.value ? '修改头像' : '重塑容貌',
+    message: isPure.value ? '是否随机生成一个新的头像？' : '想要改变你的英雄形象吗？',
     showCancelButton: true,
     confirmButtonText: '随机生成',
     cancelButtonText: '取消',
@@ -64,12 +89,11 @@ const changeAvatar = () => {
     store.user.avatarType = 'SEED';
     store.user.avatarSeed = newSeed;
     store.saveState();
-    showToast('容貌已焕然一新！');
+    showToast('头像已更新');
   }).catch(() => {});
 };
 
 const startEditProfile = () => {
-  // 使用 .value
   editData.height = user.value.height;
   editData.weight = user.value.weight;
   editData.age = user.value.age;
@@ -95,11 +119,10 @@ const validate = () => {
 const saveProfile = () => {
   if (!validate()) return;
   store.user.height = editData.height;
-  // 此处调用 store 方法更新体重并推入历史记录
   store.updateWeight(editData.weight);
   store.user.age = editData.age;
   store.saveState();
-  showToast('档案已更新，Boss数值重算中...');
+  showToast(isPure.value ? '身体数据已更新' : '档案已更新，Boss数值重算中...');
 };
 
 const onBeforeClose = (action: string) => {
@@ -108,7 +131,8 @@ const onBeforeClose = (action: string) => {
 };
 
 const openSwap = (slotId: string) => {
-  store.temp.activeSlot = slotId;
+  if (isPure.value) return;
+  store.temp.activeSlot = slotId as any;
   store.setModal('equipmentSwap', true);
 };
 
@@ -118,9 +142,9 @@ const handleFileExport = () => {
     showToast('没有可导出的数据');
     return;
   }
-  const filename = `RPG_SAVE_${store.user.nickname}_${getLocalDateStr()}`;
+  const filename = `HEALTH_SAVE_${store.user.nickname}_${getLocalDateStr()}`;
   const success = downloadJsonFile(filename, data);
-  if (success) showToast('📜 存档卷轴已生成！');
+  if (success) showToast(isPure.value ? '数据备份已下载' : '📜 存档卷轴已生成！');
   else showToast('导出失败');
 };
 
@@ -136,17 +160,17 @@ const onFileSelected = async (event: Event) => {
   try {
     const data = await readJsonFile(file);
     Dialog.confirm({
-      title: '读取神谕 (导入存档)',
-      message: '⚠️ 导入将覆盖当前所有进度！确定要读取这份卷轴吗？',
-      confirmButtonText: '读取并覆盖',
+      title: isPure.value ? '导入备份' : '读取神谕 (导入存档)',
+      message: '⚠️ 导入将覆盖当前所有进度！确定要继续吗？',
+      confirmButtonText: '确定覆盖',
       confirmButtonColor: '#7c3aed'
     }).then(() => {
       const success = store.importSaveDataObj(data);
       if (success) {
-        showToast('神谕已生效！存档读取成功。');
+        showToast('数据恢复成功，即将刷新...');
         setTimeout(() => window.location.reload(), 1000);
       } else {
-        showToast('卷轴内容破损，无法读取。');
+        showToast('文件格式错误，无法读取。');
       }
     }).catch(() => {
       if (fileInput.value) fileInput.value.value = '';
@@ -163,32 +187,54 @@ const expPercent = computed(() => {
 </script>
 
 <template>
-  <div class="pb-24 bg-slate-900 min-h-full text-white">
-    <!-- Header -->
-    <div class="relative h-64 bg-gradient-to-b from-purple-900 to-slate-900">
-      <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
+  <div class="pb-24 bg-slate-50 dark:bg-slate-900 min-h-full text-slate-800 dark:text-white transition-colors duration-300">
 
-      <div class="absolute top-4 right-4 z-30">
+    <!-- Header: 动态样式 -->
+    <!-- [Fix Layout] 移除 overflow-hidden 以允许下拉查看，增加 min-height -->
+    <div class="relative transition-all duration-500"
+         :class="isPure ? 'h-72 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700' : 'h-72 bg-gradient-to-b from-purple-900 to-slate-900'">
+
+      <!-- RPG 背景纹理 -->
+      <div v-if="!isPure" class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
+
+      <!-- 顶部按钮组 (Settings & Avatar) -->
+      <div class="absolute top-4 left-0 right-0 px-4 z-30 flex justify-between">
+        <!-- [Fix] 添加 ID 用于引导定位 -->
+        <div id="guide-settings" @click="store.setModal('settings', true)"
+             class="px-3 py-1 rounded-full text-xs flex items-center active:scale-95 transition cursor-pointer"
+             :class="isPure ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600' : 'bg-black/30 backdrop-blur text-white border border-white/20 hover:bg-black/50'">
+          <i class="fas fa-cog mr-1"></i> 设置
+        </div>
+
         <van-uploader :after-read="onAvatarRead">
-          <div class="bg-black/30 backdrop-blur px-3 py-1 rounded-full text-xs border border-white/20 flex items-center active:scale-95 transition">
-            <i class="fas fa-camera mr-1"></i> 上传头像
+          <div class="px-3 py-1 rounded-full text-xs flex items-center active:scale-95 transition cursor-pointer"
+               :class="isPure ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600' : 'bg-black/30 backdrop-blur text-white border border-white/20'">
+            <i class="fas fa-camera mr-1"></i> {{ isPure ? '更换头像' : '头像' }}
           </div>
         </van-uploader>
       </div>
 
-      <div class="absolute -bottom-16 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-20 w-full px-6">
-        <div class="relative group cursor-pointer mb-2" @click="changeAvatar">
-          <div class="w-28 h-28 rounded-full border-4 border-slate-800 p-1 bg-slate-700 shadow-2xl relative z-10 overflow-hidden">
-            <!-- 模板中访问无需 .value -->
+      <!-- 用户信息卡片 -->
+      <!-- [Fix Layout] 增加 pt-16 防止被按钮遮挡，使用 flex 布局确保内容居中 -->
+      <div class="absolute inset-0 flex flex-col items-center justify-start z-20 pt-16">
+
+        <div class="relative group cursor-pointer mb-3" @click="changeAvatar">
+          <div class="w-24 h-24 rounded-full p-1 relative z-10 overflow-hidden shadow-xl"
+               :class="isPure ? 'bg-white dark:bg-slate-700 ring-4 ring-slate-100 dark:ring-slate-600' : 'bg-slate-700 border-4 border-slate-800'">
             <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full rounded-full object-cover" />
-            <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-600" />
+            <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-200 dark:bg-slate-600" />
           </div>
-          <div class="absolute bottom-0 right-0 bg-yellow-500 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full border-2 border-slate-800 shadow-lg z-20">Lv.{{ user.level }}</div>
+          <!-- 等级标签 (仅 RPG 模式) -->
+          <div v-if="!isPure" class="absolute bottom-0 right-0 bg-yellow-500 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full border-2 border-slate-800 shadow-lg z-20">Lv.{{ user.level }}</div>
         </div>
 
-        <h2 class="text-3xl font-rpg text-yellow-400 tracking-wide mb-1">{{ user.nickname }}</h2>
+        <h2 class="text-2xl font-bold tracking-wide mb-1"
+            :class="isPure ? 'text-slate-800 dark:text-white' : 'font-rpg text-yellow-400'">
+          {{ user.nickname }}
+        </h2>
 
-        <div class="w-48 mb-2">
+        <!-- 经验条 (仅 RPG 模式) -->
+        <div v-if="!isPure" class="w-48 mb-2">
           <div class="flex justify-between text-[10px] text-slate-400 px-1 mb-0.5">
             <span>EXP</span>
             <span>{{ Math.floor(user.currentExp) }} / {{ user.nextLevelExp }}</span>
@@ -198,134 +244,167 @@ const expPercent = computed(() => {
           </div>
         </div>
 
-        <div class="flex items-center justify-center gap-2 text-slate-400 text-xs">
+        <!-- 纯净模式信息栏 -->
+        <div v-else class="flex gap-4 mt-2">
+          <div class="text-center px-4 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
+            <div class="text-[10px] text-slate-400 uppercase">BMI</div>
+            <div class="text-lg font-black" :class="bmiStatus.color">{{ bmi }}</div>
+          </div>
+          <div class="text-center px-4 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
+            <div class="text-[10px] text-slate-400 uppercase">BMR</div>
+            <div class="text-lg font-black text-slate-700 dark:text-slate-200">{{ store.dailyTarget }}</div>
+          </div>
+        </div>
+
+        <!-- 身体数据 (仅 RPG 模式显示在此处，Pure 模式已整合) -->
+        <div v-if="!isPure" class="flex items-center justify-center gap-2 text-slate-400 text-xs mt-1">
           <span><i :class="user.gender === 'MALE' ? 'fas fa-mars text-blue-400' : 'fas fa-venus text-pink-400'"></i> {{ user.age }}岁</span>
           <span>|</span><span>{{ user.height }}cm</span><span>|</span><span>{{ user.weight }}kg</span>
         </div>
       </div>
     </div>
 
-    <!-- Base Stats & Rank Info (V3.0) -->
-    <div class="mt-20 text-center px-6">
-      <div class="flex justify-center mb-4">
-        <span class="bg-slate-800 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold flex items-center">
-            <span class="mr-1 text-lg">{{ heroStats.raceIcon }}</span> {{ heroStats.raceName }}
-        </span>
+    <!-- RPG 模式内容 -->
+    <div v-if="!isPure">
+      <!-- Base Stats & Rank Info -->
+      <div class="mt-4 text-center px-6">
+        <div class="flex justify-center mb-4">
+          <span class="bg-slate-800 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold flex items-center">
+              <span class="mr-1 text-lg">{{ heroStats.raceIcon }}</span> {{ heroStats.raceName }}
+          </span>
+        </div>
+
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700 shadow-inner mb-4 relative overflow-hidden group hover:border-purple-500/50 transition-colors">
+          <div class="absolute -right-4 -top-4 text-6xl opacity-10 rotate-12 group-hover:scale-110 transition-transform">{{ heroStats.rankIcon }}</div>
+
+          <div class="text-xs text-slate-400 uppercase tracking-widest mb-1">Combat Rank</div>
+          <div class="text-2xl font-black flex items-center justify-center gap-2 mb-2" :class="heroStats.rankColor">
+            {{ heroStats.rankTitle }} <span class="text-sm text-slate-500 font-mono">({{ heroStats.combatPower }})</span>
+          </div>
+
+          <div class="bg-black/30 rounded-lg py-2 px-3 text-xs inline-block border border-white/5 mb-3">
+            <span class="text-yellow-500 font-bold mr-1">✦ 阶位特权:</span>
+            <span class="text-slate-300">{{ rankInfo.passive }}</span>
+          </div>
+
+          <div v-if="rankInfo.next" class="mt-2 px-4">
+            <div class="flex justify-between text-[10px] text-slate-500 mb-1">
+              <span>距离下一阶位</span>
+              <span>{{ heroStats.combatPower }} / {{ rankInfo.next }}</span>
+            </div>
+            <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div class="h-full bg-yellow-600 transition-all duration-500" :style="{ width: nextRankProgress + '%' }"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <button @click="startEditProfile" class="text-xs text-slate-500 underline hover:text-purple-400">修改档案数据</button>
+        </div>
       </div>
 
-      <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700 shadow-inner mb-4 relative overflow-hidden group hover:border-purple-500/50 transition-colors">
-        <div class="absolute -right-4 -top-4 text-6xl opacity-10 rotate-12 group-hover:scale-110 transition-transform">{{ heroStats.rankIcon }}</div>
-
-        <div class="text-xs text-slate-400 uppercase tracking-widest mb-1">Combat Rank</div>
-        <div class="text-2xl font-black flex items-center justify-center gap-2 mb-2" :class="heroStats.rankColor">
-          {{ heroStats.rankTitle }} <span class="text-sm text-slate-500 font-mono">({{ heroStats.combatPower }})</span>
-        </div>
-
-        <div class="bg-black/30 rounded-lg py-2 px-3 text-xs inline-block border border-white/5 mb-3">
-          <span class="text-yellow-500 font-bold mr-1">✦ 阶位特权:</span>
-          <span class="text-slate-300">{{ rankInfo.passive }}</span>
-        </div>
-
-        <!-- 晋升进度条 (New) -->
-        <div v-if="rankInfo.next" class="mt-2 px-4">
-          <div class="flex justify-between text-[10px] text-slate-500 mb-1">
-            <span>距离下一阶位</span>
-            <span>{{ heroStats.combatPower }} / {{ rankInfo.next }}</span>
+      <!-- Core Attributes (RPG Only) -->
+      <div class="px-4 mt-6">
+        <div id="guide-profile-stats" class="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
+          <h3 class="text-sm font-bold text-slate-400 mb-5 flex items-center"><i class="fas fa-chart-bar mr-2 text-purple-500"></i> 核心属性</h3>
+          <div class="space-y-5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-blue-400 w-16">力量 (STR)</span>
+              <div class="flex-1 mx-3 h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-blue-500" :class="{'stat-bar-overflow': heroStats.rawStr > heroStats.maxStat}" :style="{width: Math.min((heroStats.str / heroStats.maxStat) * 100, 100)+'%'}"></div></div>
+              <span class="text-xs font-bold w-12 text-right" :class="{'text-red-500': heroStats.rawStr > heroStats.maxStat}">{{ heroStats.str }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-green-400 w-16">敏捷 (AGI)</span>
+              <div class="flex-1 mx-3 h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-green-500" :class="{'stat-bar-overflow': heroStats.rawAgi > heroStats.maxStat}" :style="{width: Math.min((heroStats.agi / heroStats.maxStat) * 100, 100)+'%'}"></div></div>
+              <span class="text-xs font-bold w-12 text-right" :class="{'text-red-500': heroStats.rawAgi > heroStats.maxStat}">{{ heroStats.agi }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-orange-400 w-16">体质 (VIT)</span>
+              <div class="flex-1 mx-3 h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-orange-500" :class="{'stat-bar-overflow': heroStats.rawVit > heroStats.maxStat}" :style="{width: Math.min((heroStats.vit / heroStats.maxStat) * 100, 100)+'%'}"></div></div>
+              <span class="text-xs font-bold w-12 text-right" :class="{'text-red-500': heroStats.rawVit > heroStats.maxStat}">{{ heroStats.vit }}</span>
+            </div>
           </div>
-          <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-            <div class="h-full bg-yellow-600 transition-all duration-500" :style="{ width: nextRankProgress + '%' }"></div>
-          </div>
-        </div>
-        <div v-else class="mt-2 text-[10px] text-orange-500 font-bold">
-          已达巅峰传说！
         </div>
       </div>
 
-      <div class="mt-3">
-        <button @click="startEditProfile" class="text-xs text-slate-500 underline hover:text-purple-400">修改档案数据</button>
-      </div>
-    </div>
-
-    <!-- Core Attributes -->
-    <div class="px-4 mt-6">
-      <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
-        <h3 class="text-sm font-bold text-slate-400 mb-5 flex items-center"><i class="fas fa-chart-bar mr-2 text-purple-500"></i> 核心属性</h3>
-        <div class="space-y-5">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-blue-400 w-16">力量 (STR)</span>
-            <div class="flex-1 mx-3 h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-blue-500" :class="{'stat-bar-overflow': heroStats.rawStr > heroStats.maxStat}" :style="{width: Math.min((heroStats.str / heroStats.maxStat) * 100, 100)+'%'}"></div></div>
-            <span class="text-xs font-bold w-12 text-right" :class="{'text-red-500': heroStats.rawStr > heroStats.maxStat}">{{ heroStats.str }}</span>
+      <!-- Equipment (RPG Only) -->
+      <div class="px-4 mt-4" id="guide-equipment">
+        <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] relative overflow-hidden">
+          <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-leather.png')] opacity-20 pointer-events-none"></div>
+          <div class="flex justify-between items-center mb-4 relative z-10">
+            <h3 class="text-sm font-bold text-slate-300 flex items-center"><i class="fas fa-shield-alt mr-2 text-yellow-600"></i> 英雄装备</h3>
+            <span class="text-[10px] text-slate-500 font-normal">点击槽位更换</span>
           </div>
-          <div class="text-[10px] text-blue-500/60 text-right -mt-3">🛡️ 提供 {{ heroStats.blockValue }} 点格挡</div>
 
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-green-400 w-16">敏捷 (AGI)</span>
-            <div class="flex-1 mx-3 h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-green-500" :class="{'stat-bar-overflow': heroStats.rawAgi > heroStats.maxStat}" :style="{width: Math.min((heroStats.agi / heroStats.maxStat) * 100, 100)+'%'}"></div></div>
-            <span class="text-xs font-bold w-12 text-right" :class="{'text-red-500': heroStats.rawAgi > heroStats.maxStat}">{{ heroStats.agi }}</span>
-          </div>
-          <div class="text-[10px] text-green-500/60 text-right -mt-3">⚡ 提供 {{ (heroStats.dodgeChance * 100).toFixed(1) }}% 闪避</div>
-
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-orange-400 w-16">体质 (VIT)</span>
-            <div class="flex-1 mx-3 h-2 bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-orange-500" :class="{'stat-bar-overflow': heroStats.rawVit > heroStats.maxStat}" :style="{width: Math.min((heroStats.vit / heroStats.maxStat) * 100, 100)+'%'}"></div></div>
-            <span class="text-xs font-bold w-12 text-right" :class="{'text-red-500': heroStats.rawVit > heroStats.maxStat}">{{ heroStats.vit }}</span>
-          </div>
-          <div class="text-[10px] text-orange-500/60 text-right -mt-3">❤️ 提供 {{ heroStats.maxHp }} 点生命上限</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Equipment -->
-    <div class="px-4 mt-4">
-      <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] relative overflow-hidden">
-        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-leather.png')] opacity-20 pointer-events-none"></div>
-        <div class="flex justify-between items-center mb-4 relative z-10">
-          <h3 class="text-sm font-bold text-slate-300 flex items-center"><i class="fas fa-shield-alt mr-2 text-yellow-600"></i> 英雄装备</h3>
-          <span class="text-[10px] text-slate-500 font-normal">点击槽位更换</span>
-        </div>
-
-        <div class="grid grid-cols-4 gap-3 relative z-10">
-          <div v-for="slot in equipment" :key="slot.slotId" @click="openSwap(slot.slotId)"
-               class="aspect-square bg-slate-800 rounded-lg flex flex-col items-center justify-center border-2 transition-all relative overflow-hidden group cursor-pointer hover:border-purple-500 active:scale-95"
-               :class="[slot.item ? ('border-' + slot.item.rarity + ' shadow-md') : 'border-slate-700 border-dashed opacity-60']">
-            <i v-if="!slot.item" :class="slot.defaultIcon" class="text-3xl text-slate-600"></i>
-            <span v-if="!slot.item" class="text-[8px] text-slate-600 mt-1 font-bold">{{ slot.slotName }}</span>
-            <div v-if="slot.item" class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
-            <!-- @ts-ignore -->
-            <span v-if="slot.item" class="text-4xl mb-1 filter drop-shadow-md transform transition-transform group-hover:scale-110">{{ slot.item.icon }}</span>
-            <div v-if="slot.item" class="absolute bottom-0 w-full text-center bg-slate-900/80 backdrop-blur-sm py-0.5">
-              <span class="text-[8px] font-bold block truncate px-1" :class="'text-' + slot.item.rarity">{{ slot.item.reward }}</span>
+          <div class="grid grid-cols-4 gap-3 relative z-10">
+            <div v-for="slot in equipment" :key="slot.slotId" @click="openSwap(slot.slotId)"
+                 class="aspect-square bg-slate-800 rounded-lg flex flex-col items-center justify-center border-2 transition-all relative overflow-hidden group cursor-pointer hover:border-purple-500 active:scale-95"
+                 :class="[slot.item ? ('border-' + slot.item.rarity + ' shadow-md') : 'border-slate-700 border-dashed opacity-60']">
+              <i v-if="!slot.item" :class="slot.defaultIcon" class="text-3xl text-slate-600"></i>
+              <span v-if="!slot.item" class="text-[8px] text-slate-600 mt-1 font-bold">{{ slot.slotName }}</span>
+              <div v-if="slot.item" class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+              <!-- @ts-ignore -->
+              <span v-if="slot.item" class="text-4xl mb-1 filter drop-shadow-md transform transition-transform group-hover:scale-110">{{ slot.item.icon }}</span>
+              <div v-if="slot.item" class="absolute bottom-0 w-full text-center bg-slate-900/80 backdrop-blur-sm py-0.5">
+                <span class="text-[8px] font-bold block truncate px-1" :class="'text-' + slot.item.rarity">{{ slot.item.reward }}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Data Management -->
+    <!-- Pure Mode: 基础数据卡片 -->
+    <div v-else class="px-4 mt-6 space-y-4">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center">
+            <i class="fas fa-ruler-combined mr-2 text-blue-500"></i> 身体档案
+          </h3>
+          <button @click="startEditProfile" class="text-xs text-blue-500 font-bold bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">修改</button>
+        </div>
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <div class="text-2xl font-black text-slate-800 dark:text-white">{{ user.height }}</div>
+            <div class="text-xs text-slate-400">身高 (cm)</div>
+          </div>
+          <div>
+            <div class="text-2xl font-black text-slate-800 dark:text-white">{{ user.weight }}</div>
+            <div class="text-xs text-slate-400">体重 (kg)</div>
+          </div>
+          <div>
+            <div class="text-2xl font-black text-slate-800 dark:text-white">{{ user.age }}</div>
+            <div class="text-xs text-slate-400">年龄</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Management (Universal) -->
     <div class="px-4 mt-6 mb-6">
-      <div class="bg-slate-800/30 border border-slate-700 rounded-2xl p-4">
+      <div class="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
         <h3 class="text-xs font-bold text-slate-500 mb-3 flex items-center">
-          <i class="fas fa-save mr-2"></i> 记忆水晶 (存档管理)
+          <i class="fas fa-save mr-2"></i> {{ isPure ? '数据管理' : '记忆水晶 (存档管理)' }}
         </h3>
         <div class="flex gap-3">
-          <button @click="handleFileExport" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-2 rounded-lg transition border border-slate-600 active:scale-95">
-            <i class="fas fa-file-download mr-1"></i> 下载卷轴 (JSON)
+          <button @click="handleFileExport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm">
+            <i class="fas fa-file-download mr-1"></i> {{ isPure ? '导出备份' : '下载卷轴 (JSON)' }}
           </button>
-          <button @click="triggerFileImport" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-2 rounded-lg transition border border-slate-600 active:scale-95">
-            <i class="fas fa-file-upload mr-1"></i> 读取卷轴
+          <button @click="triggerFileImport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm">
+            <i class="fas fa-file-upload mr-1"></i> {{ isPure ? '导入备份' : '读取卷轴' }}
           </button>
           <!-- Hidden Input -->
           <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
         </div>
-        <p class="text-[10px] text-slate-600 mt-2 text-center">存档已启用 RPG 协议，请妥善保管您的卷轴。</p>
+        <p class="text-[10px] text-slate-400 mt-2 text-center" v-if="!isPure">存档已启用 RPG 协议，请妥善保管您的卷轴。</p>
       </div>
     </div>
 
     <van-dialog v-model:show="showEdit" title="修改档案" show-cancel-button :before-close="onBeforeClose" @confirm="saveProfile" class="dark:bg-slate-800 dark:text-white">
       <div class="p-4 space-y-4">
-        <div><label class="text-xs text-slate-500 block mb-1">身高 (cm)</label><input type="number" v-model.number="editData.height" class="w-full bg-slate-100 dark:bg-slate-700 rounded px-3 py-2 text-sm"></div>
-        <div><label class="text-xs text-slate-500 block mb-1">体重 (kg)</label><input type="number" v-model.number="editData.weight" class="w-full bg-slate-100 dark:bg-slate-700 rounded px-3 py-2 text-sm"></div>
-        <div><label class="text-xs text-slate-500 block mb-1">年龄</label><input type="number" v-model.number="editData.age" class="w-full bg-slate-100 dark:bg-slate-700 rounded px-3 py-2 text-sm"></div>
+        <div><label class="text-xs text-slate-500 block mb-1">身高 (cm)</label><input type="number" v-model.number="editData.height" class="w-full bg-slate-100 dark:bg-slate-700 rounded px-3 py-2 text-sm text-slate-800 dark:text-white"></div>
+        <div><label class="text-xs text-slate-500 block mb-1">体重 (kg)</label><input type="number" v-model.number="editData.weight" class="w-full bg-slate-100 dark:bg-slate-700 rounded px-3 py-2 text-sm text-slate-800 dark:text-white"></div>
+        <div><label class="text-xs text-slate-500 block mb-1">年龄</label><input type="number" v-model.number="editData.age" class="w-full bg-slate-100 dark:bg-slate-700 rounded px-3 py-2 text-sm text-slate-800 dark:text-white"></div>
       </div>
     </van-dialog>
   </div>

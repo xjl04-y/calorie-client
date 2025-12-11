@@ -1,16 +1,19 @@
 import { defineStore } from 'pinia';
 import { reactive, ref, onUnmounted } from 'vue';
 import { getLocalDateStr } from '@/utils/dateUtils';
-import type { SystemTempState, ModalState } from '@/types'; // 引入类型
+import type { SystemTempState, ModalState } from '@/types';
 
 export const useSystemStore = defineStore('system', () => {
   // --- State ---
   const isDarkMode = ref(true);
+  const isPureMode = ref(false); // [New] 纯净模式开关
   const currentDate = ref(getLocalDateStr());
   const analysisRefDate = ref(getLocalDateStr());
-  const guideStep = ref(0);
 
-  // 全局心跳时间戳
+  // 持久化引导步骤
+  const guideCurrentStep = ref(0);
+
+  // 全局心跳
   const timestamp = ref(Date.now());
   let timerInterval: number | null = null;
 
@@ -34,7 +37,6 @@ export const useSystemStore = defineStore('system', () => {
     stopHeartbeat();
   });
 
-  // [Fix 3.3] 使用严格的类型接口
   const modals = reactive<ModalState>({
     addFood: false,
     quantity: false,
@@ -49,10 +51,10 @@ export const useSystemStore = defineStore('system', () => {
     hpHistory: false,
     questBoard: false,
     skillTree: false,
-    npcGuide: false
+    npcGuide: false,
+    settings: false // [New] 注册设置弹窗
   });
 
-  // [Fix 3.3] 使用 SystemTempState 接口，消除 any
   const temp = reactive<SystemTempState>({
     activeMealType: 'SNACK',
     isBuilding: false,
@@ -65,16 +67,19 @@ export const useSystemStore = defineStore('system', () => {
     selectedItem: null,
     unlockedAchievement: null,
     selectedLog: null,
-    pendingItem: undefined
+    pendingItem: undefined,
+    floatingTexts: []
   });
 
   // --- Actions ---
-  // [Fix 3.3] 移除 @ts-ignore，key 现在被约束为 ModalState 的键
   function setModal(key: keyof ModalState, val: boolean) {
     modals[key] = val;
   }
 
   function triggerShake() {
+    // 纯净模式下禁用震动和屏幕抖动
+    if (isPureMode.value) return;
+
     temp.isShaking = true;
     temp.isDamaged = true;
     if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
@@ -83,9 +88,10 @@ export const useSystemStore = defineStore('system', () => {
 
   return {
     isDarkMode,
+    isPureMode,
     currentDate,
     analysisRefDate,
-    guideStep,
+    guideCurrentStep,
     modals,
     temp,
     timestamp,

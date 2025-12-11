@@ -171,6 +171,8 @@ export const useHeroStore = defineStore('hero', () => {
   }
 
   function addExp(amount: number) {
+    // 纯净模式下虽然记录数据，但可以不强调经验值获取，或者后台静默升级
+    // 这里我们保留数值增长，但不弹窗
     const realAmount = Math.floor(amount * passiveBonuses.value.expRate);
     user.currentExp += realAmount;
 
@@ -179,9 +181,7 @@ export const useHeroStore = defineStore('hero', () => {
       user.currentExp -= user.nextLevelExp;
       user.level++;
 
-      // PM Fix: 升级难度调整，防止数值膨胀
-      // 旧公式: nextLevelExp * 1.5
-      // 新公式: 基础100 * (等级^2.2)，后期更难升级
+      // PM Fix: 升级难度调整
       user.nextLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
 
       user.skillPoints += 1;
@@ -189,13 +189,15 @@ export const useHeroStore = defineStore('hero', () => {
     }
 
     if (leveledUp) {
-      systemStore.setModal('levelUp', true);
-      // PM Fix: 升级不再回满血，只回复 20%
-      const healAmount = Math.floor(user.heroMaxHp * 0.2);
-      heal(healAmount);
-      setTimeout(() => {
-        showToast(`升级奖励：HP 恢复 ${healAmount} (未满)`);
-      }, 1000);
+      // [Fix] 纯净模式下不弹出升级界面
+      if (!systemStore.isPureMode) {
+        systemStore.setModal('levelUp', true);
+        const healAmount = Math.floor(user.heroMaxHp * 0.2);
+        heal(healAmount);
+        setTimeout(() => {
+          showToast(`升级奖励：HP 恢复 ${healAmount} (未满)`);
+        }, 1000);
+      }
     }
   }
 
@@ -250,9 +252,6 @@ export const useHeroStore = defineStore('hero', () => {
 
   function heal(amount: number) {
     user.heroCurrentHp += amount;
-    // 实际上限 clamp 逻辑通常在 store 外部或 computed 中处理显示，
-    // 但为了数据一致性，这里最好也 clamp。不过 heroMaxHp 是 computed 出来的，这里无法直接获取最新 maxHp
-    // 暂且允许溢出一点，会在下次 update 或 UI 显示时被 clamp
   }
 
   function damage(amount: number) {
@@ -273,10 +272,15 @@ export const useHeroStore = defineStore('hero', () => {
 
     if (last === yesterdayStr) {
       user.loginStreak += 1;
-      showNotify({ type: 'primary', message: `🔥 连续签到 ${user.loginStreak} 天！经验获取提升！`, duration: 3000 });
+      // 纯净模式下不显示 RPG 签到提示，或者显示简化版
+      if (!systemStore.isPureMode) {
+        showNotify({ type: 'primary', message: `🔥 连续签到 ${user.loginStreak} 天！经验获取提升！`, duration: 3000 });
+      }
     } else {
       user.loginStreak = 1;
-      showNotify({ type: 'warning', message: '📅 欢迎回来！新的冒险开始了！', duration: 2000 });
+      if (!systemStore.isPureMode) {
+        showNotify({ type: 'warning', message: '📅 欢迎回来！新的冒险开始了！', duration: 2000 });
+      }
     }
     user.lastLoginDate = today;
   }

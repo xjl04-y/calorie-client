@@ -1,5 +1,5 @@
-// 核心数据接口定义 - V2.7 Refactored (Type Safe)
-// PM Note: 保持原有结构，新增 VisualEffect 相关定义
+// 核心数据接口定义 - V3.5.1 Refactored (Type Safe)
+// PM Note: 修正 activeSlot 类型，移除模糊定义
 
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
@@ -21,6 +21,8 @@ export interface SkillNode {
   cost: number;
   type: 'PASSIVE_STAT' | 'PASSIVE_BMR' | 'ACTIVE_BUFF';
   effectParams: { target: string; base: number; scale: number };
+  // PM Note: 新增 effectType 用于明确技能效果逻辑，替代硬编码判断
+  effectType?: string;
 }
 
 // V2.5: 任务定义
@@ -173,25 +175,23 @@ export interface Achievement {
   bonusBMR: number;
 }
 
-// [Fix 3.3] 新增 SystemStore 的 TempState 接口
+// [Fix 3.5] 严格化 activeSlot 类型
 export interface SystemTempState {
   activeMealType: MealType;
   isBuilding: boolean;
-  basket: FoodItem[]; // 明确 basket 是 FoodItem 数组
+  basket: FoodItem[];
   isShaking: boolean;
   isDamaged: boolean;
   searchResetTrigger: number;
-  activeSlot: string | null; // 实际上应该是 SlotType | null，但为了兼容性暂留 string
+  activeSlot: SlotType | null; // [Fixed] Now strictly SlotType
   selectedHistoryDate: string | null;
-  selectedItem: FoodItem | null; // 明确类型
+  selectedItem: FoodItem | null;
   unlockedAchievement: Achievement | null;
-  selectedLog: FoodLog | null; // 明确类型
-  pendingItem?: FoodItem; // 用于 ModalQuantity
-  // PM Note: 战斗飘字队列
+  selectedLog: FoodLog | null;
+  pendingItem?: FoodItem;
   floatingTexts: FloatingText[];
 }
 
-// PM Note: 新增战斗飘字接口
 export interface FloatingText {
   id: number;
   text: string;
@@ -215,4 +215,5 @@ export interface ModalState {
   questBoard: boolean;
   skillTree: boolean;
   npcGuide: boolean;
+  settings: boolean;
 }

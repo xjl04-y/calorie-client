@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { showToast } from 'vant';
-import type { Achievement, SlotType } from '@/types'; // Import strict types
+import type { Achievement } from '@/types';
 
 const store = useGameStore();
 
@@ -11,8 +11,8 @@ const show = computed({
   set: (val) => store.setModal('equipmentSwap', val)
 });
 
-// [Fix 3.3] 明确 slotId 类型，避免 implicit any
-const slotId = computed(() => store.temp.activeSlot as SlotType | null);
+// [Fix 3.5.1] Remove cast, temp.activeSlot is now typed in store
+const slotId = computed(() => store.temp.activeSlot);
 
 // 获取槽位名称的映射
 const slotNameMap: Record<string, string> = {
@@ -25,16 +25,13 @@ const availableItems = computed(() => {
   return store.achievements.filter(a => a.unlocked && a.slot === slotId.value);
 });
 
-// [Fix 3.3] 动态 Key 访问类型安全
 const isEquipped = (id: number) => {
   if (!slotId.value) return false;
   return store.user.equipped[slotId.value] === id;
 };
 
-// [Fix 3.3] 替换 item: any 为 item: Achievement
 const equip = (item: Achievement) => {
   if (slotId.value) {
-    // 类型安全的赋值
     store.user.equipped[slotId.value] = item.id;
     show.value = false;
     store.saveState();
@@ -75,3 +72,4 @@ const equip = (item: Achievement) => {
     </div>
   </van-popup>
 </template>
+```

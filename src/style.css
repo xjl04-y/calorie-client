@@ -107,9 +107,8 @@ body {
 .timeline-line { position: absolute; left: 19px; top: 30px; bottom: -20px; width: 2px; background: #334155; z-index: 0; }
 .last-item .timeline-line { display: none; }
 
-/* Tag Badges (Unified Style for Chinese & Legacy English Keys) */
+/* Tag Badges */
 .tag-badge { font-size: 0.6rem; padding: 1px 4px; border-radius: 4px; font-weight: bold; margin-right: 4px; }
-
 .tag-高糖, .tag-HIGH_SUGAR { background: #fca5a5; color: #7f1d1d; border: 1px solid #fecaca; }
 .tag-高油, .tag-HIGH_FAT { background: #fde047; color: #854d0e; border: 1px solid #fef08a; }
 .tag-高盐, .tag-HIGH_SODIUM { background: #cbd5e1; color: #334155; border: 1px solid #e2e8f0; }
@@ -138,3 +137,38 @@ body {
   position: absolute; top: -1px; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;
   font-size: 8px; font-weight: bold; color: white; text-shadow: 0 1px 2px black;
 }
+
+/* === 新增：新手引导聚光灯特效 (Guide Spotlight) === */
+.guide-overlay-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 9990;
+  pointer-events: none; /* 让 JS 控制点击 */
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  /* 使用超大 Box-shadow 模拟遮罩挖孔 */
+  /* 初始状态全黑，JS 动态修改 */
+}
+
+/* 高亮框的基础样式 */
+.guide-spotlight {
+  position: absolute;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.75); /* 核心魔法：用阴影覆盖全屏 */
+  border-radius: 12px;
+  border: 2px solid rgba(124, 58, 237, 0.8); /* 亮边 */
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  pointer-events: none;
+  z-index: 9991;
+  animation: spotlight-pulse 2s infinite;
+}
+
+@keyframes spotlight-pulse {
+  0% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.75); border-color: rgba(124, 58, 237, 0.5); }
+  50% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65); border-color: rgba(124, 58, 237, 1); }
+  100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.75); border-color: rgba(124, 58, 237, 0.5); }
+}
+
+.typing-cursor::after {
+  content: '|';
+  animation: blink 1s step-start infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }

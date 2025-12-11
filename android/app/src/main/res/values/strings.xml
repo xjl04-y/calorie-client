@@ -1,5 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Calorie App</string>
-    <string name="title_activity_main">Calorie App</string>
+    <string name="app_name">健康乐园 RPG: 英雄传说</string>
+    <string name="title_activity_main">健康乐园 RPG: 英雄传说</string>
+    <string name="package_name">com.calorie.app</string>
+    <string name="custom_url_scheme">com.calorie.app</string>
 </resources>

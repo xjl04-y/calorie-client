@@ -1,14 +1,18 @@
+<script lang="ts">
+export default { name: 'Home' }; // [Fix] 显式命名，配合 KeepAlive include 使用
+</script>
+
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useGameStore } from '@/stores/counter';
+import { useSystemStore } from '@/stores/useSystemStore';
 import AppHud from '@/components/AppHud.vue';
 import DateNavigator from '@/components/DateNavigator.vue';
-import ModalNpcGuide from '@/components/modals/ModalNpcGuide.vue';
 import { showConfirmDialog } from 'vant';
-import { TAG_DEFS } from '@/constants/gameData';
 import type { FoodLog, MealType } from '@/types';
 
 const store = useGameStore();
+const systemStore = useSystemStore();
 
 const user = computed(() => store.user);
 const stageInfo = computed(() => store.stageInfo);
@@ -18,9 +22,14 @@ const skillPoints = computed(() => store.user.skillPoints);
 const skillStatus = computed(() => store.heroStore.skillStatus);
 const raceSkill = computed(() => store.heroStore.raceSkill);
 const env = computed(() => store.environment);
-const floatingTexts = computed(() => store.temp.floatingTexts || []);
-// PM Note: 引入力竭状态
+// [Pure Mode] 如果是纯净模式，不显示飘字
+const floatingTexts = computed(() => systemStore.isPureMode ? [] : (store.temp.floatingTexts || []));
 const isExhausted = computed(() => store.heroStore.isExhausted);
+// 访问纯净模式状态
+const isPure = computed(() => systemStore.isPureMode);
+
+const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
+const dailyTarget = computed(() => store.dailyTarget);
 
 const MEAL_LABELS: Record<string, string> = {
   BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食'
@@ -73,10 +82,10 @@ const comboColor = computed(() => {
 
 const confirmDelete = (log: FoodLog) => {
   showConfirmDialog({
-    title: '时光倒流',
-    message: '确定要撤销这条记录吗？',
+    title: isPure.value ? '确认删除' : '时光倒流',
+    message: isPure.value ? '确定要删除这条记录吗？' : '确定要撤销这条记录吗？',
     confirmButtonText: '确认',
-    confirmButtonColor: '#7c3aed'
+    confirmButtonColor: '#1e293b'
   }).then(() => {
     store.deleteLog(log);
   }).catch(() => {});
@@ -102,8 +111,8 @@ const openLogDetail = (log: FoodLog) => {
 
 <template>
   <div class="pb-24 relative">
-    <!-- 战斗飘字层 -->
-    <div class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+    <!-- 战斗飘字层 (纯净模式下隐藏) -->
+    <div v-if="!isPure" class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
       <transition-group name="float-up">
         <div v-for="ft in floatingTexts" :key="ft.id"
              class="absolute text-2xl font-black font-rpg drop-shadow-md text-stroke"
@@ -120,12 +129,9 @@ const openLogDetail = (log: FoodLog) => {
       </transition-group>
     </div>
 
-    <!-- PM Fix: 优化后的力竭状态遮罩 -->
-    <!-- 1. 边缘红框 (Vignette) -->
-    <div v-if="isExhausted" class="fixed inset-0 pointer-events-none z-30 shadow-[inset_0_0_60px_20px_rgba(220,38,38,0.5)] animate-pulse"></div>
-
-    <!-- 2. 顶部警告条 (不遮挡中间内容) -->
-    <div v-if="isExhausted" class="absolute top-14 left-4 right-4 z-40 animate-bounce">
+    <!-- 力竭状态遮罩 (纯净模式隐藏) -->
+    <div v-if="isExhausted && !isPure" class="fixed inset-0 pointer-events-none z-30 shadow-[inset_0_0_60px_20px_rgba(220,38,38,0.5)] animate-pulse"></div>
+    <div v-if="isExhausted && !isPure" class="absolute top-14 left-4 right-4 z-40 animate-bounce">
       <div class="bg-red-600/90 text-white px-4 py-2 rounded-xl border-2 border-red-400 shadow-lg backdrop-blur flex items-center justify-between">
         <div class="flex items-center gap-2">
           <i class="fas fa-heart-broken text-xl"></i>
@@ -137,12 +143,17 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
+    <!-- 顶部 HUD (纯净模式保留，作为基础状态栏) -->
     <AppHud @open-achievements="store.setModal('achievements', true)" />
-    <DateNavigator />
 
-    <!-- ... (战地情报保持不变) ... -->
-    <div class="px-4 mt-3 flex gap-3">
-      <!-- 连胜卡片 -->
+    <!-- 日期导航 -->
+    <div id="guide-date">
+      <DateNavigator />
+    </div>
+
+    <!-- 战地情报 (纯净模式隐藏) -->
+    <!-- [Fix] 增加 env 存在性检查 -->
+    <div v-if="!isPure && env" class="px-4 mt-3 flex gap-3" id="guide-env">
       <div class="flex-1 bg-gradient-to-br from-orange-50 to-red-50 dark:from-slate-800 dark:to-slate-800 rounded-xl p-2.5 border border-orange-100 dark:border-slate-700 flex items-center shadow-sm">
         <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-500 flex items-center justify-center mr-2">
           <i class="fas fa-fire-alt"></i>
@@ -155,7 +166,6 @@ const openLogDetail = (log: FoodLog) => {
         </div>
       </div>
 
-      <!-- 环境卡片 -->
       <div class="flex-[1.5] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 rounded-xl p-2.5 border border-blue-100 dark:border-slate-700 flex items-center shadow-sm">
         <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center mr-2 text-lg">
           {{ env.icon }}
@@ -169,9 +179,9 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 公会与技能入口 -->
-    <div class="px-4 mt-3 grid grid-cols-2 gap-3">
-      <div @click="store.setModal('questBoard', true)"
+    <!-- 公会与技能入口 (纯净模式隐藏技能树，保留任务板改名为“今日目标”) -->
+    <div v-if="!isPure" class="px-4 mt-3 grid grid-cols-2 gap-3">
+      <div @click="store.setModal('questBoard', true)" id="guide-quest"
            class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group">
         <div class="flex items-center gap-2 relative z-10">
           <div class="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 text-blue-500 rounded-lg flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
@@ -182,10 +192,10 @@ const openLogDetail = (log: FoodLog) => {
             <div class="text-[10px] text-slate-400">进行中: {{ activeQuests.length }}/4</div>
           </div>
         </div>
-        <i class="fas fa-scroll absolute -right-2 -bottom-2 text-6xl text-slate-100 dark:text-slate-700/50 z-0 rotate-[-15deg]"></i>
+        <i v-if="!isPure" class="fas fa-scroll absolute -right-2 -bottom-2 text-6xl text-slate-100 dark:text-slate-700/50 z-0 rotate-[-15deg]"></i>
       </div>
 
-      <div @click="store.setModal('skillTree', true)"
+      <div @click="store.setModal('skillTree', true)" id="guide-skill"
            class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group">
         <div class="flex items-center gap-2 relative z-10">
           <div class="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 text-purple-500 rounded-lg flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
@@ -199,12 +209,24 @@ const openLogDetail = (log: FoodLog) => {
           </div>
         </div>
         <div v-if="skillPoints > 0" class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse z-20"></div>
-        <i class="fas fa-dna absolute -right-2 -bottom-2 text-6xl text-slate-100 dark:text-slate-700/50 z-0 rotate-12"></i>
+        <i v-if="!isPure" class="fas fa-dna absolute -right-2 -bottom-2 text-6xl text-slate-100 dark:text-slate-700/50 z-0 rotate-12"></i>
       </div>
     </div>
 
-    <!-- ... (Monster Card 保持不变) ... -->
-    <div class="mx-4 mt-4 relative">
+    <!-- 纯净模式：简易任务入口 -->
+    <div v-if="isPure" class="px-4 mt-3" @click="store.setModal('questBoard', true)">
+      <div id="guide-quest" class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between active:scale-95 transition">
+        <div class="flex items-center gap-3">
+          <i class="fas fa-tasks text-blue-500 text-lg"></i>
+          <span class="text-sm font-bold text-slate-700 dark:text-slate-200">每日打卡任务</span>
+        </div>
+        <span class="text-xs text-slate-400">{{ activeQuests.length }} 进行中</span>
+      </div>
+    </div>
+
+    <!-- Monster Card (纯净模式隐藏，替换为数据看板) -->
+    <!-- [Fix] 增加 stageInfo.currentObj 存在性检查，防止切换模式瞬间数据未就绪导致的渲染崩溃 -->
+    <div v-if="!isPure && stageInfo && stageInfo.currentObj" class="mx-4 mt-4 relative" id="guide-monster">
       <div v-if="raceSkill"
            class="absolute -top-3 -right-2 z-30 flex flex-col items-center"
            @click="handleSkillClick">
@@ -233,7 +255,9 @@ const openLogDetail = (log: FoodLog) => {
 
       <div class="bg-slate-900 dark:bg-black rounded-3xl p-5 text-white shadow-xl relative overflow-hidden border-2 transition-all duration-300"
            :class="stageInfo.isOverloaded ? 'border-red-500 shadow-red-500/50 animate-pulse-slow' : 'border-slate-700'">
-        <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+
+        <div class="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] animate-pulse-slow"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-slate-800/50 to-slate-900/50 z-0"></div>
 
         <div v-if="comboState.count > 1" class="absolute top-2 left-2 z-20 flex flex-col items-start animate-bounce">
           <div class="text-xs font-bold italic text-yellow-300 tracking-wider">COMBO</div>
@@ -289,29 +313,59 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- ... (Meals/Logs FAB 保持不变) ... -->
-    <div class="px-4 mt-6 mb-2 flex justify-between items-center">
-      <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">冒险行动</h3>
+    <!-- 纯净模式：数据看板 -->
+    <div v-else class="mx-4 mt-4 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700" id="guide-monster">
+      <div class="flex justify-between items-end mb-3">
+        <span class="text-sm text-slate-500 font-bold">今日热量摄入</span>
+        <div class="text-right">
+          <span class="font-mono font-black text-2xl dark:text-white">{{ todayMacros.cals }}</span>
+          <span class="text-xs text-slate-400 ml-1">/ {{ dailyTarget }} kcal</span>
+        </div>
+      </div>
+      <div class="h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-4">
+        <div class="h-full bg-blue-500 rounded-full" :style="{ width: Math.min((todayMacros.cals / dailyTarget) * 100, 100) + '%' }"></div>
+      </div>
+      <div class="grid grid-cols-3 gap-4 text-center">
+        <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2">
+          <div class="text-[10px] text-slate-400 mb-1">蛋白质</div>
+          <div class="font-bold text-blue-500">{{ todayMacros.p }}g</div>
+        </div>
+        <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2">
+          <div class="text-[10px] text-slate-400 mb-1">碳水</div>
+          <div class="font-bold text-green-500">{{ todayMacros.c }}g</div>
+        </div>
+        <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2">
+          <div class="text-[10px] text-slate-400 mb-1">脂肪</div>
+          <div class="font-bold text-orange-500">{{ todayMacros.f }}g</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 冒险行动 Title -->
+    <div class="px-4 mt-6 mb-2 flex justify-between items-center" id="guide-meals">
+      <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ isPure ? '饮食记录' : '冒险行动' }}</h3>
+
+      <!-- [Fix] 纯净模式下也显示引导按钮，文案调整 -->
       <button @click="store.setModal('npcGuide', true)" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700 active:scale-95 transition flex items-center">
-        <i class="fas fa-comment-dots mr-1"></i> 导师通讯
+        <i class="fas fa-comment-dots mr-1"></i> {{ isPure ? '使用帮助' : '导师通讯' }}
       </button>
     </div>
 
-    <div id="tour-meal-card" class="px-4 grid grid-cols-2 gap-3 mb-6">
+    <div class="px-4 grid grid-cols-2 gap-3 mb-6">
       <div v-for="m in rpgMeals" :key="m.key" @click="openAddFood(m.key as MealType)" class="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 dark:border-slate-700 active:scale-95 transition cursor-pointer hover:border-purple-300 dark:hover:border-purple-700">
         <div class="text-2xl bg-slate-50 dark:bg-slate-700 w-10 h-10 flex items-center justify-center rounded-lg">{{ m.icon }}</div>
         <div>
-          <div class="text-sm font-bold dark:text-slate-200">{{ m.rpgName }}</div>
-          <div class="text-[10px] text-slate-400">{{ m.label }}</div>
+          <div class="text-sm font-bold dark:text-slate-200">{{ isPure ? m.label : m.rpgName }}</div>
+          <div v-if="!isPure" class="text-[10px] text-slate-400">{{ m.label }}</div>
         </div>
       </div>
     </div>
 
     <!-- 日志列表 -->
-    <div class="bg-white dark:bg-slate-800 rounded-t-3xl min-h-[300px] p-5 pb-20 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+    <div class="bg-white dark:bg-slate-800 rounded-t-3xl min-h-[300px] p-5 pb-20 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]" id="guide-logs">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">战斗记录</h3>
-        <span class="text-[10px] text-slate-400">左滑撤销 / 点击详情</span>
+        <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ isPure ? '今日记录' : '战斗记录' }}</h3>
+        <span class="text-[10px] text-slate-400">左滑删除 / 点击详情</span>
       </div>
       <div v-if="store.todayLogs.length === 0" class="text-center py-10 text-slate-400">
         <div class="text-4xl mb-2 grayscale opacity-50">📜</div>
@@ -319,50 +373,42 @@ const openLogDetail = (log: FoodLog) => {
       </div>
       <transition-group name="van-slide-up">
         <van-swipe-cell v-for="log in store.todayLogs" :key="log.id" class="mb-3 rounded-2xl overflow-hidden shadow-sm">
-          <div class="p-3 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between relative" :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken}" @click="openLogDetail(log)">
+          <div class="p-3 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between relative" :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken && !isPure}" @click="openLogDetail(log)">
             <div class="flex items-center gap-3 relative z-10">
               <div class="text-2xl w-10 h-10 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm relative">
                 {{ log.icon }}
-                <div v-if="log.comboCount && log.comboCount > 1" class="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 text-slate-900 rounded-full text-[9px] flex items-center justify-center font-black border border-white">
+                <div v-if="log.comboCount && log.comboCount > 1 && !isPure" class="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 text-slate-900 rounded-full text-[9px] flex items-center justify-center font-black border border-white">
                   {{ log.comboCount }}
                 </div>
               </div>
               <div>
                 <div class="font-bold text-sm dark:text-slate-200 flex items-center">
                   {{ log.name }}
-                  <span v-if="log.skillEffect" class="ml-2 text-[8px] px-1 rounded bg-indigo-100 text-indigo-600 font-bold border border-indigo-200">✨天赋</span>
+                  <span v-if="log.skillEffect && !isPure" class="ml-2 text-[8px] px-1 rounded bg-indigo-100 text-indigo-600 font-bold border border-indigo-200">✨天赋</span>
                   <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 text-purple-600 font-bold border border-purple-200">复合</span>
                 </div>
-                <div class="text-[10px] text-slate-400 mt-0.5" v-if="!log.damageTaken">
+                <div class="text-[10px] text-slate-400 mt-0.5" v-if="!log.damageTaken || isPure">
                   {{ log.grams }}g · {{ MEAL_LABELS[log.mealType] || log.mealType }}
                 </div>
                 <div class="text-[10px] text-red-400 font-bold mt-0.5" v-else>反击伤害 -{{ log.damageTaken }} (格挡 {{ log.blocked }})</div>
               </div>
             </div>
             <div class="text-right relative z-10">
-              <div v-if="!log.damageTaken">
-                <div class="font-rpg font-bold text-lg" :class="(log.multiplier || 1) < 1 ? 'text-slate-400' : 'text-red-500'">-{{ log.finalDamageValue || Math.floor(log.calories * (log.multiplier || 1)) }}</div>
-                <div class="text-[8px] text-slate-400">DMG</div>
+              <div v-if="!log.damageTaken || isPure">
+                <div class="font-rpg font-bold text-lg" :class="(!isPure && (log.multiplier || 1) < 1) ? 'text-slate-400' : (isPure ? 'text-slate-700 dark:text-slate-300' : 'text-red-500')">
+                  {{ isPure ? log.calories : '-' + (log.finalDamageValue || Math.floor(log.calories * (log.multiplier || 1))) }}
+                </div>
+                <div class="text-[8px] text-slate-400">{{ isPure ? 'kcal' : 'DMG' }}</div>
               </div>
               <div v-else><div class="text-2xl">💔</div></div>
             </div>
           </div>
           <template #right>
-            <div class="h-full flex"><van-button square type="danger" text="撤销" class="h-full !rounded-none" @click="confirmDelete(log)" /></div>
+            <div class="h-full flex"><van-button square type="danger" :text="isPure ? '删除' : '撤销'" class="h-full !rounded-none" @click="confirmDelete(log)" /></div>
           </template>
         </van-swipe-cell>
       </transition-group>
     </div>
-
-    <!-- FAB: 补给按钮 -->
-    <div v-if="$route.name === 'Home' && user.isInitialized" id="tour-fab-add" class="absolute bottom-[80px] right-6 z-40">
-      <div @click="openAddFood('SNACK')" class="fab-button magic-glow">
-        <van-icon name="plus" />
-        <span class="text-[8px] font-bold mt-0.5">补给</span>
-      </div>
-    </div>
-
-    <ModalNpcGuide />
 
   </div>
 </template>
@@ -370,13 +416,9 @@ const openLogDetail = (log: FoodLog) => {
 <style scoped>
 .van-slide-up-enter-active, .van-slide-up-leave-active { transition: all 0.3s ease; }
 .van-slide-up-enter-from, .van-slide-up-leave-to { opacity: 0; transform: translateY(20px); }
-.fab-button {
-  @apply w-14 h-14 bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-full shadow-xl flex flex-col items-center justify-center text-2xl cursor-pointer border-2 border-white/30 transition-transform active:scale-90;
-}
 .animate-pulse-slow { animation: pulse-red 2s infinite; }
 @keyframes pulse-red { 0%, 100% { border-color: rgba(239, 68, 68, 0.6); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 20px 0 rgba(239, 68, 68, 0.7); } }
 
-/* 战斗飘字动画 */
 .float-up-enter-active { animation: float-up 1s ease-out forwards; }
 .float-up-leave-active { transition: opacity 0.5s; opacity: 0; }
 @keyframes float-up {
