@@ -19,7 +19,6 @@ const user = computed(() => store.user);
 const heroStats = computed(() => store.heroStats);
 const isPure = computed(() => systemStore.isPureMode);
 
-// 计算装备槽位显示数据
 const equipment = computed(() => {
   const slotDefinitions = [
     { id: 'HEAD', name: '头部', icon: 'fas fa-hat-wizard' },
@@ -49,24 +48,23 @@ const nextRankProgress = computed(() => {
   return Math.min(100, (heroStats.value.combatPower / rankInfo.value.next) * 100);
 });
 
-// [Pure Mode] 计算 BMI
 const bmi = computed(() => {
   const h = user.value.height / 100;
   if (h <= 0) return 0;
   return (user.value.weight / (h * h)).toFixed(1);
 });
 
-// [Pure Mode] BMI 状态文本
 const bmiStatus = computed(() => {
-  const val = parseFloat(bmi.value);
+  const val = parseFloat(String(bmi.value));
   if (val < 18.5) return { text: '偏瘦', color: 'text-blue-500' };
   if (val < 24) return { text: '正常', color: 'text-green-500' };
   if (val < 28) return { text: '超重', color: 'text-orange-500' };
   return { text: '肥胖', color: 'text-red-500' };
 });
 
-const onAvatarRead = (file: UploaderFileListItem) => {
-  if (file.content) {
+const onAvatarRead = (items: UploaderFileListItem | UploaderFileListItem[]) => {
+  const file = Array.isArray(items) ? items[0] : items;
+  if (file && file.content) {
     store.user.avatarType = 'CUSTOM';
     store.user.customAvatar = file.content;
     store.saveState();
@@ -184,22 +182,27 @@ const expPercent = computed(() => {
   if (user.value.nextLevelExp <= 0) return 0;
   return Math.min(100, (user.value.currentExp / user.value.nextLevelExp) * 100);
 });
+
+// [New] 打开模态框
+const openRebirth = () => {
+  systemStore.setModal('rebirth', true);
+};
+const openShop = () => {
+  systemStore.setModal('shop', true);
+};
 </script>
 
 <template>
   <div class="pb-24 bg-slate-50 dark:bg-slate-900 min-h-full text-slate-800 dark:text-white transition-colors duration-300">
 
-    <!-- Header: 动态样式 -->
-    <!-- [Fix Layout] 移除 overflow-hidden 以允许下拉查看，增加 min-height -->
+    <!-- Header -->
     <div class="relative transition-all duration-500"
          :class="isPure ? 'h-72 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700' : 'h-72 bg-gradient-to-b from-purple-900 to-slate-900'">
 
-      <!-- RPG 背景纹理 -->
       <div v-if="!isPure" class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 
-      <!-- 顶部按钮组 (Settings & Avatar) -->
+      <!-- Settings & Avatar -->
       <div class="absolute top-4 left-0 right-0 px-4 z-30 flex justify-between">
-        <!-- [Fix] 添加 ID 用于引导定位 -->
         <div id="guide-settings" @click="store.setModal('settings', true)"
              class="px-3 py-1 rounded-full text-xs flex items-center active:scale-95 transition cursor-pointer"
              :class="isPure ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600' : 'bg-black/30 backdrop-blur text-white border border-white/20 hover:bg-black/50'">
@@ -214,8 +217,7 @@ const expPercent = computed(() => {
         </van-uploader>
       </div>
 
-      <!-- 用户信息卡片 -->
-      <!-- [Fix Layout] 增加 pt-16 防止被按钮遮挡，使用 flex 布局确保内容居中 -->
+      <!-- User Card -->
       <div class="absolute inset-0 flex flex-col items-center justify-start z-20 pt-16">
 
         <div class="relative group cursor-pointer mb-3" @click="changeAvatar">
@@ -224,7 +226,6 @@ const expPercent = computed(() => {
             <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full rounded-full object-cover" />
             <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-200 dark:bg-slate-600" />
           </div>
-          <!-- 等级标签 (仅 RPG 模式) -->
           <div v-if="!isPure" class="absolute bottom-0 right-0 bg-yellow-500 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full border-2 border-slate-800 shadow-lg z-20">Lv.{{ user.level }}</div>
         </div>
 
@@ -233,18 +234,25 @@ const expPercent = computed(() => {
           {{ user.nickname }}
         </h2>
 
-        <!-- 经验条 (仅 RPG 模式) -->
-        <div v-if="!isPure" class="w-48 mb-2">
-          <div class="flex justify-between text-[10px] text-slate-400 px-1 mb-0.5">
-            <span>EXP</span>
-            <span>{{ Math.floor(user.currentExp) }} / {{ user.nextLevelExp }}</span>
+        <!-- EXP & Gold (RPG Only) -->
+        <div v-if="!isPure" class="flex flex-col items-center">
+          <div class="w-48 mb-2">
+            <div class="flex justify-between text-[10px] text-slate-400 px-1 mb-0.5">
+              <span>EXP</span>
+              <span>{{ Math.floor(user.currentExp) }} / {{ user.nextLevelExp }}</span>
+            </div>
+            <div class="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+              <div class="h-full bg-gradient-to-r from-purple-600 to-blue-500 transition-all duration-500" :style="{ width: expPercent + '%' }"></div>
+            </div>
           </div>
-          <div class="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-            <div class="h-full bg-gradient-to-r from-purple-600 to-blue-500 transition-all duration-500" :style="{ width: expPercent + '%' }"></div>
+
+          <!-- [New] 金币显示 (纯净模式隐藏) -->
+          <div class="bg-black/40 px-3 py-0.5 rounded-full border border-yellow-500/30 flex items-center text-xs text-yellow-400 font-mono font-bold cursor-pointer hover:scale-105 transition" @click="openShop">
+            <i class="fas fa-coins mr-1.5"></i> {{ user.gold || 0 }}
           </div>
         </div>
 
-        <!-- 纯净模式信息栏 -->
+        <!-- Pure Mode Info -->
         <div v-else class="flex gap-4 mt-2">
           <div class="text-center px-4 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
             <div class="text-[10px] text-slate-400 uppercase">BMI</div>
@@ -256,7 +264,6 @@ const expPercent = computed(() => {
           </div>
         </div>
 
-        <!-- 身体数据 (仅 RPG 模式显示在此处，Pure 模式已整合) -->
         <div v-if="!isPure" class="flex items-center justify-center gap-2 text-slate-400 text-xs mt-1">
           <span><i :class="user.gender === 'MALE' ? 'fas fa-mars text-blue-400' : 'fas fa-venus text-pink-400'"></i> {{ user.age }}岁</span>
           <span>|</span><span>{{ user.height }}cm</span><span>|</span><span>{{ user.weight }}kg</span>
@@ -264,9 +271,19 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- RPG 模式内容 -->
+    <!-- RPG Content -->
     <div v-if="!isPure">
-      <!-- Base Stats & Rank Info -->
+      <!-- [New] 功能入口区 (纯净模式隐藏) -->
+      <div class="px-6 mt-4 flex gap-3">
+        <button @click="openShop" class="flex-1 bg-gradient-to-r from-yellow-600 to-orange-600 text-white py-2 rounded-xl font-bold text-xs shadow-lg active:scale-95 transition flex items-center justify-center border border-yellow-400/30">
+          <i class="fas fa-store mr-1.5"></i> 道具商店
+        </button>
+        <button @click="openRebirth" class="flex-1 bg-gradient-to-r from-slate-700 to-slate-800 text-slate-300 py-2 rounded-xl font-bold text-xs shadow-lg active:scale-95 transition flex items-center justify-center border border-slate-600">
+          <i class="fas fa-dungeon mr-1.5"></i> 转生洗点
+        </button>
+      </div>
+
+      <!-- Base Stats & Rank -->
       <div class="mt-4 text-center px-6">
         <div class="flex justify-center mb-4">
           <span class="bg-slate-800 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold flex items-center">
@@ -303,7 +320,7 @@ const expPercent = computed(() => {
         </div>
       </div>
 
-      <!-- Core Attributes (RPG Only) -->
+      <!-- Core Attributes -->
       <div class="px-4 mt-6">
         <div id="guide-profile-stats" class="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
           <h3 class="text-sm font-bold text-slate-400 mb-5 flex items-center"><i class="fas fa-chart-bar mr-2 text-purple-500"></i> 核心属性</h3>
@@ -327,7 +344,7 @@ const expPercent = computed(() => {
         </div>
       </div>
 
-      <!-- Equipment (RPG Only) -->
+      <!-- Equipment -->
       <div class="px-4 mt-4" id="guide-equipment">
         <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] relative overflow-hidden">
           <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-leather.png')] opacity-20 pointer-events-none"></div>
@@ -343,7 +360,6 @@ const expPercent = computed(() => {
               <i v-if="!slot.item" :class="slot.defaultIcon" class="text-3xl text-slate-600"></i>
               <span v-if="!slot.item" class="text-[8px] text-slate-600 mt-1 font-bold">{{ slot.slotName }}</span>
               <div v-if="slot.item" class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
-              <!-- @ts-ignore -->
               <span v-if="slot.item" class="text-4xl mb-1 filter drop-shadow-md transform transition-transform group-hover:scale-110">{{ slot.item.icon }}</span>
               <div v-if="slot.item" class="absolute bottom-0 w-full text-center bg-slate-900/80 backdrop-blur-sm py-0.5">
                 <span class="text-[8px] font-bold block truncate px-1" :class="'text-' + slot.item.rarity">{{ slot.item.reward }}</span>
@@ -354,7 +370,7 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- Pure Mode: 基础数据卡片 -->
+    <!-- Pure Mode Card -->
     <div v-else class="px-4 mt-6 space-y-4">
       <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
         <div class="flex justify-between items-center mb-4">
@@ -380,7 +396,7 @@ const expPercent = computed(() => {
       </div>
     </div>
 
-    <!-- Data Management (Universal) -->
+    <!-- Data Management -->
     <div class="px-4 mt-6 mb-6">
       <div class="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
         <h3 class="text-xs font-bold text-slate-500 mb-3 flex items-center">
@@ -393,7 +409,6 @@ const expPercent = computed(() => {
           <button @click="triggerFileImport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm">
             <i class="fas fa-file-upload mr-1"></i> {{ isPure ? '导入备份' : '读取卷轴' }}
           </button>
-          <!-- Hidden Input -->
           <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
         </div>
         <p class="text-[10px] text-slate-400 mt-2 text-center" v-if="!isPure">存档已启用 RPG 协议，请妥善保管您的卷轴。</p>

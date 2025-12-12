@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { useSystemStore } from '@/stores/useSystemStore'; // [New]
+import { useSystemStore } from '@/stores/useSystemStore';
 import { TAG_DEFS } from '@/constants/gameData';
 import { showConfirmDialog } from 'vant';
 
 const store = useGameStore();
-const systemStore = useSystemStore(); // [New]
+const systemStore = useSystemStore();
 
 const show = computed({
   get: () => store.modals.logDetail,
@@ -14,7 +14,7 @@ const show = computed({
 });
 
 const log = computed(() => store.temp.selectedLog);
-const isPure = computed(() => systemStore.isPureMode); // [New]
+const isPure = computed(() => systemStore.isPureMode);
 
 const handleDelete = () => {
   if (log.value) {
@@ -32,12 +32,12 @@ const handleDelete = () => {
   }
 };
 
+// [Fix] 添加 HYDRATION 映射
 const MEAL_LABELS: Record<string, string> = {
-  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食'
+  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
 };
 
 const getTagDesc = (tag: string) => {
-  // [Fix] 纯净模式下简化描述
   if (isPure.value) {
     if(tag === '高糖') return '糖分较高，请适量食用';
     if(tag === '高油') return '脂肪含量较高';
@@ -46,7 +46,6 @@ const getTagDesc = (tag: string) => {
     if(tag === '均衡') return '营养配比良好';
     return '普通属性';
   }
-  // RPG 描述
   if(tag === '高糖') return '容易被 [糖霜魔像] 克制，中断连击';
   if(tag === '高油') return '容易被 [油泥软怪] 克制，中断连击';
   if(tag === '高碳') return '容易被 [碳水强盗] 克制';
@@ -88,7 +87,7 @@ const getTagDesc = (tag: string) => {
           <div class="font-bold dark:text-white">{{ log.calories }} kcal</div>
         </div>
 
-        <!-- 纯净模式：始终显示热量，不显示伤害/受伤 -->
+        <!-- 纯净模式：始终显示热量 -->
         <div class="text-left col-span-2" v-if="isPure">
           <div class="text-xs text-slate-400">摄入能量</div>
           <div class="font-bold text-lg text-slate-700 dark:text-slate-200">
@@ -96,7 +95,7 @@ const getTagDesc = (tag: string) => {
           </div>
         </div>
 
-        <!-- RPG 模式：受伤/攻击逻辑 -->
+        <!-- RPG 模式 -->
         <div class="text-left col-span-2" v-else-if="log.damageTaken !== undefined || log.dodged">
           <div v-if="log.dodged" class="text-green-500 font-bold text-lg">⚡ 完美闪避!</div>
           <div v-else>
@@ -124,6 +123,7 @@ const getTagDesc = (tag: string) => {
 
         <div class="text-left">
           <div class="text-xs text-slate-400">类型</div>
+          <!-- [Fix] 使用映射确保 HYDRATION 显示正确 -->
           <div class="font-bold text-xs dark:text-white">{{ MEAL_LABELS[log.mealType] || log.mealType }}</div>
         </div>
       </div>
@@ -133,24 +133,6 @@ const getTagDesc = (tag: string) => {
         <div class="flex justify-between text-xs"><span class="text-slate-500">蛋白质</span><span class="font-bold text-blue-500">{{ log.p }}g</span></div>
         <div class="flex justify-between text-xs"><span class="text-slate-500">碳水</span><span class="font-bold text-green-500">{{ log.c }}g</span></div>
         <div class="flex justify-between text-xs"><span class="text-slate-500">脂肪</span><span class="font-bold text-orange-500">{{ log.f }}g</span></div>
-      </div>
-
-      <!-- 复合食物成分表 -->
-      <div v-if="log.isComposite && log.ingredients && log.ingredients.length > 0" class="bg-purple-50 dark:bg-slate-700/50 rounded-xl p-3 mb-4 text-left border border-purple-100 dark:border-slate-600">
-        <div class="text-xs font-bold text-purple-600 dark:text-purple-400 mb-2 flex items-center">
-          <i class="fas fa-utensils mr-1"></i> {{ isPure ? '套餐内容' : '料理成分表' }}
-        </div>
-        <div class="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
-          <div v-for="(ing, idx) in log.ingredients" :key="idx" class="flex items-center justify-between bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
-            <div class="flex items-center">
-              <span class="text-lg mr-2">{{ ing.icon }}</span>
-              <span class="text-xs font-bold dark:text-slate-200">{{ ing.name }}</span>
-            </div>
-            <div class="text-[10px] text-slate-400">
-              {{ ing.calories }} kcal
-            </div>
-          </div>
-        </div>
       </div>
 
       <div class="flex gap-3 mt-4">

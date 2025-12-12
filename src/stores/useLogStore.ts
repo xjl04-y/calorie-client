@@ -74,7 +74,9 @@ export const useLogStore = defineStore('log', () => {
     if (idx !== -1) {
       const removed = dayLogs[idx];
       dayLogs.splice(idx, 1);
-      _updateGlobalStats(removed, -1);
+      if (removed) {
+        _updateGlobalStats(removed, -1);
+      }
       return removed;
     }
     return null;

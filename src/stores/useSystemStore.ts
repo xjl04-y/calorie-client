@@ -1,16 +1,16 @@
 import { defineStore } from 'pinia';
 import { reactive, ref, onUnmounted } from 'vue';
 import { getLocalDateStr } from '@/utils/dateUtils';
-import type { SystemTempState, ModalState } from '@/types';
+import type { SystemTempState, ModalState, FoodItem } from '@/types'; // Import FoodItem
 
 export const useSystemStore = defineStore('system', () => {
   // --- State ---
   const isDarkMode = ref(true);
-  const isPureMode = ref(false); // [New] 纯净模式开关
+  const isPureMode = ref(false);
   const currentDate = ref(getLocalDateStr());
   const analysisRefDate = ref(getLocalDateStr());
 
-  // 持久化引导步骤
+  const analysisActiveTab = ref('daily');
   const guideCurrentStep = ref(0);
 
   // 全局心跳
@@ -33,10 +33,7 @@ export const useSystemStore = defineStore('system', () => {
 
   startHeartbeat();
 
-  onUnmounted(() => {
-    stopHeartbeat();
-  });
-
+  // [V4.0 Update] 注册商店和转生弹窗
   const modals = reactive<ModalState>({
     addFood: false,
     quantity: false,
@@ -52,10 +49,20 @@ export const useSystemStore = defineStore('system', () => {
     questBoard: false,
     skillTree: false,
     npcGuide: false,
-    settings: false // [New] 注册设置弹窗
+    settings: false,
+    shop: false,
+    rebirth: false,
+    hydration: false,
+    dailyReport: false,
+    // [New V4.7]
+    manualAdd: false
   });
 
-  const temp = reactive<SystemTempState>({
+  // [Layer 1 & 3] 动画状态定义
+  const temp = reactive<SystemTempState & {
+    attackVfx: string | null;
+    projectile: { show: boolean, icon: string, id: number } | null; // 飞行道具状态
+  }>({
     activeMealType: 'SNACK',
     isBuilding: false,
     basket: [],
@@ -68,7 +75,15 @@ export const useSystemStore = defineStore('system', () => {
     unlockedAchievement: null,
     selectedLog: null,
     pendingItem: undefined,
-    floatingTexts: []
+    floatingTexts: [],
+    reportData: null,
+    // [V4.3] 特效状态
+    isHealing: false,
+    isCrit: false,
+    // [V4.4] 攻击动画
+    attackVfx: null,
+    // [V4.5] 飞行道具 (投掷物)
+    projectile: null
   });
 
   // --- Actions ---
@@ -77,13 +92,46 @@ export const useSystemStore = defineStore('system', () => {
   }
 
   function triggerShake() {
-    // 纯净模式下禁用震动和屏幕抖动
     if (isPureMode.value) return;
-
     temp.isShaking = true;
     temp.isDamaged = true;
     if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
     setTimeout(() => { temp.isShaking = false; temp.isDamaged = false; }, 500);
+  }
+
+  // 触发治疗特效 (蓝色柔光)
+  function triggerHealEffect() {
+    if (isPureMode.value) return;
+    temp.isHealing = true;
+    setTimeout(() => { temp.isHealing = false; }, 800);
+  }
+
+  // 触发暴击特效 (金色闪光)
+  function triggerCritEffect() {
+    if (isPureMode.value) return;
+    temp.isCrit = true;
+    if(navigator.vibrate) navigator.vibrate([50, 50, 200]);
+    setTimeout(() => { temp.isCrit = false; }, 300);
+  }
+
+  // 触发攻击特效 (Boss受击)
+  function triggerAttackEffect(type: 'slash' | 'magic' = 'slash') {
+    if (isPureMode.value) return;
+    temp.attackVfx = type;
+    setTimeout(() => { temp.attackVfx = null; }, 400);
+  }
+
+  // [New V4.5] 触发投掷动画 (Source -> Trajectory -> Hit)
+  function triggerProjectile(icon: string) {
+    if (isPureMode.value) return;
+    // 重置状态以支持连续触发
+    temp.projectile = { show: true, icon, id: Date.now() };
+    // 动画时长与 CSS 保持一致 (0.6s)
+    setTimeout(() => {
+      temp.projectile = null;
+      // 投掷结束后，触发命中特效
+      triggerAttackEffect('slash');
+    }, 550);
   }
 
   return {
@@ -91,11 +139,16 @@ export const useSystemStore = defineStore('system', () => {
     isPureMode,
     currentDate,
     analysisRefDate,
+    analysisActiveTab,
     guideCurrentStep,
     modals,
     temp,
     timestamp,
     setModal,
-    triggerShake
+    triggerShake,
+    triggerHealEffect,
+    triggerCritEffect,
+    triggerAttackEffect,
+    triggerProjectile // Export
   };
 });

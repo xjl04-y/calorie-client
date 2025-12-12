@@ -1,15 +1,19 @@
 import { defineStore } from 'pinia';
 import { reactive, computed } from 'vue';
-import type { UserState, InitUserForm } from '@/types';
+import type { UserState, InitUserForm, RaceType, DailyReportData } from '@/types';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
+import { useLogStore } from '@/stores/useLogStore'; // [New] Need log access
 import { getLocalDateStr } from '@/utils/dateUtils';
-import { RACES, RACE_SKILL_TREES } from '@/constants/gameData';
+import { RACES, RACE_SKILL_TREES, MONSTERS } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
+
+const MAX_LEVEL = 100;
 
 export const useHeroStore = defineStore('hero', () => {
   const systemStore = useSystemStore();
   const collectionStore = useCollectionStore();
+  const logStore = useLogStore();
 
   // --- State ---
   const user = reactive<UserState>({
@@ -26,10 +30,19 @@ export const useHeroStore = defineStore('hero', () => {
     activeSkillId: null,
     activeSkillCd: 0,
     loginStreak: 1,
-    lastLoginDate: getLocalDateStr()
+    lastLoginDate: getLocalDateStr(),
+    // [V4.0] 初始资金与背包
+    gold: 0,
+    inventory: { 'item_rebirth_potion': 1 },
+    // [New V4.1] 喝水初始配置
+    hydration: {
+      dailyTargetCups: 8,
+      cupSizeMl: 250,
+      reminderInterval: 60,
+      enableNotifications: false
+    }
   });
 
-  // --- Getters ---
   const skillTree = computed(() => {
     return RACE_SKILL_TREES[user.race] || RACE_SKILL_TREES['HUMAN'];
   });
@@ -49,12 +62,14 @@ export const useHeroStore = defineStore('hero', () => {
         if (node.type === 'PASSIVE_BMR') {
           bmrBonus += node.effectParams.base + (level - 1) * node.effectParams.scale;
         } else if (node.type === 'PASSIVE_STAT') {
-          if (node.effectParams.target === 'str_mult') statMult.str += node.effectParams.base + (level - 1) * node.effectParams.scale;
-          if (node.effectParams.target === 'agi_mult') statMult.agi += node.effectParams.base + (level - 1) * node.effectParams.scale;
-          if (node.effectParams.target === 'vit_mult') statMult.vit += node.effectParams.base + (level - 1) * node.effectParams.scale;
-          if (node.effectParams.target === 'exp_rate') expRate += node.effectParams.base + (level - 1) * node.effectParams.scale;
-          if (node.effectParams.target === 'all_stat') {
-            const val = node.effectParams.base + (level - 1) * node.effectParams.scale;
+          const target = node.effectParams.target;
+          const val = node.effectParams.base + (level - 1) * node.effectParams.scale;
+
+          if (target === 'str_mult') statMult.str += val;
+          else if (target === 'agi_mult') statMult.agi += val;
+          else if (target === 'vit_mult') statMult.vit += val;
+          else if (target === 'exp_rate') expRate += val;
+          else if (target === 'all_stat') {
             statMult.str += val; statMult.agi += val; statMult.vit += val;
           }
         }
@@ -120,6 +135,75 @@ export const useHeroStore = defineStore('hero', () => {
   const isExhausted = computed(() => user.heroCurrentHp <= 0);
 
   // --- Actions ---
+
+  // [New V4.0] 增加金币
+  function addGold(amount: number) {
+    if (!amount || amount <= 0) return;
+    if (!user.gold) user.gold = 0;
+    user.gold += Math.floor(amount);
+  }
+
+  // [New V4.0] 购买物品
+  function buyItem(itemId: string, price: number) {
+    if (user.gold < price) {
+      showToast('金币不足');
+      return false;
+    }
+    user.gold -= price;
+    if (!user.inventory) user.inventory = {};
+    user.inventory[itemId] = (user.inventory[itemId] || 0) + 1;
+    showToast('购买成功');
+    return true;
+  }
+
+  // [New V4.0] 消耗物品
+  function consumeItem(itemId: string, count = 1) {
+    if (!user.inventory || !user.inventory[itemId] || user.inventory[itemId] < count) return false;
+    user.inventory[itemId] -= count;
+    if (user.inventory[itemId] <= 0) delete user.inventory[itemId];
+    return true;
+  }
+
+  // [New V4.0] 核心转生逻辑
+  function rebirth(newRace: RaceType) {
+    // 1. 消耗药水
+    if (!consumeItem('item_rebirth_potion')) {
+      showToast('缺少转生药水');
+      return;
+    }
+
+    // 2. 计算返还的 SP
+    // 遍历当前种族的技能树，检查已学习的技能
+    let totalRefundSP = 0;
+    const currentTree = RACE_SKILL_TREES[user.race];
+    if (currentTree) {
+      currentTree.forEach(node => {
+        const level = user.learnedSkills[node.id] || 0;
+        if (level > 0) {
+          totalRefundSP += (level * node.cost);
+        }
+      });
+    }
+
+    // 3. 执行重置
+    user.skillPoints += totalRefundSP;
+    user.learnedSkills = {}; // 清空技能
+    user.activeSkillId = null; // 清除激活状态
+    user.activeSkillCd = 0;
+
+    // 4. 切换种族
+    user.race = newRace;
+
+    // 5. 反馈
+    systemStore.setModal('rebirth', false);
+    showNotify({
+      type: 'success',
+      message: `✨ 转生成功！化身为${RACES[newRace].name}！\n返还 ${totalRefundSP} 点技能点。`,
+      duration: 3000,
+      background: '#7c3aed'
+    });
+  }
+
   function recalcBMR() {
     const s = user.gender === 'MALE' ? 5 : -161;
     const bmr = 10 * user.weight + 6.25 * user.height - 5 * user.age + s;
@@ -140,6 +224,16 @@ export const useHeroStore = defineStore('hero', () => {
     user.activeSkillCd = 0;
     user.loginStreak = 1;
     user.lastLoginDate = getLocalDateStr();
+    user.gold = 0;
+    user.inventory = { 'item_rebirth_potion': 1 };
+
+    // [New]
+    user.hydration = {
+      dailyTargetCups: 8,
+      cupSizeMl: 250,
+      reminderInterval: 60,
+      enableNotifications: false
+    };
 
     user.heroMaxHp = 200;
     user.heroCurrentHp = user.heroMaxHp;
@@ -171,31 +265,36 @@ export const useHeroStore = defineStore('hero', () => {
   }
 
   function addExp(amount: number) {
-    // 纯净模式下虽然记录数据，但可以不强调经验值获取，或者后台静默升级
-    // 这里我们保留数值增长，但不弹窗
-    const realAmount = Math.floor(amount * passiveBonuses.value.expRate);
+    if (user.level >= MAX_LEVEL) return;
+
+    const safeAmount = Number.isNaN(amount) ? 0 : amount;
+    const realAmount = Math.floor(safeAmount * passiveBonuses.value.expRate);
     user.currentExp += realAmount;
 
     let leveledUp = false;
-    while (user.currentExp >= user.nextLevelExp) {
+    let safetyCounter = 0;
+
+    while (user.currentExp >= user.nextLevelExp && safetyCounter < 5) {
       user.currentExp -= user.nextLevelExp;
       user.level++;
-
-      // PM Fix: 升级难度调整
       user.nextLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
-
       user.skillPoints += 1;
       leveledUp = true;
+      safetyCounter++;
+
+      if (user.level >= MAX_LEVEL) {
+        user.currentExp = 0;
+        break;
+      }
     }
 
     if (leveledUp) {
-      // [Fix] 纯净模式下不弹出升级界面
       if (!systemStore.isPureMode) {
         systemStore.setModal('levelUp', true);
         const healAmount = Math.floor(user.heroMaxHp * 0.2);
         heal(healAmount);
         setTimeout(() => {
-          showToast(`升级奖励：HP 恢复 ${healAmount} (未满)`);
+          showToast(`升级奖励：HP 恢复 ${healAmount}`);
         }, 1000);
       }
     }
@@ -251,38 +350,104 @@ export const useHeroStore = defineStore('hero', () => {
   }
 
   function heal(amount: number) {
-    user.heroCurrentHp += amount;
+    const safeAmount = Number.isNaN(amount) ? 0 : amount;
+    user.heroCurrentHp = Math.min(user.heroMaxHp, user.heroCurrentHp + safeAmount);
   }
 
   function damage(amount: number) {
-    user.heroCurrentHp = Math.floor(Math.max(0, user.heroCurrentHp - amount));
+    const safeAmount = Number.isNaN(amount) ? 0 : amount;
+    user.heroCurrentHp = Math.floor(Math.max(0, user.heroCurrentHp - safeAmount));
   }
 
+  // [V4.2 Upgrade] 增强版登录检查：生成战报
   function checkLoginStreak() {
     if (!user.isInitialized) return;
 
     const today = getLocalDateStr();
     const last = user.lastLoginDate;
 
-    if (today === last) return;
+    if (today === last) return; // 还是今天，不处理
 
+    // 计算昨天的日期字符串
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = getLocalDateStr(yesterday);
 
+    // 只有当上次登录正好是昨天（连续），或者上次登录早于昨天（断签），都需要结算昨天的战斗（如果昨天有数据的话）
+    // 为了简化逻辑：只要是跨天第一次打开，我们都尝试结算“最近一个活跃日”的战报，或者仅仅结算昨天
+    // PM决定：只结算严格意义上的“昨天”。如果昨天没登录没记录，则不算战斗。
+
     if (last === yesterdayStr) {
+      // 连续登录
       user.loginStreak += 1;
-      // 纯净模式下不显示 RPG 签到提示，或者显示简化版
-      if (!systemStore.isPureMode) {
-        showNotify({ type: 'primary', message: `🔥 连续签到 ${user.loginStreak} 天！经验获取提升！`, duration: 3000 });
-      }
     } else {
+      // 断签，重置
       user.loginStreak = 1;
-      if (!systemStore.isPureMode) {
-        showNotify({ type: 'warning', message: '📅 欢迎回来！新的冒险开始了！', duration: 2000 });
-      }
     }
+
+    // 更新最后登录日期
     user.lastLoginDate = today;
+
+    // --- 生成战报逻辑 ---
+    // 1. 获取昨天的日志
+    const yLogs = logStore.logs[yesterdayStr] || [];
+
+    // 如果昨天完全没有记录，不弹出战报，只提示
+    if (yLogs.length === 0) {
+      if (!systemStore.isPureMode) {
+        showNotify({ type: 'warning', message: `📅 新的一天！连击天数: ${user.loginStreak}`, duration: 2000 });
+      }
+      return;
+    }
+
+    // 2. 计算昨天的数据
+    const totalCals = yLogs.reduce((sum, l) => sum + (l.calories || 0), 0);
+    // 这里简化逻辑：用今天的 BMR 作为昨天的参考（因为 BMR 变化不大）
+    const targetBMR = dailyTarget.value;
+
+    let status: 'VICTORY' | 'DEFEAT' | 'DRAW' = 'DRAW';
+    if (totalCals > targetBMR * 1.1) status = 'DEFEAT'; // 暴食
+    else if (totalCals < targetBMR * 0.6) status = 'DEFEAT'; // 节食
+    else status = 'VICTORY'; // 达标
+
+    // 3. 计算奖励
+    let expGained = 0;
+    let goldGained = 0;
+
+    if (status === 'VICTORY') {
+      expGained = 100 + (user.loginStreak * 10);
+      goldGained = 50 + (user.loginStreak * 5);
+    } else {
+      expGained = 20; // 安慰奖
+      goldGained = 10;
+    }
+
+    // 4. 确定昨天的 Boss
+    const seed = yesterdayStr.split('').reduce((a, b, i) => a + (b.charCodeAt(0) * (i + 1)), 0);
+    const monster = MONSTERS[seed % MONSTERS.length] || MONSTERS[0];
+
+    // 5. 发放奖励
+    addExp(expGained);
+    addGold(goldGained);
+
+    // 6. 弹出战报 (仅 RPG 模式)
+    if (!systemStore.isPureMode) {
+      const report: DailyReportData = {
+        date: yesterdayStr,
+        totalCalories: totalCals,
+        targetBMR: targetBMR,
+        status,
+        expGained,
+        goldGained,
+        monsterName: monster.name,
+        loginStreak: user.loginStreak
+      };
+
+      systemStore.temp.reportData = report;
+      systemStore.setModal('dailyReport', true);
+    } else {
+      showNotify({ type: 'success', message: `📅 昨日结算完成：+${expGained} XP`, duration: 2000 });
+    }
   }
 
   return {
@@ -297,6 +462,10 @@ export const useHeroStore = defineStore('hero', () => {
     recalcBMR,
     initUser,
     addExp,
+    addGold,
+    buyItem,
+    consumeItem,
+    rebirth,
     upgradeSkill,
     activateSkill,
     consumeSkillEffect,

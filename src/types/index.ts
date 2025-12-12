@@ -1,13 +1,11 @@
-// 核心数据接口定义 - V3.5.1 Refactored (Type Safe)
-// PM Note: 修正 activeSlot 类型，移除模糊定义
-
+// 核心数据接口定义 - V4.2 Updated (PM: Added Report Interfaces)
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
-export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'HYDRATION';
 export type Gender = 'MALE' | 'FEMALE';
 export type ItemRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
-// V2.5: 技能节点定义 (增强版)
+// V2.5: 技能节点
 export interface SkillNode {
   id: string;
   tier: number;
@@ -21,12 +19,10 @@ export interface SkillNode {
   cost: number;
   type: 'PASSIVE_STAT' | 'PASSIVE_BMR' | 'ACTIVE_BUFF';
   effectParams: { target: string; base: number; scale: number };
-  // PM Note: 新增 effectType 用于明确技能效果逻辑，替代硬编码判断
   effectType?: string;
 }
 
-// V2.5: 任务定义
-// [Fix V3.2] 增加 'SS' 稀有度
+// V3.2: 任务定义
 export interface Quest {
   id: string;
   title: string;
@@ -53,7 +49,6 @@ export interface Race {
   growth: { str: number; agi: number; vit: number };
 }
 
-// [New] NPC 定义
 export interface NpcConfig {
   name: string;
   title: string;
@@ -61,17 +56,17 @@ export interface NpcConfig {
   greeting: string;
 }
 
-// [New V2.1] 环境天气定义
 export interface EnvironmentEffect {
   id: string;
   name: string;
   icon: string;
   desc: string;
   type: 'BUFF' | 'DEBUFF';
-  multiplier: number; // 伤害倍率修正
+  multiplier: number;
   color: string;
 }
 
+// [V4.0 Update] 用户状态：新增金币与背包
 export interface UserState {
   isInitialized: boolean;
   level: number;
@@ -95,12 +90,56 @@ export interface UserState {
   learnedSkills: Record<string, number>;
   activeSkillId: string | null;
   activeSkillCd: number;
-  // [New V2.1] 签到系统
   loginStreak: number;
-  lastLoginDate: string; // YYYY-MM-DD
+  lastLoginDate: string;
+  gold: number;
+  inventory: Record<string, number>;
+  // [New V4.1] 喝水计划配置
+  hydration: {
+    dailyTargetCups: number;
+    cupSizeMl: number; // 默认 250
+    reminderInterval: number; // 分钟，默认 60
+    enableNotifications: boolean;
+    lastDrinkTime?: number;
+  };
 }
 
-// [New] 初始化表单接口，替代 any
+// [Moved] 模态框状态定义
+export interface ModalState {
+  addFood: boolean;
+  quantity: boolean;
+  levelUp: boolean;
+  achievements: boolean;
+  unlock: boolean;
+  onboarding: boolean;
+  itemDetail: boolean;
+  equipmentSwap: boolean;
+  historyDetail: boolean;
+  logDetail: boolean;
+  hpHistory: boolean;
+  questBoard: boolean;
+  skillTree: boolean;
+  npcGuide: boolean;
+  settings: boolean;
+  shop: boolean;
+  rebirth: boolean;
+  hydration: boolean;
+  dailyReport: boolean;
+  // [New V4.7] 手动添加模态框
+  manualAdd: boolean;
+}
+
+// [New V4.0] 商店商品定义
+export interface ShopItem {
+  id: string;
+  name: string;
+  desc: string;
+  icon: string;
+  price: number;
+  effect: 'REBIRTH' | 'HEAL' | 'EXP';
+  value?: number;
+}
+
 export interface InitUserForm {
   race: RaceType;
   nickname: string;
@@ -110,12 +149,11 @@ export interface InitUserForm {
   age: number;
 }
 
-// [Fix 3.3] 严格化 FoodItem，避免 any
 export interface FoodItem {
   id: number | string;
   name: string;
   originalName?: string;
-  displayName?: string; // 增加显示名称字段
+  displayName?: string;
   icon: string;
   calories: number;
   p: number;
@@ -127,14 +165,11 @@ export interface FoodItem {
   tags?: string[];
   tips?: string;
   isComposite?: boolean;
-  // PM Note: 新增 isPreset，用于标记已保存的套餐，避免重复进入编辑模式
   isPreset?: boolean;
   usageCount?: number;
-  // 制作模式下的额外字段
   ingredients?: FoodItem[];
 }
 
-// [Fix 3.3] FoodLog 继承 FoodItem 并添加日志特有字段
 export interface FoodLog extends FoodItem {
   mealType: MealType;
   quantity?: number;
@@ -147,7 +182,6 @@ export interface FoodLog extends FoodItem {
   gainedExp?: number;
   healed?: number;
   skillEffect?: string;
-  // PM Note: 新增，用于 UI 展示此次造成的实际最终伤害（包含溢出）
   finalDamageValue?: number;
 }
 
@@ -175,31 +209,19 @@ export interface Achievement {
   bonusBMR: number;
 }
 
-// [Fix 3.5] 严格化 activeSlot 类型
-export interface SystemTempState {
-  activeMealType: MealType;
-  isBuilding: boolean;
-  basket: FoodItem[];
-  isShaking: boolean;
-  isDamaged: boolean;
-  searchResetTrigger: number;
-  activeSlot: SlotType | null; // [Fixed] Now strictly SlotType
-  selectedHistoryDate: string | null;
-  selectedItem: FoodItem | null;
-  unlockedAchievement: Achievement | null;
-  selectedLog: FoodLog | null;
-  pendingItem?: FoodItem;
-  floatingTexts: FloatingText[];
+// [New V4.2] 战报数据结构
+export interface DailyReportData {
+  date: string;
+  totalCalories: number;
+  targetBMR: number;
+  status: 'VICTORY' | 'DEFEAT' | 'DRAW';
+  expGained: number;
+  goldGained: number;
+  monsterName: string;
+  loginStreak: number;
 }
 
-export interface FloatingText {
-  id: number;
-  text: string;
-  type: 'DAMAGE' | 'HEAL' | 'CRIT' | 'BLOCK' | 'EXP';
-  x: number; // 相对坐标 0-100
-  y: number; // 相对坐标 0-100
-}
-
+// [Moved] 模态框状态定义
 export interface ModalState {
   addFood: boolean;
   quantity: boolean;
@@ -216,4 +238,37 @@ export interface ModalState {
   skillTree: boolean;
   npcGuide: boolean;
   settings: boolean;
+  // [New V4.0]
+  shop: boolean;
+  rebirth: boolean;
+  // [New V4.1]
+  hydration: boolean;
+  // [New V4.2] 每日战报
+  dailyReport: boolean;
+}
+
+export interface SystemTempState {
+  activeMealType: MealType;
+  isBuilding: boolean;
+  basket: FoodItem[];
+  isShaking: boolean;
+  isDamaged: boolean;
+  searchResetTrigger: number;
+  activeSlot: SlotType | null;
+  selectedHistoryDate: string | null;
+  selectedItem: FoodItem | null;
+  unlockedAchievement: Achievement | null;
+  selectedLog: FoodLog | null;
+  pendingItem?: FoodItem;
+  floatingTexts: FloatingText[];
+  // [New V4.2] 暂存战报数据
+  reportData: DailyReportData | null;
+}
+
+export interface FloatingText {
+  id: number;
+  text: string;
+  type: 'DAMAGE' | 'HEAL' | 'CRIT' | 'BLOCK' | 'EXP';
+  x: number;
+  y: number;
 }

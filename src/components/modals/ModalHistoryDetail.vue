@@ -19,25 +19,20 @@ const dateDisplay = computed(() => {
   return `${m}月${d}日 战斗记录`;
 });
 
-// 新增：餐点类型中文映射
+// [Fix] 添加 HYDRATION 映射
 const MEAL_LABELS: Record<string, string> = {
-  BREAKFAST: '早餐',
-  LUNCH: '午餐',
-  DINNER: '晚餐',
-  SNACK: '零食'
+  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
 };
 </script>
 
 <template>
   <van-popup v-model:show="show" round position="bottom" :style="{ height: '70%' }" class="dark:bg-slate-900">
     <div class="flex flex-col h-full">
-      <!-- 头部 -->
       <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
         <h3 class="font-bold text-lg dark:text-white">{{ dateDisplay }}</h3>
         <van-icon name="close" @click="show = false" class="text-slate-400"/>
       </div>
 
-      <!-- 列表 -->
       <div class="flex-1 overflow-y-auto p-4">
         <div v-if="!logs || logs.length === 0" class="text-center text-slate-400 py-10">
           <div class="text-4xl mb-2">🍃</div>
@@ -55,16 +50,15 @@ const MEAL_LABELS: Record<string, string> = {
                 <div>
                   <div class="font-bold text-sm dark:text-slate-200">{{ log.name }}</div>
                   <div class="flex gap-1 mt-1" v-if="!log.damageTaken && !log.dodged">
-                                        <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-[8px] px-1 rounded">
-                                            {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
-                                        </span>
+                    <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-[8px] px-1 rounded">
+                        {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
+                    </span>
                   </div>
-                  <!-- 修改：使用映射显示中文餐点名称 -->
+                  <!-- [Fix] 使用映射显示餐点名称 -->
                   <div class="text-[10px] text-slate-400 mt-0.5">{{ MEAL_LABELS[log.mealType] || log.mealType }}</div>
                 </div>
               </div>
 
-              <!-- 右侧数值 -->
               <div class="text-right" v-if="log.dodged">
                 <div class="text-green-500 font-bold">⚡ 闪避</div>
               </div>
@@ -88,5 +82,4 @@ const MEAL_LABELS: Record<string, string> = {
 </template>
 
 <style scoped>
-/* 移除局部样式，使用 style.css 中的全局样式 */
 </style>

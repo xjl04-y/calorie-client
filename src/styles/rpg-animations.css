@@ -1,0 +1,130 @@
+/* =========================================
+   Layer 1: 基础反馈 (Essential Feedback)
+   原则：清晰、迅速 (<0.5s)、强调打击感
+   ========================================= */
+
+/* 投掷物轨迹 (食物飞向 Boss) */
+@keyframes projectile-throw {
+  0% {
+    transform: translate(0, 0) scale(0.5) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    transform: translate(20px, -100px) scale(1.2) rotate(90deg);
+  }
+  100% {
+    transform: translate(var(--target-x, 50px), var(--target-y, -300px)) scale(1) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.anim-projectile {
+  position: absolute;
+  bottom: 100px; /* 起点：屏幕下方 */
+  left: 50%;
+  z-index: 40;
+  pointer-events: none;
+  animation: projectile-throw 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  font-size: 2rem;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+}
+
+/* 攻击命中特效：暖色调 (红/橙) */
+@keyframes impact-flash {
+  0% { transform: scale(0.5); opacity: 0; filter: brightness(2); }
+  50% { transform: scale(1.5); opacity: 1; filter: brightness(1.5); }
+  100% { transform: scale(2); opacity: 0; filter: brightness(1); }
+}
+
+.anim-impact {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 100px; height: 100px;
+  margin-left: -50px; margin-top: -50px;
+  background: radial-gradient(circle, rgba(255, 200, 0, 0.8) 0%, rgba(255, 0, 0, 0) 70%);
+  z-index: 45;
+  pointer-events: none;
+  animation: impact-flash 0.3s ease-out forwards;
+}
+
+/* Boss 受伤反馈：闪白 + 错位震动 */
+@keyframes hit-shake {
+  0% { filter: brightness(1) sepia(0); transform: translate(0, 0); }
+  10% { filter: brightness(3) sepia(1) saturate(5) hue-rotate(-50deg); transform: translate(-5px, 5px); } /* 瞬间高亮变红 */
+  30% { transform: translate(5px, -5px); }
+  50% { transform: translate(-5px, 5px); filter: brightness(1.5) sepia(0.5); }
+  70% { transform: translate(5px, -5px); }
+  100% { filter: brightness(1) sepia(0); transform: translate(0, 0); }
+}
+
+.boss-hurt-anim {
+  animation: hit-shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* 血条扣减缓冲 (Shadow Bar) */
+.hp-shadow {
+  transition: width 0.5s ease-out 0.3s; /* 延迟0.3s执行，形成阶梯感 */
+}
+
+/* =========================================
+   Layer 2: 进阶体验 (Enhanced Experience)
+   原则：增强氛围、状态可视化
+   ========================================= */
+
+/* 连击数跳动 (暖色调) */
+@keyframes combo-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4) rotate(-5deg); text-shadow: 0 0 10px rgba(255, 165, 0, 0.8); }
+  100% { transform: scale(1); }
+}
+
+.anim-combo-pop {
+  animation: combo-pulse 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Boss 阶段转换/暴走 (红色呼吸) */
+@keyframes berserk-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); transform: scale(1); }
+  70% { box-shadow: 0 0 20px 10px rgba(239, 68, 68, 0); transform: scale(1.02); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); transform: scale(1); }
+}
+
+.boss-phase-berserk {
+  animation: berserk-pulse 1.5s infinite;
+  border-color: #ef4444 !important;
+}
+
+/* =========================================
+   Layer 3: 豪华动画 (Highlights)
+   原则：仪式感、转场平滑
+   ========================================= */
+
+/* Boss 死亡/撤退动画 */
+.boss-transition-enter-active {
+  animation: boss-spawn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.boss-transition-leave-active {
+  animation: boss-die 0.8s ease-in forwards; /* 延长死亡时间 */
+}
+
+@keyframes boss-spawn {
+  0% { opacity: 0; transform: translateY(-50px) scale(0.5); filter: blur(10px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes boss-die {
+  0% { opacity: 1; transform: scale(1) rotate(0); filter: grayscale(0); }
+  30% { transform: scale(1.1) rotate(10deg); filter: grayscale(0.5) brightness(2); } /* 死亡前闪光 */
+  100% { opacity: 0; transform: scale(0) rotate(-20deg) translateY(50px); filter: grayscale(1); }
+}
+
+/* 技能释放：冷色调 (蓝/绿) */
+@keyframes skill-cast-blue {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); opacity: 0.8; transform: scale(0.9); }
+  100% { box-shadow: 0 0 0 40px rgba(59, 130, 246, 0); opacity: 0; transform: scale(1.2); }
+}
+
+.anim-skill-cast {
+  animation: skill-cast-blue 0.6s ease-out;
+}

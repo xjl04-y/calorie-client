@@ -1,9 +1,10 @@
 <script lang="ts">
-export default { name: 'Home' }; // [Fix] 显式命名，配合 KeepAlive include 使用
+export default { name: 'Home' };
 </script>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router'; // [New] Import Router
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import AppHud from '@/components/AppHud.vue';
@@ -11,6 +12,7 @@ import DateNavigator from '@/components/DateNavigator.vue';
 import { showConfirmDialog } from 'vant';
 import type { FoodLog, MealType } from '@/types';
 
+const router = useRouter(); // [New] Init Router
 const store = useGameStore();
 const systemStore = useSystemStore();
 
@@ -22,17 +24,20 @@ const skillPoints = computed(() => store.user.skillPoints);
 const skillStatus = computed(() => store.heroStore.skillStatus);
 const raceSkill = computed(() => store.heroStore.raceSkill);
 const env = computed(() => store.environment);
-// [Pure Mode] 如果是纯净模式，不显示飘字
 const floatingTexts = computed(() => systemStore.isPureMode ? [] : (store.temp.floatingTexts || []));
 const isExhausted = computed(() => store.heroStore.isExhausted);
-// 访问纯净模式状态
 const isPure = computed(() => systemStore.isPureMode);
 
 const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
 const dailyTarget = computed(() => store.dailyTarget);
 
+// [Animation] 动画状态
+const showSlash = computed(() => systemStore.temp.attackVfx === 'slash');
+const projectile = computed(() => systemStore.temp.projectile); // 获取飞行道具
+const shadowHpPercent = ref(100);
+
 const MEAL_LABELS: Record<string, string> = {
-  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食'
+  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
 };
 
 onMounted(() => {
@@ -47,15 +52,25 @@ const handleSkillClick = () => {
     store.setModal('addFood', true);
     return;
   }
-  if (!skillStatus.value.ready) {
-    return;
-  }
+  if (!skillStatus.value.ready) return;
   store.heroStore.activateSkill();
 };
 
+// [Animation Layer 1] Boss HP 计算与阴影条
 const hpPercent = computed(() => {
   if (!stageInfo.value.currentObj) return 0;
   return Math.floor((stageInfo.value.currentHpRemaining / stageInfo.value.currentObj.maxHp) * 100);
+});
+
+// 监听真实血量变化，延迟更新阴影血量 (制造打击延迟感)
+watch(hpPercent, (newVal) => {
+  if (newVal > shadowHpPercent.value) {
+    shadowHpPercent.value = newVal; // 加血瞬间
+  } else {
+    setTimeout(() => {
+      shadowHpPercent.value = newVal; // 扣血延迟
+    }, 500);
+  }
 });
 
 const hpBarColor = computed(() => {
@@ -63,6 +78,21 @@ const hpBarColor = computed(() => {
   if (hpPercent.value < 20) return 'bg-red-500';
   if (hpPercent.value < 50) return 'bg-yellow-500';
   return 'bg-green-500';
+});
+
+// [Animation Layer 1 & 2] Boss 状态类
+const bossStateClass = computed(() => {
+  if (stageInfo.value.isOverloaded) return 'boss-phase-berserk'; // 暴走 (红色呼吸)
+  if (showSlash.value) return 'boss-hurt-anim'; // 受击瞬间 (震动+闪白)
+  if (hpPercent.value < 20) return 'opacity-80 grayscale-[0.5] translate-y-1'; // 濒死
+  return 'anim-boss'; // 正常浮动
+});
+
+const bossOverlayIcon = computed(() => {
+  if (stageInfo.value.isOverloaded) return '🔥'; // 暴走
+  if (hpPercent.value < 30) return '💦'; // 虚弱流汗
+  if (hpPercent.value < 60) return '💢'; // 生气
+  return '';
 });
 
 const weaknessColor = computed(() => {
@@ -75,7 +105,7 @@ const weaknessColor = computed(() => {
 
 const comboColor = computed(() => {
   const c = comboState.value.count;
-  if (c >= 5) return 'text-purple-500 from-purple-500 to-pink-500';
+  if (c >= 5) return 'text-purple-500 from-purple-500 to-pink-500 drop-shadow-md';
   if (c >= 2) return 'text-blue-500 from-blue-500 to-cyan-500';
   return 'text-slate-400 from-slate-400 to-slate-300';
 });
@@ -103,15 +133,29 @@ const openAddFood = (key: MealType) => {
   store.setModal('addFood', true);
 }
 
+// [Updated] 核心分流逻辑
 const openLogDetail = (log: FoodLog) => {
   store.temp.selectedLog = log;
-  store.setModal('logDetail', true);
+  if (isPure.value) {
+    // 纯净模式：跳转到新页面
+    router.push('/food-detail');
+  } else {
+    // RPG 模式：打开弹窗
+    store.setModal('logDetail', true);
+  }
 }
 </script>
 
 <template>
-  <div class="pb-24 relative">
-    <!-- 战斗飘字层 (纯净模式下隐藏) -->
+  <div class="pb-24 relative overflow-x-hidden">
+    <!-- [Animation Layer 1] 投掷物层 (Projectile) -->
+    <div v-if="projectile && projectile.show" class="fixed inset-0 pointer-events-none z-[60]" style="perspective: 1000px;">
+      <div class="anim-projectile flex items-center justify-center w-12 h-12 bg-white rounded-full shadow-xl border-2 border-slate-200">
+        {{ projectile.icon }}
+      </div>
+    </div>
+
+    <!-- 战斗飘字层 -->
     <div v-if="!isPure" class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
       <transition-group name="float-up">
         <div v-for="ft in floatingTexts" :key="ft.id"
@@ -129,7 +173,7 @@ const openLogDetail = (log: FoodLog) => {
       </transition-group>
     </div>
 
-    <!-- 力竭状态遮罩 (纯净模式隐藏) -->
+    <!-- 力竭状态遮罩 -->
     <div v-if="isExhausted && !isPure" class="fixed inset-0 pointer-events-none z-30 shadow-[inset_0_0_60px_20px_rgba(220,38,38,0.5)] animate-pulse"></div>
     <div v-if="isExhausted && !isPure" class="absolute top-14 left-4 right-4 z-40 animate-bounce">
       <div class="bg-red-600/90 text-white px-4 py-2 rounded-xl border-2 border-red-400 shadow-lg backdrop-blur flex items-center justify-between">
@@ -143,16 +187,13 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 顶部 HUD (纯净模式保留，作为基础状态栏) -->
     <AppHud @open-achievements="store.setModal('achievements', true)" />
 
-    <!-- 日期导航 -->
     <div id="guide-date">
       <DateNavigator />
     </div>
 
-    <!-- 战地情报 (纯净模式隐藏) -->
-    <!-- [Fix] 增加 env 存在性检查 -->
+    <!-- 战地情报 -->
     <div v-if="!isPure && env" class="px-4 mt-3 flex gap-3" id="guide-env">
       <div class="flex-1 bg-gradient-to-br from-orange-50 to-red-50 dark:from-slate-800 dark:to-slate-800 rounded-xl p-2.5 border border-orange-100 dark:border-slate-700 flex items-center shadow-sm">
         <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-500 flex items-center justify-center mr-2">
@@ -179,7 +220,6 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 公会与技能入口 (纯净模式隐藏技能树，保留任务板改名为“今日目标”) -->
     <div v-if="!isPure" class="px-4 mt-3 grid grid-cols-2 gap-3">
       <div @click="store.setModal('questBoard', true)" id="guide-quest"
            class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group">
@@ -213,7 +253,6 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 纯净模式：简易任务入口 -->
     <div v-if="isPure" class="px-4 mt-3" @click="store.setModal('questBoard', true)">
       <div id="guide-quest" class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between active:scale-95 transition">
         <div class="flex items-center gap-3">
@@ -224,9 +263,8 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- Monster Card (纯净模式隐藏，替换为数据看板) -->
-    <!-- [Fix] 增加 stageInfo.currentObj 存在性检查，防止切换模式瞬间数据未就绪导致的渲染崩溃 -->
-    <div v-if="!isPure && stageInfo && stageInfo.currentObj" class="mx-4 mt-4 relative" id="guide-monster">
+    <!-- Monster Card (Enhanced Animation) -->
+    <div v-if="!isPure && stageInfo" class="mx-4 mt-4 relative" id="guide-monster">
       <div v-if="raceSkill"
            class="absolute -top-3 -right-2 z-30 flex flex-col items-center"
            @click="handleSkillClick">
@@ -259,7 +297,8 @@ const openLogDetail = (log: FoodLog) => {
         <div class="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] animate-pulse-slow"></div>
         <div class="absolute inset-0 bg-gradient-to-br from-slate-800/50 to-slate-900/50 z-0"></div>
 
-        <div v-if="comboState.count > 1" class="absolute top-2 left-2 z-20 flex flex-col items-start animate-bounce">
+        <!-- [Layer 2] 连击动画增强 -->
+        <div v-if="comboState.count > 1" class="absolute top-2 left-2 z-20 flex flex-col items-start anim-combo-pop">
           <div class="text-xs font-bold italic text-yellow-300 tracking-wider">COMBO</div>
           <div class="text-3xl font-black italic bg-clip-text text-transparent bg-gradient-to-b" :class="comboColor">
             x{{ comboState.count }}
@@ -272,13 +311,25 @@ const openLogDetail = (log: FoodLog) => {
 
         <div class="relative z-10 flex items-center justify-between mb-4 mt-2">
           <div class="flex items-center">
-            <div class="relative">
-              <div class="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-4xl border border-slate-600 shadow-inner"
-                   :class="{'animate-bounce': stageInfo.isOverloaded}">
-                {{ stageInfo.currentObj?.data?.icon || '❓' }}
+            <!-- [Layer 1] Boss 容器 (带动画类) -->
+            <!-- [Layer 3] 使用 Transition 处理 Boss 死亡/生成 -->
+            <transition name="boss-transition" mode="out-in">
+              <div :key="stageInfo.currentObj?.data?.name" class="relative w-16 h-16">
+                <div class="w-full h-full bg-slate-800 rounded-2xl flex items-center justify-center text-4xl border border-slate-600 shadow-inner relative z-10 transition-transform duration-100"
+                     :class="bossStateClass">
+                  {{ stageInfo.currentObj?.data?.icon || '❓' }}
+                  <!-- 表情/状态叠加 -->
+                  <div v-if="bossOverlayIcon" class="absolute -bottom-1 -right-1 text-sm animate-bounce">
+                    {{ bossOverlayIcon }}
+                  </div>
+                </div>
+                <!-- 攻击命中特效 (爆炸) -->
+                <div v-if="showSlash" class="anim-impact"></div>
+
+                <div v-if="stageInfo.isBoss" class="absolute -top-2 -right-2 bg-red-600 text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/20 z-20">BOSS</div>
               </div>
-              <div v-if="stageInfo.isBoss" class="absolute -top-2 -right-2 bg-red-600 text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/20">BOSS</div>
-            </div>
+            </transition>
+
             <div class="ml-4 max-w-[120px]">
               <div class="text-xl font-rpg tracking-wider truncate" :class="stageInfo.isOverloaded ? 'text-red-400' : ''">
                 {{ stageInfo.currentObj?.data?.name || '未知敌人' }}
@@ -296,12 +347,20 @@ const openLogDetail = (log: FoodLog) => {
             <div class="text-[9px] text-slate-500 uppercase tracking-widest">Enemy HP</div>
           </div>
         </div>
+
+        <!-- [Layer 1] 分段式 HP 条 -->
         <div class="relative h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700 mb-2">
           <div class="absolute inset-0 flex items-center justify-center text-[9px] font-bold z-10 drop-shadow-md">{{ hpPercent }}%</div>
-          <div class="h-full transition-all duration-1000 ease-out relative" :class="hpBarColor" :style="{ width: hpPercent + '%' }">
+
+          <!-- 阴影缓冲层 (Shadow Bar) -->
+          <div class="absolute inset-y-0 left-0 bg-yellow-300 hp-shadow" :style="{ width: shadowHpPercent + '%' }"></div>
+
+          <!-- 实际血条 -->
+          <div class="h-full transition-all duration-300 ease-out relative" :class="hpBarColor" :style="{ width: hpPercent + '%' }">
             <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
           </div>
         </div>
+
         <div class="flex justify-between items-center px-1">
           <div class="flex gap-1">
             <div v-for="(s, idx) in stageInfo.stages" :key="idx" class="w-1.5 h-1.5 rounded-full transition-all" :class="idx <= stageInfo.currentIndex ? 'bg-green-500 scale-125' : 'bg-slate-700'"></div>
@@ -341,11 +400,9 @@ const openLogDetail = (log: FoodLog) => {
       </div>
     </div>
 
-    <!-- 冒险行动 Title -->
+    <!-- ... (Log List and other components remain unchanged) ... -->
     <div class="px-4 mt-6 mb-2 flex justify-between items-center" id="guide-meals">
       <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ isPure ? '饮食记录' : '冒险行动' }}</h3>
-
-      <!-- [Fix] 纯净模式下也显示引导按钮，文案调整 -->
       <button @click="store.setModal('npcGuide', true)" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700 active:scale-95 transition flex items-center">
         <i class="fas fa-comment-dots mr-1"></i> {{ isPure ? '使用帮助' : '导师通讯' }}
       </button>

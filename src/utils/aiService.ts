@@ -1,11 +1,11 @@
 // AI 服务逻辑封装 (RPG 核心大脑)
-// PM Note: 全面移除 any，增强接口定义的健壮性
+// PM Note: 增强 JSON 解析的鲁棒性，防止 LLM 返回 Markdown 格式导致解析失败
 
 import type { FoodItem } from '@/types';
 
+// API Key 应该由环境变量注入，这里作为示例保持空字符串或占位符
 const apiKey = "";
 
-// --- 1. RPG 风格定义 ---
 const RACE_STYLES: Record<string, { prefixes: string[], style: string }> = {
   HUMAN: {
     prefixes: ['皇家', '老式', '秘制', '家乡', '骑士团', '修道院', '农夫', '帝国'],
@@ -25,8 +25,6 @@ const RACE_STYLES: Record<string, { prefixes: string[], style: string }> = {
   }
 };
 
-// --- 2. 种族专属数据池 (本地 RPG 引擎 - 中文标签版) ---
-// [Fixed] 类型严格化为 Partial<FoodItem>[]，因为 mock 数据可能缺少部分字段由 rpgify 补全
 const RACE_MOCK_DB: Record<string, Partial<FoodItem>[]> = {
   HUMAN: [
     { name: '烤鸡', calories: 200, p: 20, c: 0, f: 10, unit: '只', icon: '🍗', tags: ['高蛋白'] },
@@ -74,37 +72,63 @@ interface AiPayload {
 
 export const AiService = {
   async callGemini(payload: AiPayload): Promise<string | null> {
-    // [Fix Bug] 优雅降级：如果没有 API Key，直接返回 null，不进行网络请求
     if (!apiKey) {
       console.warn("AiService: No API Key provided. Returning mock data.");
       return null;
     }
 
     try {
+      // 增加超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
-      if (!res.ok) return null;
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        console.error(`Gemini API Error: ${res.status} ${res.statusText}`);
+        return null;
+      }
+
       const data = await res.json();
       return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
     } catch (e) {
-      console.error("Gemini API Error:", e);
+      console.error("Gemini API Network/Timeout Error:", e);
       return null;
     }
   },
 
   safeParseJSON(text: string | null): Partial<FoodItem>[] | null {
     if (!text) return null;
-    const cleanText = text.replace(/```json|```/g, '').trim();
+
+    // PM Fix: 增强清洗逻辑，处理 Markdown 代码块
+    let cleanText = text.trim();
+
+    // 移除 markdown 代码块标记
+    cleanText = cleanText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
     try {
       return JSON.parse(cleanText);
     } catch (e) {
-      console.warn("JSON Parse Failed");
-      const match = cleanText.match(/\[[\s\S]*\]/) || cleanText.match(/\{[\s\S]*\}/);
+      console.warn("Standard JSON Parse Failed, attempting Regex recovery");
+      // 尝试提取数组部分
+      const match = cleanText.match(/\[[\s\S]*\]/);
       if (match) {
         try { return JSON.parse(match[0]); } catch (e2) {}
+      }
+      // 尝试提取单个对象并放入数组
+      const objMatch = cleanText.match(/\{[\s\S]*\}/);
+      if (objMatch) {
+        try {
+          const obj = JSON.parse(objMatch[0]);
+          return [obj];
+        } catch (e3) {}
       }
       return null;
     }
@@ -121,7 +145,6 @@ export const AiService = {
     const displayName = `${rpgName} (${originalName})`;
 
     let tips = '';
-    // Tip 逻辑也适配中文标签
     switch(raceKey) {
       case 'ELF': tips = item.tags?.includes('高油') ? '这种油腻的东西...精灵无法下咽。' : '充满了自然的魔力。'; break;
       case 'ORC': tips = item.tags?.includes('高蛋白') ? '这就对了！吃肉！长肌肉！' : '这玩意塞牙缝都不够。'; break;
@@ -130,17 +153,18 @@ export const AiService = {
     }
 
     return {
-      id: Date.now() + Math.random(), // Ensure ID
+      id: Date.now() + Math.random(),
       ...item,
       name: displayName,
       originalName: originalName,
       tips: tips,
-      grams: item.grams || 100,
-      calories: item.calories || 0,
-      p: item.p || 0,
-      c: item.c || 0,
-      f: item.f || 0,
-      icon: item.icon || '🥘'
+      grams: Number(item.grams) || 100,
+      calories: Number(item.calories) || 0,
+      p: Number(item.p) || 0,
+      c: Number(item.c) || 0,
+      f: Number(item.f) || 0,
+      icon: item.icon || '🥘',
+      tags: item.tags || []
     } as FoodItem;
   },
 
@@ -158,13 +182,13 @@ export const AiService = {
   },
 
   async estimateText(query: string, userRaceName: string): Promise<FoodItem[]> {
-    // 提示词要求返回中文标签，并且使用 calories
+    // PM Improvement: 优化 Prompt，强制 JSON 格式更严格
     const systemPrompt = `
     Role: RPG Dietitian. Race: ${userRaceName}. Input: "${query}".
-    Return strict JSON Array.
-    Rename foods to fit theme, but keep original name key.
-    Use Chinese tags only: ["高糖", "高油", "高盐", "高碳", "高蛋白", "纯净", "均衡"]
-    Format: [{"name": "Steak", "calories": 200, "p": 20, "c": 0, "f": 10, "tags": ["高蛋白"]}]
+    Task: Identify food, estimate calories/macros for 100g or 1 unit.
+    Return ONLY valid JSON Array. No markdown, no explanations.
+    Tags allowed: ["高糖", "高油", "高盐", "高碳", "高蛋白", "纯净", "均衡"]
+    Example: [{"name": "Beef", "calories": 250, "p": 26, "c": 0, "f": 15, "unit": "slice", "icon": "🥩", "tags": ["高蛋白", "纯净"]}]
     `;
 
     const text = await this.callGemini({
@@ -172,12 +196,13 @@ export const AiService = {
     });
 
     if (!text) {
+      // 模拟延迟，提供更好的 UX
       await new Promise(r => setTimeout(r, 600));
       return this.getMockResponse(query, userRaceName);
     }
 
     const data = this.safeParseJSON(text);
-    if (Array.isArray(data)) {
+    if (Array.isArray(data) && data.length > 0) {
       return data.map(item => this.rpgify(item, userRaceName));
     }
     return this.getMockResponse(query, userRaceName);
@@ -188,7 +213,7 @@ export const AiService = {
     const text = await this.callGemini({
       contents: [{
         parts: [
-          { text: "Identify food, return JSON array. Tags must be one of: 高糖, 高油, 高盐, 高碳, 高蛋白, 纯净, 均衡. Format: [{'name': '...', 'calories': ..., 'tags': ['高蛋白']}]" },
+          { text: "Identify food items from image. Return strict JSON Array. Keys: name, calories, p, c, f, grams(default 100), unit, tags. Tags: 高糖, 高油, 高盐, 高碳, 高蛋白, 纯净, 均衡." },
           { inlineData: { mimeType: "image/jpeg", data: base64Data || '' } }
         ]
       }]
@@ -196,13 +221,14 @@ export const AiService = {
 
     if (!text) {
       await new Promise(r => setTimeout(r, 800));
-      // [Fix] 这里的模拟返回值也需要修正
+      // Fallback for image failure
       return [this.rpgify({
-        name: '神秘黑暗料理', calories: 300, p: 10, c: 30, f: 15, unit: '盘', icon: '🍲', tags: ['高油'], isComposite: true
+        name: '未识别物体', calories: 100, p: 0, c: 0, f: 0, unit: '个', icon: '❓', tags: []
       }, userRaceName)];
     }
+
     const data = this.safeParseJSON(text);
-    if (Array.isArray(data)) {
+    if (Array.isArray(data) && data.length > 0) {
       return data.map(item => this.rpgify(item, userRaceName));
     }
     return [];

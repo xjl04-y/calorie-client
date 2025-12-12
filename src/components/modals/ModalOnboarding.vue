@@ -5,6 +5,7 @@ import { useSystemStore } from '@/stores/useSystemStore';
 import { RACES } from '@/constants/gameData';
 import { showToast } from 'vant';
 import type { InitUserForm } from '@/types'; // Import Type
+import type { RaceType } from '@/types'; // Import RaceType
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -116,7 +117,7 @@ const currentRace = computed(() => RACES[formData.race] || RACES.HUMAN);
           <p class="text-slate-300 text-sm">选择你的出身种族，这决定了你的基础属性倾向。</p>
 
           <div class="grid grid-cols-2 gap-3">
-            <div v-for="(race, key) in RACES" :key="key" @click="formData.race = key"
+            <div v-for="(race, key) in RACES" :key="key" @click="formData.race = key as RaceType"
                  class="relative p-4 rounded-2xl border-2 transition-all cursor-pointer overflow-hidden group min-h-[140px] flex flex-col justify-between"
                  :class="formData.race === key
                    ? 'bg-purple-900/40 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.3)]'
@@ -141,19 +142,19 @@ const currentRace = computed(() => RACES[formData.race] || RACES.HUMAN);
             <div class="flex items-center gap-3">
               <div class="flex-1 text-center border-r border-slate-700">
                 <div class="text-[10px] text-slate-500">力量成长</div>
-                <div class="font-black text-lg text-blue-400">{{ currentRace.growth.str.toFixed(2) }}</div>
+                <div class="font-black text-lg text-blue-400">{{ currentRace?.growth?.str?.toFixed(2) }}</div>
               </div>
               <div class="flex-1 text-center border-r border-slate-700">
                 <div class="text-[10px] text-slate-500">敏捷成长</div>
-                <div class="font-black text-lg text-green-400">{{ currentRace.growth.agi.toFixed(2) }}</div>
+                <div class="font-black text-lg text-green-400">{{ currentRace?.growth?.agi?.toFixed(2) }}</div>
               </div>
               <div class="flex-1 text-center">
                 <div class="text-[10px] text-slate-500">体质成长</div>
-                <div class="font-black text-lg text-orange-400">{{ currentRace.growth.vit.toFixed(2) }}</div>
+                <div class="font-black text-lg text-orange-400">{{ currentRace?.growth?.vit?.toFixed(2) }}</div>
               </div>
             </div>
             <div class="mt-3 text-xs text-yellow-500 bg-yellow-900/20 px-3 py-2 rounded-lg border border-yellow-500/20">
-              <i class="fas fa-star mr-1"></i> 特性: {{ currentRace.bonus }}
+              <i class="fas fa-star mr-1"></i> 特性: {{ currentRace?.bonus }}
             </div>
           </div>
         </div>

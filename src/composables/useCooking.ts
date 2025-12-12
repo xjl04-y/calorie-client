@@ -1,8 +1,10 @@
 import { computed, toRaw } from 'vue';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useGameStore } from '@/stores/counter'; // 引入 GameStore 获取 user.race
 import { useBattleStore } from '@/stores/useBattleStore';
 import { showToast, showNotify } from 'vant';
 import type { FoodItem } from '@/types';
+import { formatRpgFoodName } from '@/utils/gameUtils'; // 引入命名工具
 
 /**
  * 烹饪逻辑 Composable
@@ -11,6 +13,7 @@ import type { FoodItem } from '@/types';
 export function useCooking(closeModal: () => void) {
   const systemStore = useSystemStore();
   const battleStore = useBattleStore();
+  const gameStore = useGameStore(); // 获取 store 实例
 
   const isBuilding = computed(() => systemStore.temp.isBuilding);
   const basket = computed(() => systemStore.temp.basket);
@@ -56,18 +59,25 @@ export function useCooking(closeModal: () => void) {
 
     if (systemStore.isPureMode) {
       // 纯净模式命名逻辑
-      const origin = baseItem.originalName || baseItem.name;
+      const origin = baseItem?.originalName || baseItem?.name || '食物';
       mealName = `${origin} 等 ${basket.value.length} 样`;
     } else {
-      // RPG 模式命名逻辑
+      // RPG 模式命名逻辑：基于种族动态生成
       if (baseItem) {
-        const origin = baseItem.originalName || baseItem.name.split('·').pop()?.split(' ')[0] || '食物';
-        mealName = `旅人定食·${origin}`;
+        // 提取核心词（去除前缀后缀）
+        const originName = baseItem.originalName || baseItem.name.split('·').pop()?.split(' ')[0] || '食物';
+
+        // 使用工具函数生成种族特色名称，作为前缀的一部分
+        // 这里我们稍微自定义一下套餐的格式，让它听起来更像一道菜
+        const currentRace = gameStore.user.race || 'HUMAN';
+        const rpgPrefix = formatRpgFoodName('定食', currentRace, '定食').split('·')[0]; // 获取种族前缀 (如 "皇家", "蛮荒")
+
+        mealName = `${rpgPrefix}·${originName}定食`;
 
         if (basket.value.length > 3) {
-          mealName += `·豪华版`;
+          mealName += ` (豪华版)`;
         } else if (basket.value.length > 1) {
-          mealName += `·双拼`;
+          mealName += ` (双拼)`;
         }
       }
     }

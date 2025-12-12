@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
  * ModalAddFood.vue
- * V2.6 Refactored: Logic moved to useCooking.ts
+ * 负责食物的搜索、筛选、AI识别以及手动录入的入口引导
  */
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { useSystemStore } from '@/stores/useSystemStore'; // [New]
+import { useSystemStore } from '@/stores/useSystemStore';
 import { useCooking } from '@/composables/useCooking';
 import { AiService } from '@/utils/aiService';
 import { formatRpgFoodName } from '@/utils/gameUtils';
@@ -15,29 +15,33 @@ import type { FoodItem } from '@/types';
 import type { UploaderFileListItem } from 'vant';
 
 const store = useGameStore();
-const systemStore = useSystemStore(); // [New]
+const systemStore = useSystemStore();
 
 const isPure = computed(() => systemStore.isPureMode);
 
-// --- Computed Visibility ---
 const show = computed({
   get: () => store.modals.addFood,
   set: (val) => store.setModal('addFood', val)
 });
 
-// --- Composable: Cooking Logic ---
+// 使用烹饪组合式函数
 const { isBuilding, basket, resetBasket, addToBasket, removeFromBasket, commitBasket } = useCooking(() => {
   show.value = false;
 });
 
-// --- Local UI State ---
 const query = ref('');
 const loading = ref(false);
+const loadingText = ref('AI 思考中...');
 const activeCategory = ref('ALL');
 const aiResult = ref<FoodItem | null>(null);
 const aiSuggestions = ref<FoodItem[]>([]);
 
-// --- Helpers ---
+// 打开手动添加/自定义模态框
+const openManualAdd = () => {
+  // 不关闭当前窗口，直接叠加在上面，体验更流畅
+  store.setModal('manualAdd', true);
+};
+
 const resetLocalState = () => {
   query.value = '';
   aiResult.value = null;
@@ -46,18 +50,22 @@ const resetLocalState = () => {
   resetBasket();
 };
 
+// 列表筛选逻辑
 const filteredList = computed(() => {
   const rawList = (store.foodDb && Array.isArray(store.foodDb)) ? store.foodDb : [];
   let result = rawList;
 
   if (activeCategory.value === 'FAV') {
+    // 常吃：按使用次数排序
     result = rawList
       .filter((i) => i.usageCount && i.usageCount > 0)
       .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
   } else if (activeCategory.value !== 'ALL') {
+    // 按分类筛选
     result = rawList.filter((i) => i.category === activeCategory.value);
   }
 
+  // 搜索过滤
   if (query.value.trim()) {
     const q = query.value.toLowerCase().trim();
     result = result.filter((i) =>
@@ -70,20 +78,21 @@ const filteredList = computed(() => {
   return result;
 });
 
-// [Fix] 纯净模式下直接返回原名
 const getDisplayName = (item: FoodItem) => {
   if (isPure.value) return item.originalName || item.name;
   if (item.displayName) return item.displayName;
   return formatRpgFoodName(item.name, store.user.race, item.originalName);
 };
 
-// --- Interactions ---
-
+// 文本搜索 / AI 估算
 const onTextSearch = async () => {
   if (!query.value.trim()) return;
+
   loading.value = true;
+  loadingText.value = '大贤者正在查阅古籍...';
   aiResult.value = null;
   aiSuggestions.value = [];
+
   try {
     const res = await AiService.estimateText(query.value, store.user.race);
     if (Array.isArray(res) && res.length > 0) aiSuggestions.value = res;
@@ -95,9 +104,15 @@ const onTextSearch = async () => {
   }
 };
 
-const onImageUpload = async (file: UploaderFileListItem) => {
+// 图片上传识别
+const onImageUpload = async (items: UploaderFileListItem | UploaderFileListItem[]) => {
+  const file = Array.isArray(items) ? items[0] : items;
+  if (!file) return;
+
   loading.value = true;
+  loadingText.value = '正在解析图像魔力...';
   aiResult.value = null;
+
   try {
     const res = await AiService.identifyImage(file.content || '', store.user.race);
     if (Array.isArray(res) && res.length > 0) aiSuggestions.value = res;
@@ -109,6 +124,7 @@ const onImageUpload = async (file: UploaderFileListItem) => {
   }
 };
 
+// 选择物品逻辑
 const selectItem = (item: FoodItem) => {
   if (isBuilding.value) {
     if (item.isComposite || item.isPreset) {
@@ -121,6 +137,7 @@ const selectItem = (item: FoodItem) => {
     return;
   }
 
+  // 如果点击的是套餐，且不是预设的（即自制套餐），且还未被使用过，则进入编辑模式（可选逻辑，这里简化为直接使用）
   if (item.isComposite && !item.isPreset && (!item.usageCount || item.usageCount === 0)) {
     store.temp.basket = [];
     store.temp.isBuilding = true;
@@ -142,6 +159,7 @@ watch(show, (val) => {
     query.value = '';
     if (!store.foodDb || store.foodDb.length === 0) store.loadState();
   } else {
+    // 关闭时如果没有打开数量弹窗，且没有挂起的物品，则重置状态
     if (!store.modals.quantity && !store.temp.pendingItem) {
       resetLocalState();
     }
@@ -173,9 +191,10 @@ onUnmounted(() => resetLocalState());
           </span>
         </div>
 
-        <div v-if="isBuilding" @click="resetLocalState" class="text-xs text-red-500 font-bold cursor-pointer active:opacity-70 px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded">
+        <div v-if="isBuilding" @click="resetLocalState" class="text-xs text-red-500 font-bold cursor-pointer active:opacity-70 px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded flex items-center">
           <i class="fas fa-trash-alt mr-1"></i>清空
         </div>
+        <!-- 占位符或小按钮 -->
         <div v-else class="w-8"></div>
       </div>
 
@@ -189,6 +208,13 @@ onUnmounted(() => resetLocalState());
             <i class="fas fa-magic mr-1"></i>{{ isPure ? 'AI识别' : '鉴定' }}
           </button>
         </div>
+
+        <!-- 手动添加入口 (图标版) -->
+        <button @click="openManualAdd" class="w-10 h-10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-600 active:scale-95 active:bg-slate-200 transition">
+          <i class="fas fa-pen-nib"></i>
+        </button>
+
+        <!-- 拍照上传 -->
         <van-uploader :after-read="onImageUpload" capture="camera">
           <div class="w-10 h-10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-600 active:scale-95 active:bg-slate-200 transition">
             <i class="fas fa-camera"></i>
@@ -213,10 +239,12 @@ onUnmounted(() => resetLocalState());
       <div class="flex-1 overflow-y-auto px-4 mt-2 pb-32 custom-scrollbar">
         <!-- Loading -->
         <div v-if="loading" class="text-center py-10 space-y-3">
-          <van-loading type="spinner" color="#7c3aed" vertical><span class="text-xs text-purple-500 mt-2">{{ isPure ? '正在识别...' : '正在向大贤者祈祷...' }}</span></van-loading>
+          <van-loading type="spinner" color="#7c3aed" vertical>
+            <span class="text-xs text-purple-500 mt-2">{{ isPure ? '正在识别...' : loadingText }}</span>
+          </van-loading>
         </div>
 
-        <!-- AI Result -->
+        <!-- AI Result (Single Match) -->
         <div v-if="aiResult && !loading" class="bg-gradient-to-br from-purple-50 to-white dark:from-slate-800 dark:to-slate-700 p-4 rounded-2xl mb-4 border border-purple-100 dark:border-slate-600 shadow-sm cursor-pointer active:scale-98 transition relative overflow-hidden group" @click="selectItem(aiResult)">
           <div class="absolute top-0 right-0 bg-purple-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">AI 结果</div>
           <div class="flex justify-between items-start">
@@ -228,6 +256,9 @@ onUnmounted(() => resetLocalState());
                 </div>
               </div>
               <div class="text-xs text-purple-500 mt-1 flex items-center"><i class="fas fa-sparkles mr-1"></i> {{ aiResult.tips || '未知的食物' }}</div>
+              <div class="text-xs text-slate-500 mt-1">
+                热量: {{ aiResult.calories }} kcal / {{ aiResult.p }}P {{ aiResult.c }}C {{ aiResult.f }}F
+              </div>
             </div>
             <van-button size="small" color="#7c3aed" class="h-8 px-4 rounded-lg font-bold shadow-md shadow-purple-200 dark:shadow-none">
               {{ isBuilding ? '加入' : (aiResult.isComposite ? '制作' : '添加') }}
@@ -235,10 +266,32 @@ onUnmounted(() => resetLocalState());
           </div>
         </div>
 
-        <!-- Empty State -->
-        <div v-if="!loading && filteredList.length === 0" class="text-center py-16 text-slate-400">
+        <!-- Suggestions List (AI Multiple Results) -->
+        <div v-if="aiSuggestions.length > 0 && !loading" class="mb-4">
+          <div class="text-xs text-slate-400 mb-2">AI 建议结果:</div>
+          <div v-for="sugg in aiSuggestions" :key="sugg.name" @click="selectItem(sugg)"
+               class="bg-white dark:bg-slate-800 border border-purple-100 dark:border-slate-700 p-3 rounded-xl mb-2 flex justify-between items-center shadow-sm">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">{{ sugg.icon }}</span>
+              <div>
+                <div class="font-bold text-sm dark:text-white">{{ sugg.name }}</div>
+                <div class="text-[10px] text-slate-500">{{ sugg.calories }} kcal</div>
+              </div>
+            </div>
+            <van-icon name="plus" class="text-purple-500" />
+          </div>
+        </div>
+
+        <!-- Empty State (With Manual Add Action) -->
+        <div v-if="!loading && filteredList.length === 0 && !aiResult && aiSuggestions.length === 0" class="text-center py-16 text-slate-400">
           <div class="text-5xl mb-4 opacity-50 grayscale">🍃</div>
-          <div class="text-sm font-bold text-slate-500">暂无此分类食物</div>
+          <div class="text-sm font-bold text-slate-500 mb-6">暂无此分类食物</div>
+
+          <!-- 手动添加大按钮引导 -->
+          <van-button icon="edit" round color="linear-gradient(to right, #7c3aed, #6366f1)" class="shadow-lg shadow-purple-200 dark:shadow-none font-bold px-8" @click="openManualAdd">
+            找不到？手动录入
+          </van-button>
+          <div class="text-[10px] text-slate-400 mt-2">支持智能估算，无需精确数值</div>
         </div>
 
         <!-- List Items -->
@@ -252,7 +305,7 @@ onUnmounted(() => resetLocalState());
                   <span class="truncate">{{ getDisplayName(item) }}</span>
                   <span v-if="item.isComposite" class="ml-2 text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-200 flex items-center shrink-0"><i class="fas fa-layer-group mr-1"></i>套餐</span>
                 </div>
-                <!-- 纯净模式下隐藏 tips (通常带有 RPG 描述) -->
+                <!-- 纯净模式下隐藏 tips -->
                 <div v-if="item.tips && !isPure" class="text-[9px] text-slate-400 mt-1 truncate flex items-center"><i class="fas fa-info-circle mr-1 text-slate-300"></i> {{ item.tips }}</div>
                 <div class="flex gap-1 mt-1.5" v-if="item.tags && item.tags.length">
                   <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="text-[9px] px-1.5 py-0.5 rounded font-bold border tag-badge" :class="'tag-'+tag">{{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}</span>
@@ -283,7 +336,7 @@ onUnmounted(() => resetLocalState());
               <span>当前配料 ({{ basket.length }})</span>
             </div>
             <div class="text-xs text-slate-500 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
-              已选: <span class="text-purple-600 font-bold">{{ basket.reduce((a, b)=>a+(b.calories||0),0) }}</span> kcal
+              已选: <span class="text-purple-600 font-bold">{{ basket.reduce((a, b)=>a+(Number(b.calories)||0),0) }}</span> kcal
             </div>
           </div>
           <div class="flex gap-3 overflow-x-auto pb-4 mb-2 no-scrollbar px-1" v-if="basket.length > 0">

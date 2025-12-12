@@ -225,7 +225,8 @@ const currentStepIndex = computed({
 const currentStep = computed(() => guideSteps.value[currentStepIndex.value]);
 
 const spotlightStyle = ref({});
-const dialogStyle = ref({});
+// [Fix V4.5] 使用 any 类型以避免样式对象类型错误，支持 fixed 定位逻辑
+const dialogStyle = ref<any>({});
 
 // [Fix Logic] 增强版查找元素：增加重试次数和间隔，确保移动端渲染完成后能找到
 const findElementWithRetry = async (id: string, maxRetries = 10): Promise<HTMLElement | null> => {
@@ -247,12 +248,12 @@ const updateSpotlight = async () => {
   try {
     const step = currentStep.value;
 
-    if (step.route && route.path !== step.route) {
+    if (step?.route && route.path !== step.route) {
       await router.push(step.route);
       await new Promise(r => setTimeout(r, 600));
     }
 
-    if (step.action) {
+    if (step?.action) {
       step.action();
       await nextTick();
       await new Promise(r => setTimeout(r, 800)); // 等待 Tab 切换动画
@@ -260,9 +261,15 @@ const updateSpotlight = async () => {
 
     await nextTick();
 
-    if (!step.focusId) {
+    if (!step?.focusId) {
       spotlightStyle.value = { display: 'none' };
-      dialogStyle.value = { bottom: '20vh' };
+      // 默认居中或底部
+      dialogStyle.value = {
+        bottom: '24px',
+        left: '16px',
+        right: '16px',
+        position: 'fixed'
+      };
       return;
     }
 
@@ -291,37 +298,67 @@ const updateSpotlight = async () => {
       };
 
       const vh = window.innerHeight;
-      const centerY = rect.top + rect.height / 2;
 
-      // [Fix V4.4] 小屏适配逻辑：强制安全吸附
+      // [Fix V4.5] 视口智能适配逻辑 (Viewport Smart Adaptation)
+      // 计算可用空间，而非仅仅依赖绝对定位
       const spaceBottom = vh - rect.bottom;
       const spaceTop = rect.top;
 
-      if (spaceBottom < 220) {
-        // 底部空间不足，尝试放上方
-        if (spaceTop > 250) {
-          const bottomPos = vh - rect.top + 20;
-          dialogStyle.value = { bottom: `${bottomPos}px` };
-        } else {
-          // 上下都不足（大元素占满屏幕），强制吸附底部（覆盖部分内容，但保证引导可操作）
-          dialogStyle.value = { bottom: '20px' };
-        }
+      // 预估对话框所需的最小安全高度 (包含 padding, 文本, 按钮)
+      // 适当增加阈值，防止在小屏手机上挤压
+      const minSafeHeight = 240;
+
+      const baseStyle = {
+        left: '16px',
+        right: '16px',
+        position: 'fixed', // 改用 fixed 确保相对于视口
+        width: 'auto',
+        maxWidth: 'calc(100vw - 32px)',
+        margin: '0 auto',
+        // 重置旧属性
+        top: 'auto',
+        bottom: 'auto',
+        transform: 'none'
+      };
+
+      // 决策逻辑：优先放下方，其次放上方，如果都不够，强制放底部覆盖模式
+      if (spaceBottom >= minSafeHeight) {
+        // 下方空间充足
+        dialogStyle.value = {
+          ...baseStyle,
+          top: `${rect.bottom + 16}px`,
+        };
+      } else if (spaceTop >= minSafeHeight) {
+        // 上方空间充足
+        dialogStyle.value = {
+          ...baseStyle,
+          bottom: `${vh - rect.top + 16}px`,
+        };
       } else {
-        // 底部空间充足，正常放下方
-        const topPos = rect.bottom + 20;
-        dialogStyle.value = { top: `${topPos}px` };
+        // [Fix 小屏] 空间都不够（例如元素占据屏幕大部分，或屏幕极小）
+        // 强制采用 Bottom Sheet 模式，固定在屏幕最下方，确保可操作
+        dialogStyle.value = {
+          ...baseStyle,
+          bottom: '24px', // 留出一点边距
+          zIndex: 9996, // 确保比高亮圈更高一层，防止被遮挡
+        };
       }
 
     } else {
-      // 兜底：找不到元素时居中显示，保证流程不卡死
+      // 兜底：找不到元素时底部显示，保证流程不卡死
       spotlightStyle.value = { display: 'none' };
-      dialogStyle.value = { bottom: '20vh' };
+      dialogStyle.value = {
+        bottom: '24px',
+        left: '16px',
+        right: '16px',
+        position: 'fixed'
+      };
     }
   } catch (error) {
     console.error('Guide error:', error);
     // 出错也保证 UI 显示
     spotlightStyle.value = { display: 'none' };
-    dialogStyle.value = { bottom: '20vh' };
+    dialogStyle.value = { bottom: '24px', left: '16px', right: '16px', position: 'fixed' };
   } finally {
     // [Fix] 无论成功失败，必须结束过渡状态，否则用户看不见对话框
     isTransitioning.value = false;
@@ -388,48 +425,57 @@ onUnmounted(() => {
          :style="spotlightStyle"></div>
 
     <!-- Mask -->
-    <div v-if="!currentStep.focusId" class="absolute inset-0 bg-black/70 backdrop-blur-sm transition-all duration-500"></div>
+    <div v-if="!currentStep?.focusId" class="absolute inset-0 bg-black/70 backdrop-blur-sm transition-all duration-500"></div>
 
     <!-- Interaction Layer -->
-    <div class="w-full h-full relative pointer-events-auto z-[9995]" @click.stop>
+    <!-- [Fix] 使用 fixed 定位容器，穿透点击，但在 dialog 区域恢复点击 -->
+    <div class="fixed inset-0 pointer-events-none z-[9995]">
 
       <!-- Dialog Box -->
-      <div class="absolute left-4 right-4 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col transition-all duration-500 z-40"
+      <!-- [Fix Layout]
+           1. pointer-events-auto: 恢复点击交互
+           2. pb-safe: 适配 iPhone 底部安全区
+           3. max-h-[40vh]: 限制高度，防止遮挡太多
+           4. overflow-y-auto: 内容过多时可滚动，保证按钮不被挤出去
+      -->
+      <div class="bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex flex-col transition-all duration-500 pointer-events-auto pb-safe box-border"
            :class="[isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100']"
-           :style="dialogStyle">
+           :style="{ ...dialogStyle, maxHeight: '45vh' }">
 
         <!-- 名字条 -->
-        <div class="absolute -top-4 left-6 bg-slate-800 text-white px-4 py-1 rounded-full font-bold text-sm shadow-lg border-2 border-white dark:border-slate-600">
+        <div class="absolute -top-3 left-5 bg-slate-800 text-white px-3 py-0.5 rounded-full font-bold text-xs shadow-lg border-2 border-white dark:border-slate-600 z-50">
           {{ npc.title }} · {{ npc.name }}
         </div>
 
-        <!-- 内容区域 -->
-        <div class="mt-3 flex-1">
-          <h3 class="font-bold text-lg mb-2 text-purple-700 dark:text-purple-400 flex items-center">
+        <!-- 内容区域 (Scrollable) -->
+        <div class="mt-2 flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-[60px]">
+          <h3 class="font-bold text-base mb-1.5 text-purple-700 dark:text-purple-400 flex items-center">
             {{ currentStep?.title || '' }}
-            <span class="text-xs text-slate-400 ml-2 font-normal">({{ currentStepIndex + 1 }}/{{ guideSteps.length }})</span>
+            <span class="text-[10px] text-slate-400 ml-2 font-normal bg-slate-100 dark:bg-slate-700 px-1.5 rounded">
+              {{ currentStepIndex + 1 }} / {{ guideSteps.length }}
+            </span>
           </h3>
-          <p class="text-slate-700 dark:text-slate-300 leading-relaxed text-sm whitespace-pre-line font-medium min-h-[3em]">
+          <p class="text-slate-700 dark:text-slate-300 leading-relaxed text-sm whitespace-pre-line font-medium">
             {{ currentStep?.text || '' }}
           </p>
         </div>
 
-        <!-- 按钮组 -->
-        <div class="flex justify-end gap-3 mt-5">
-          <button v-if="currentStepIndex > 0" @click="prevStep" class="text-xs text-slate-500 hover:text-purple-500 font-bold px-3 py-2 flex items-center transition-colors">
+        <!-- 按钮组 (Fixed at bottom of dialog) -->
+        <div class="flex justify-end gap-3 mt-4 pt-2 border-t border-slate-100 dark:border-slate-700 shrink-0">
+          <button v-if="currentStepIndex > 0" @click="prevStep" class="text-xs text-slate-500 hover:text-purple-500 font-bold px-2 py-2 flex items-center transition-colors">
             <i class="fas fa-arrow-left mr-1"></i> 上一步
           </button>
 
           <div class="flex-1"></div>
 
-          <button @click="finish" class="text-xs text-slate-400 hover:text-slate-600 px-4 py-2 font-bold transition-colors">跳过</button>
-          <button @click="nextStep" class="bg-slate-800 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center text-sm">
-            {{ currentStepIndex < guideSteps.length - 1 ? '下一步' : '开始使用' }} <i class="fas fa-caret-right ml-2"></i>
+          <button @click="finish" class="text-xs text-slate-400 hover:text-slate-600 px-3 py-2 font-bold transition-colors">跳过</button>
+          <button @click="nextStep" class="bg-slate-800 text-white px-5 py-2 rounded-full font-bold shadow-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center text-sm">
+            {{ currentStepIndex < guideSteps.length - 1 ? '下一步' : '开始' }} <i class="fas fa-caret-right ml-1.5"></i>
           </button>
         </div>
 
         <!-- 进度条 -->
-        <div class="absolute bottom-1 left-0 right-0 h-1 bg-slate-100 dark:bg-slate-700 rounded-b-2xl overflow-hidden">
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-slate-100 dark:bg-slate-700 rounded-b-2xl overflow-hidden">
           <div class="h-full bg-slate-800 transition-all duration-300" :style="{ width: ((currentStepIndex + 1) / guideSteps.length) * 100 + '%' }"></div>
         </div>
       </div>
@@ -447,7 +493,7 @@ onUnmounted(() => {
   border-radius: 12px;
   /* 增加白色高亮边框 */
   border: 4px solid rgba(255, 255, 255, 0.8);
-  /* 禁用鼠标事件，允许点击穿透（如果需要交互的话） */
+  /* 禁用鼠标事件，允许点击穿透 */
   pointer-events: none;
   z-index: 9991;
   /* 呼吸动画 */
@@ -457,7 +503,7 @@ onUnmounted(() => {
   left 0.4s cubic-bezier(0.25, 1, 0.5, 1),
   width 0.4s cubic-bezier(0.25, 1, 0.5, 1),
   height 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-  opacity 0.3s ease; /* 透明度过渡 */
+  opacity 0.3s ease;
 }
 
 @keyframes spotlight-pulse {
@@ -465,4 +511,13 @@ onUnmounted(() => {
   50% { border-color: rgba(255, 255, 255, 1); transform: scale(1.02); }
   100% { border-color: rgba(255, 255, 255, 0.6); transform: scale(1); }
 }
+
+/* 适配 iOS 底部安全区 */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 </style>

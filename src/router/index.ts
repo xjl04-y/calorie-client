@@ -29,6 +29,16 @@ const routes = [
       title: '英雄档案',
       keepAlive: true // 避免频繁切换导致人物模型重新渲染
     }
+  },
+  // [New V4.6] 纯净模式专属 - 食物详情页
+  {
+    path: '/food-detail',
+    name: 'FoodDetail',
+    component: () => import('@/views/FoodDetailView.vue'),
+    meta: {
+      title: '食物详情',
+      keepAlive: false
+    }
   }
 ];
 

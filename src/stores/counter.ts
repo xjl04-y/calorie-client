@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import { RACES } from '@/constants/gameData';
 import { getCombatRank, debounce } from '@/utils/gameUtils';
-import type { FoodItem, FoodLog, Achievement } from '@/types';
+import type { FoodItem, FoodLog, Achievement, MealType } from '@/types'; // Import MealType
 
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore';
@@ -18,7 +18,6 @@ export const useGameStore = defineStore('game', () => {
   const logStore = useLogStore();
 
   const heroStats = computed(() => {
-    // 从 LogStore 获取历史数据
     const { totalP, totalC, totalF } = logStore.historyTotalMacros;
     const userData = hero.user;
     const race = RACES[userData.race] || RACES.HUMAN;
@@ -78,7 +77,7 @@ export const useGameStore = defineStore('game', () => {
         achievements: collection.achievements,
         foodDb: collection.foodDb,
         isDarkMode: system.isDarkMode,
-        isPureMode: system.isPureMode, // [Save] 保存纯净模式状态
+        isPureMode: system.isPureMode,
         activeQuests: collection.quests,
         questPoolDay: collection.questPoolDay
       };
@@ -95,12 +94,23 @@ export const useGameStore = defineStore('game', () => {
       try {
         const data = JSON.parse(saved);
 
-        // [Fix V3.5.1] 类型安全的加载检查
         if (data && typeof data === 'object') {
           if (data.user) {
             Object.assign(hero.user, data.user);
             if (!hero.user.skillPoints) hero.user.skillPoints = 0;
             if (!hero.user.learnedSkills) hero.user.learnedSkills = {};
+            // [V4.0 Fix] 兼容旧存档：初始化金币和背包
+            if (hero.user.gold === undefined) hero.user.gold = 0;
+            if (!hero.user.inventory) hero.user.inventory = { 'item_rebirth_potion': 1 };
+            // [V4.1 Fix] 兼容旧存档：初始化喝水数据
+            if (!hero.user.hydration) {
+              hero.user.hydration = {
+                dailyTargetCups: 8,
+                cupSizeMl: 250,
+                reminderInterval: 60,
+                enableNotifications: false
+              };
+            }
           }
 
           if (data.logs) Object.assign(logStore.logs, data.logs);
@@ -160,7 +170,7 @@ export const useGameStore = defineStore('game', () => {
 
   return {
     isDarkMode: computed({ get: () => system.isDarkMode, set: (v) => system.isDarkMode = v }),
-    isPureMode: computed({ get: () => system.isPureMode, set: (v) => system.isPureMode = v }), // 暴露给组件
+    isPureMode: computed({ get: () => system.isPureMode, set: (v) => system.isPureMode = v }),
     currentDate: computed({ get: () => system.currentDate, set: (v) => system.currentDate = v }),
     analysisRefDate: computed({ get: () => system.analysisRefDate, set: (v) => system.analysisRefDate = v }),
 
@@ -199,9 +209,10 @@ export const useGameStore = defineStore('game', () => {
     acceptQuest: collection.acceptQuest,
     claimQuest: collection.claimQuest,
 
-    commitLog: (item: FoodLog) => { battle.commitLog(item); saveState(); },
+    // [Fix] 透传 optional mealType
+    commitLog: (item: FoodItem, mealType?: MealType) => { battle.battleCommit(item, mealType); saveState(); },
     deleteLog: (log: FoodLog) => { battle.deleteLog(log); saveState(); },
-    battleCommit: (item: FoodItem) => { battle.battleCommit(item); saveState(); },
+    battleCommit: (item: FoodItem, mealType?: MealType) => { battle.battleCommit(item, mealType); saveState(); },
 
     saveState,
     forceSave,
