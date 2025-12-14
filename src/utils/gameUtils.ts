@@ -1,11 +1,11 @@
 import { RACES } from '@/constants/gameData';
 
-// --- 工具函数：ID 生成器 (新增) ---
+// --- 工具函数：ID 生成器 ---
 export const generateId = (): number => {
   return Date.now() + Math.floor(Math.random() * 10000);
 };
 
-// --- 工具函数：安全震动 (新增) ---
+// --- 工具函数：安全震动 ---
 // 兼容 Capacitor Haptics 和 Web Vibration API
 export const safeVibrate = (pattern: number | number[] = 200) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -17,7 +17,7 @@ export const safeVibrate = (pattern: number | number[] = 200) => {
   }
 };
 
-// --- 工具函数：防抖 (保持不变) ---
+// --- 工具函数：防抖 ---
 export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   return function(this: any, ...args: Parameters<T>) {
@@ -29,8 +29,8 @@ export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number
   };
 }
 
-// --- 存档混淆逻辑 (保持不变) ---
-export const encodeSaveData = (data: any): string => {
+// --- 存档混淆逻辑 (Enhanced Types) ---
+export const encodeSaveData = (data: unknown): string => {
   try {
     const jsonStr = JSON.stringify(data);
     const uriEncoded = encodeURIComponent(jsonStr);
@@ -42,21 +42,21 @@ export const encodeSaveData = (data: any): string => {
   }
 };
 
-export const decodeSaveData = (saveStr: string): any | null => {
+export const decodeSaveData = <T = unknown>(saveStr: string): T | null => {
   try {
     if (!saveStr.startsWith('RPG_V2$')) throw new Error('Invalid format');
     const base64 = saveStr.replace('RPG_V2$', '').replace('$END', '');
     const uriEncoded = atob(base64);
     const jsonStr = decodeURIComponent(uriEncoded);
-    return JSON.parse(jsonStr);
+    return JSON.parse(jsonStr) as T;
   } catch (e) {
     console.error('Save decoding failed', e);
     return null;
   }
 };
 
-// --- V2.4 Feature: 文件操作工具 ---
-export const downloadJsonFile = (filename: string, data: any) => {
+// --- 文件操作工具 ---
+export const downloadJsonFile = (filename: string, data: unknown) => {
   try {
     const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -77,13 +77,12 @@ export const downloadJsonFile = (filename: string, data: any) => {
   }
 };
 
-export const readJsonFile = (file: File): Promise<any> => {
+export const readJsonFile = (file: File): Promise<unknown> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        // 尝试解析 JSON
         const data = JSON.parse(text);
         resolve(data);
       } catch (err) {
@@ -95,7 +94,7 @@ export const readJsonFile = (file: File): Promise<any> => {
   });
 };
 
-// --- [Fix V3.2] 严格的食物命名逻辑 ---
+// --- 食物命名逻辑 ---
 export const formatRpgFoodName = (foodName: string, raceKey: string, originalName?: string): string => {
   const race = RACES[raceKey] || RACES.HUMAN;
 
@@ -110,7 +109,7 @@ export const formatRpgFoodName = (foodName: string, raceKey: string, originalNam
   return `${prefix}·${realOrigin} (${realOrigin})`;
 };
 
-// --- 战力阶位与特权 (V3.0 Updated) ---
+// --- 战力阶位与特权 ---
 export const getCombatRank = (cp: number) => {
   if (cp < 500) return {
     title: '见习冒险者', color: 'text-slate-500', icon: '🪵',
@@ -135,6 +134,6 @@ export const getCombatRank = (cp: number) => {
   return {
     title: '传说英雄', color: 'text-orange-500', icon: '🌟',
     passive: '半神之躯', desc: '基础代谢 (BMR) 计算值 +100',
-    next: null // Max rank
+    next: null
   };
 };

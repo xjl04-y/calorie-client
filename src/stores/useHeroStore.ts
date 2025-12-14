@@ -3,7 +3,7 @@ import { reactive, computed } from 'vue';
 import type { UserState, InitUserForm, RaceType, DailyReportData } from '@/types';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
-import { useLogStore } from '@/stores/useLogStore'; // [New] Need log access
+import { useLogStore } from '@/stores/useLogStore';
 import { getLocalDateStr } from '@/utils/dateUtils';
 import { RACES, RACE_SKILL_TREES, MONSTERS } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
@@ -31,10 +31,8 @@ export const useHeroStore = defineStore('hero', () => {
     activeSkillCd: 0,
     loginStreak: 1,
     lastLoginDate: getLocalDateStr(),
-    // [V4.0] 初始资金与背包
     gold: 0,
     inventory: { 'item_rebirth_potion': 1 },
-    // [New V4.1] 喝水初始配置
     hydration: {
       dailyTargetCups: 8,
       cupSizeMl: 250,
@@ -136,14 +134,12 @@ export const useHeroStore = defineStore('hero', () => {
 
   // --- Actions ---
 
-  // [New V4.0] 增加金币
   function addGold(amount: number) {
     if (!amount || amount <= 0) return;
     if (!user.gold) user.gold = 0;
     user.gold += Math.floor(amount);
   }
 
-  // [New V4.0] 购买物品
   function buyItem(itemId: string, price: number) {
     if (user.gold < price) {
       showToast('金币不足');
@@ -156,7 +152,6 @@ export const useHeroStore = defineStore('hero', () => {
     return true;
   }
 
-  // [New V4.0] 消耗物品
   function consumeItem(itemId: string, count = 1) {
     if (!user.inventory || !user.inventory[itemId] || user.inventory[itemId] < count) return false;
     user.inventory[itemId] -= count;
@@ -164,16 +159,12 @@ export const useHeroStore = defineStore('hero', () => {
     return true;
   }
 
-  // [New V4.0] 核心转生逻辑
   function rebirth(newRace: RaceType) {
-    // 1. 消耗药水
     if (!consumeItem('item_rebirth_potion')) {
       showToast('缺少转生药水');
       return;
     }
 
-    // 2. 计算返还的 SP
-    // 遍历当前种族的技能树，检查已学习的技能
     let totalRefundSP = 0;
     const currentTree = RACE_SKILL_TREES[user.race];
     if (currentTree) {
@@ -185,16 +176,12 @@ export const useHeroStore = defineStore('hero', () => {
       });
     }
 
-    // 3. 执行重置
     user.skillPoints += totalRefundSP;
-    user.learnedSkills = {}; // 清空技能
-    user.activeSkillId = null; // 清除激活状态
+    user.learnedSkills = {};
+    user.activeSkillId = null;
     user.activeSkillCd = 0;
-
-    // 4. 切换种族
     user.race = newRace;
 
-    // 5. 反馈
     systemStore.setModal('rebirth', false);
     showNotify({
       type: 'success',
@@ -227,7 +214,6 @@ export const useHeroStore = defineStore('hero', () => {
     user.gold = 0;
     user.inventory = { 'item_rebirth_potion': 1 };
 
-    // [New]
     user.hydration = {
       dailyTargetCups: 8,
       cupSizeMl: 250,
@@ -359,7 +345,7 @@ export const useHeroStore = defineStore('hero', () => {
     user.heroCurrentHp = Math.floor(Math.max(0, user.heroCurrentHp - safeAmount));
   }
 
-  // [V4.2 Upgrade] 增强版登录检查：生成战报
+  // [V4.9 Upgrade] 增强版登录检查：引入时光怀表
   function checkLoginStreak() {
     if (!user.isInitialized) return;
 
@@ -368,49 +354,69 @@ export const useHeroStore = defineStore('hero', () => {
 
     if (today === last) return; // 还是今天，不处理
 
-    // 计算昨天的日期字符串
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = getLocalDateStr(yesterday);
 
-    // 只有当上次登录正好是昨天（连续），或者上次登录早于昨天（断签），都需要结算昨天的战斗（如果昨天有数据的话）
-    // 为了简化逻辑：只要是跨天第一次打开，我们都尝试结算“最近一个活跃日”的战报，或者仅仅结算昨天
-    // PM决定：只结算严格意义上的“昨天”。如果昨天没登录没记录，则不算战斗。
+    let streakMaintained = false;
 
     if (last === yesterdayStr) {
       // 连续登录
-      user.loginStreak += 1;
+      streakMaintained = true;
     } else {
-      // 断签，重置
-      user.loginStreak = 1;
+      // 断签检测
+      // 尝试消耗 "item_streak_freeze"
+      if (consumeItem('item_streak_freeze', 1)) {
+        streakMaintained = true;
+        // 注意：使用怀表不增加连击天数，只保留
+        // 为了方便逻辑，我们这里稍微变通：让用户觉得"接上了"
+        // 但严谨来说，应该是保持原样。这里选择保持原样，仅更新日期。
+        if (!systemStore.isPureMode) {
+          showNotify({ type: 'success', message: '🕰️ 时光怀表生效！连续登录已保留。', background: '#7c3aed', duration: 4000 });
+        }
+      } else {
+        // 真的断签了
+        user.loginStreak = 1;
+      }
     }
 
     // 更新最后登录日期
     user.lastLoginDate = today;
 
     // --- 生成战报逻辑 ---
-    // 1. 获取昨天的日志
+    // PM决定：只结算严格意义上的“昨天”。如果昨天没登录没记录，则不算战斗。
+    // 即便使用了时光怀表，昨天的战斗数据如果没有也不生成战报。
+
     const yLogs = logStore.logs[yesterdayStr] || [];
 
-    // 如果昨天完全没有记录，不弹出战报，只提示
     if (yLogs.length === 0) {
+      if (streakMaintained) {
+        // 如果是怀表生效，不需要加连击
+        // 如果是正常连续，也不加? 不，正常连续应该加。
+        // 区分：last === yesterdayStr 才加
+        if (last === yesterdayStr) user.loginStreak += 1;
+      }
+
       if (!systemStore.isPureMode) {
         showNotify({ type: 'warning', message: `📅 新的一天！连击天数: ${user.loginStreak}`, duration: 2000 });
       }
       return;
     }
 
-    // 2. 计算昨天的数据
+    // 有昨天的数据，正常结算
+    if (streakMaintained && last === yesterdayStr) {
+      user.loginStreak += 1;
+    }
+    // 如果是怀表救回来的，昨天的战斗依然要结算（算作补给）
+
     const totalCals = yLogs.reduce((sum, l) => sum + (l.calories || 0), 0);
-    // 这里简化逻辑：用今天的 BMR 作为昨天的参考（因为 BMR 变化不大）
     const targetBMR = dailyTarget.value;
 
     let status: 'VICTORY' | 'DEFEAT' | 'DRAW' = 'DRAW';
-    if (totalCals > targetBMR * 1.1) status = 'DEFEAT'; // 暴食
-    else if (totalCals < targetBMR * 0.6) status = 'DEFEAT'; // 节食
-    else status = 'VICTORY'; // 达标
+    if (totalCals > targetBMR * 1.1) status = 'DEFEAT';
+    else if (totalCals < targetBMR * 0.6) status = 'DEFEAT';
+    else status = 'VICTORY';
 
-    // 3. 计算奖励
     let expGained = 0;
     let goldGained = 0;
 
@@ -418,19 +424,16 @@ export const useHeroStore = defineStore('hero', () => {
       expGained = 100 + (user.loginStreak * 10);
       goldGained = 50 + (user.loginStreak * 5);
     } else {
-      expGained = 20; // 安慰奖
+      expGained = 20;
       goldGained = 10;
     }
 
-    // 4. 确定昨天的 Boss
     const seed = yesterdayStr.split('').reduce((a, b, i) => a + (b.charCodeAt(0) * (i + 1)), 0);
     const monster = MONSTERS[seed % MONSTERS.length] || MONSTERS[0];
 
-    // 5. 发放奖励
     addExp(expGained);
     addGold(goldGained);
 
-    // 6. 弹出战报 (仅 RPG 模式)
     if (!systemStore.isPureMode) {
       const report: DailyReportData = {
         date: yesterdayStr,

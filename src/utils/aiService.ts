@@ -1,10 +1,8 @@
 // AI 服务逻辑封装 (RPG 核心大脑)
-// PM Note: 增强 JSON 解析的鲁棒性，防止 LLM 返回 Markdown 格式导致解析失败
-
 import type { FoodItem } from '@/types';
+import { useSystemStore } from '@/stores/useSystemStore';
 
-// API Key 应该由环境变量注入，这里作为示例保持空字符串或占位符
-const apiKey = "";
+// [Updated] 移除了对 Store 中 aiApiKey 的依赖，因为目前 AI 功能使用 Mock 数据
 
 const RACE_STYLES: Record<string, { prefixes: string[], style: string }> = {
   HUMAN: {
@@ -71,9 +69,16 @@ interface AiPayload {
 }
 
 export const AiService = {
+  getApiKey(): string {
+    // 强制返回空字符串，触发 Mock 逻辑
+    return '';
+  },
+
   async callGemini(payload: AiPayload): Promise<string | null> {
-    if (!apiKey) {
-      console.warn("AiService: No API Key provided. Returning mock data.");
+    const key = this.getApiKey();
+    if (!key) {
+      // 这里的 warn 是预期的，表示走 Mock 逻辑
+      // console.warn("AiService: No API Key provided. Returning mock data.");
       return null;
     }
 
@@ -82,7 +87,7 @@ export const AiService = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -107,9 +112,7 @@ export const AiService = {
   safeParseJSON(text: string | null): Partial<FoodItem>[] | null {
     if (!text) return null;
 
-    // PM Fix: 增强清洗逻辑，处理 Markdown 代码块
     let cleanText = text.trim();
-
     // 移除 markdown 代码块标记
     cleanText = cleanText.replace(/```json/gi, '').replace(/```/g, '').trim();
 
@@ -182,7 +185,6 @@ export const AiService = {
   },
 
   async estimateText(query: string, userRaceName: string): Promise<FoodItem[]> {
-    // PM Improvement: 优化 Prompt，强制 JSON 格式更严格
     const systemPrompt = `
     Role: RPG Dietitian. Race: ${userRaceName}. Input: "${query}".
     Task: Identify food, estimate calories/macros for 100g or 1 unit.
@@ -196,7 +198,6 @@ export const AiService = {
     });
 
     if (!text) {
-      // 模拟延迟，提供更好的 UX
       await new Promise(r => setTimeout(r, 600));
       return this.getMockResponse(query, userRaceName);
     }

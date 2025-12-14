@@ -253,8 +253,17 @@ export const useBattleStore = defineStore('battle', () => {
     } else if (isWithinWindow && isGoodFood) {
       newCombo += 1;
     } else if (!isWithinWindow) {
-      newCombo = isGoodFood ? 1 : 0;
-      comboMsg = isGoodFood ? '⚡ 连击开始' : '⏱️ 连击超时';
+      // [V4.8 Feature] 连击保护逻辑
+      // 只有当连击数大于 1 且有保护道具时才触发
+      if (newCombo > 1 && heroStore.consumeItem('item_combo_shield', 1)) {
+        // 连击保护成功：虽然超时，但视为刚好吃完上一顿
+        // 不增加连击，也不归零，维持现状
+        comboMsg = '⏳ 时光倒流！连击保护生效！';
+        setTimeout(() => showNotify({ type: 'success', message: '✨ 使用了时光沙漏，连击未中断！', background: '#7c3aed' }), 500);
+      } else {
+        newCombo = isGoodFood ? 1 : 0;
+        comboMsg = isGoodFood ? '⚡ 连击开始' : '⏱️ 连击超时';
+      }
     }
 
     if (newCombo > 20) newCombo = 20;

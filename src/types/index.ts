@@ -1,4 +1,4 @@
-// 核心数据接口定义 - V4.2 Updated (PM: Added Report Interfaces)
+// 核心数据接口定义 - V4.2 Updated (PM: Merged & Cleaned)
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'HYDRATION';
@@ -104,29 +104,35 @@ export interface UserState {
   };
 }
 
-// [Moved] 模态框状态定义
+// [Moved & Merged] 模态框状态定义 - 唯一的权威定义
 export interface ModalState {
+  // 核心功能
   addFood: boolean;
   quantity: boolean;
+  manualAdd: boolean; // [New V4.7]
+  hydration: boolean; // [New V4.1]
+
+  // 角色成长
   levelUp: boolean;
   achievements: boolean;
+  skillTree: boolean;
+  rebirth: boolean; // [New V4.0]
+
+  // 信息展示
   unlock: boolean;
-  onboarding: boolean;
   itemDetail: boolean;
-  equipmentSwap: boolean;
   historyDetail: boolean;
   logDetail: boolean;
   hpHistory: boolean;
+  dailyReport: boolean; // [New V4.2]
+
+  // 系统与引导
+  onboarding: boolean;
+  equipmentSwap: boolean;
   questBoard: boolean;
-  skillTree: boolean;
   npcGuide: boolean;
   settings: boolean;
-  shop: boolean;
-  rebirth: boolean;
-  hydration: boolean;
-  dailyReport: boolean;
-  // [New V4.7] 手动添加模态框
-  manualAdd: boolean;
+  shop: boolean; // [New V4.0]
 }
 
 // [New V4.0] 商店商品定义
@@ -221,32 +227,6 @@ export interface DailyReportData {
   loginStreak: number;
 }
 
-// [Moved] 模态框状态定义
-export interface ModalState {
-  addFood: boolean;
-  quantity: boolean;
-  levelUp: boolean;
-  achievements: boolean;
-  unlock: boolean;
-  onboarding: boolean;
-  itemDetail: boolean;
-  equipmentSwap: boolean;
-  historyDetail: boolean;
-  logDetail: boolean;
-  hpHistory: boolean;
-  questBoard: boolean;
-  skillTree: boolean;
-  npcGuide: boolean;
-  settings: boolean;
-  // [New V4.0]
-  shop: boolean;
-  rebirth: boolean;
-  // [New V4.1]
-  hydration: boolean;
-  // [New V4.2] 每日战报
-  dailyReport: boolean;
-}
-
 export interface SystemTempState {
   activeMealType: MealType;
   isBuilding: boolean;
@@ -263,6 +243,12 @@ export interface SystemTempState {
   floatingTexts: FloatingText[];
   // [New V4.2] 暂存战报数据
   reportData: DailyReportData | null;
+
+  // 动画状态
+  isHealing: boolean;
+  isCrit: boolean;
+  attackVfx: string | null;
+  projectile: { show: boolean, icon: string, id: number } | null;
 }
 
 export interface FloatingText {

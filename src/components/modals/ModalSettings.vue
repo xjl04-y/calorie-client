@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, watch, ref } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
-import { showToast } from 'vant';
+import { showToast, Dialog } from 'vant';
+// [Fix] 修正导入路径：getLocalDateStr 位于 dateUtils
+import { downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
+import { getLocalDateStr } from '@/utils/dateUtils';
 import type { Gender } from '@/types';
 
 const store = useGameStore();
@@ -19,7 +22,10 @@ const localState = reactive({
   isPureMode: false,
   nickname: '',
   gender: 'MALE' as Gender
+  // [Removed] 移除了 apiKey 字段
 });
+
+const fileInput = ref<HTMLInputElement | null>(null);
 
 // 2. 初始化逻辑
 watch(show, (val) => {
@@ -28,6 +34,7 @@ watch(show, (val) => {
     localState.isPureMode = systemStore.isPureMode;
     localState.nickname = store.user.nickname;
     localState.gender = store.user.gender;
+    // [Removed] 移除了 apiKey 初始化
   }
 });
 
@@ -44,6 +51,7 @@ const handleSave = () => {
 
   systemStore.isDarkMode = localState.isDarkMode;
   systemStore.isPureMode = localState.isPureMode;
+  // [Removed] 移除了 apiKey 保存逻辑
 
   // 强制处理暗黑模式 CSS 类
   if (localState.isDarkMode) {
@@ -71,6 +79,51 @@ const handleSave = () => {
 
   showToast({ type: 'success', message: msg });
 };
+
+// --- 数据管理逻辑 ---
+const handleFileExport = () => {
+  const data = store.getExportData();
+  if (!data) {
+    showToast('没有可导出的数据');
+    return;
+  }
+  const filename = `HEALTH_SAVE_${store.user.nickname}_${getLocalDateStr()}`;
+  const success = downloadJsonFile(filename, data);
+  if (success) showToast(localState.isPureMode ? '数据备份已下载' : '📜 存档卷轴已生成！');
+  else showToast('导出失败');
+};
+
+const triggerFileImport = () => {
+  fileInput.value?.click();
+};
+
+const onFileSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  try {
+    const data = await readJsonFile(file);
+    Dialog.confirm({
+      title: localState.isPureMode ? '导入备份' : '读取神谕 (导入存档)',
+      message: '⚠️ 导入将覆盖当前所有进度！确定要继续吗？',
+      confirmButtonText: '确定覆盖',
+      confirmButtonColor: '#7c3aed'
+    }).then(() => {
+      const success = store.importSaveDataObj(data);
+      if (success) {
+        showToast('数据恢复成功，即将刷新...');
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast('文件格式错误，无法读取。');
+      }
+    }).catch(() => {
+      if (fileInput.value) fileInput.value.value = '';
+    });
+  } catch (e) {
+    showToast('文件格式错误');
+  }
+};
 </script>
 
 <template>
@@ -78,7 +131,7 @@ const handleSave = () => {
     v-model:show="show"
     round
     position="bottom"
-    :style="{ height: '60%' }"
+    :style="{ height: '70%' }"
     class="dark:bg-slate-900"
     closeable
   >
@@ -106,7 +159,6 @@ const handleSave = () => {
                 <div class="text-[10px] text-slate-400">Dark Mode</div>
               </div>
             </div>
-            <!-- 明确的 Switch 按钮 -->
             <van-switch :model-value="localState.isDarkMode" @update:model-value="localState.isDarkMode = $event" size="24px" active-color="#7c3aed" @click.stop />
           </div>
 
@@ -125,7 +177,7 @@ const handleSave = () => {
           </div>
         </div>
 
-        <!-- 区域 2: 档案修改 (文案动态变化) -->
+        <!-- 区域 2: 档案修改 -->
         <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
           <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
             {{ localState.isPureMode ? '个人信息' : '冒险者档案' }}
@@ -164,12 +216,35 @@ const handleSave = () => {
           </div>
         </div>
 
+        <!-- 区域 3: 数据管理 (原高级设置) -->
+        <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
+            数据管理
+          </div>
+
+          <!-- [Removed] 移除了 AI Key 输入框 -->
+
+          <!-- 数据管理 -->
+          <div>
+            <label class="text-[10px] text-slate-500 block mb-2 font-bold">数据备份与迁移</label>
+            <div class="flex gap-3">
+              <button @click="handleFileExport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm flex items-center justify-center">
+                <i class="fas fa-file-download mr-1.5"></i> 导出存档
+              </button>
+              <button @click="triggerFileImport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm flex items-center justify-center">
+                <i class="fas fa-file-upload mr-1.5"></i> 导入存档
+              </button>
+              <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
+            </div>
+          </div>
+        </div>
+
         <button @click="handleSave" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-purple-500/30 active:scale-95 transition-all mt-2 text-base flex items-center justify-center">
           <i class="fas fa-check-circle mr-2"></i> {{ localState.isPureMode ? '保存设置' : '确认并生效' }}
         </button>
 
         <div class="text-center text-[10px] text-slate-400 opacity-60 pt-2">
-          Health RPG v3.5 · {{ localState.isPureMode ? 'Pure Edition' : 'Standard Edition' }}
+          Health RPG v4.8 · {{ localState.isPureMode ? 'Pure Edition' : 'Standard Edition' }}
         </div>
 
       </div>

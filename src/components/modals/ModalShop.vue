@@ -14,7 +14,6 @@ const show = computed({
 });
 
 const gold = computed(() => store.user.gold || 0);
-// [Fix] 安全获取背包数量
 const inventory = computed(() => store.user.inventory || {});
 
 const handleBuy = (item: typeof SHOP_ITEMS[0]) => {
@@ -28,7 +27,7 @@ const handleBuy = (item: typeof SHOP_ITEMS[0]) => {
       store.heroStore.consumeItem(item.id);
       showToast('获得经验卷轴之力！');
     }
-    // 转生药水不自动消耗，保留在背包
+    // 转生药水和连击护盾不自动消耗，保留在背包
   }
 };
 </script>
@@ -52,7 +51,7 @@ const handleBuy = (item: typeof SHOP_ITEMS[0]) => {
 
           <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center text-4xl mr-4 shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300 relative">
             {{ item.icon }}
-            <!-- [New V4.2] 持有数量角标 -->
+            <!-- 持有数量角标 -->
             <div v-if="inventory[item.id]" class="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-sm font-bold">
               {{ inventory[item.id] }}
             </div>

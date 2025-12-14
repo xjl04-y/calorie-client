@@ -7,8 +7,7 @@ import { ref, reactive, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { showToast, Dialog } from 'vant';
-import { getLocalDateStr } from '@/utils/dateUtils';
-import { getCombatRank, downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
+import { getCombatRank } from '@/utils/gameUtils';
 import type { Achievement } from '@/types';
 import type { UploaderFileListItem } from 'vant';
 
@@ -40,7 +39,6 @@ const equipment = computed(() => {
 
 const showEdit = ref(false);
 const editData = reactive({ height: 0, weight: 0, age: 0 });
-const fileInput = ref<HTMLInputElement | null>(null);
 
 const rankInfo = computed(() => getCombatRank(heroStats.value.combatPower));
 const nextRankProgress = computed(() => {
@@ -132,50 +130,6 @@ const openSwap = (slotId: string) => {
   if (isPure.value) return;
   store.temp.activeSlot = slotId as any;
   store.setModal('equipmentSwap', true);
-};
-
-const handleFileExport = () => {
-  const data = store.getExportData();
-  if (!data) {
-    showToast('没有可导出的数据');
-    return;
-  }
-  const filename = `HEALTH_SAVE_${store.user.nickname}_${getLocalDateStr()}`;
-  const success = downloadJsonFile(filename, data);
-  if (success) showToast(isPure.value ? '数据备份已下载' : '📜 存档卷轴已生成！');
-  else showToast('导出失败');
-};
-
-const triggerFileImport = () => {
-  fileInput.value?.click();
-};
-
-const onFileSelected = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (!file) return;
-
-  try {
-    const data = await readJsonFile(file);
-    Dialog.confirm({
-      title: isPure.value ? '导入备份' : '读取神谕 (导入存档)',
-      message: '⚠️ 导入将覆盖当前所有进度！确定要继续吗？',
-      confirmButtonText: '确定覆盖',
-      confirmButtonColor: '#7c3aed'
-    }).then(() => {
-      const success = store.importSaveDataObj(data);
-      if (success) {
-        showToast('数据恢复成功，即将刷新...');
-        setTimeout(() => window.location.reload(), 1000);
-      } else {
-        showToast('文件格式错误，无法读取。');
-      }
-    }).catch(() => {
-      if (fileInput.value) fileInput.value.value = '';
-    });
-  } catch (e) {
-    showToast('文件格式错误');
-  }
 };
 
 const expPercent = computed(() => {
@@ -393,25 +347,6 @@ const openShop = () => {
             <div class="text-xs text-slate-400">年龄</div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Data Management -->
-    <div class="px-4 mt-6 mb-6">
-      <div class="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
-        <h3 class="text-xs font-bold text-slate-500 mb-3 flex items-center">
-          <i class="fas fa-save mr-2"></i> {{ isPure ? '数据管理' : '记忆水晶 (存档管理)' }}
-        </h3>
-        <div class="flex gap-3">
-          <button @click="handleFileExport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm">
-            <i class="fas fa-file-download mr-1"></i> {{ isPure ? '导出备份' : '下载卷轴 (JSON)' }}
-          </button>
-          <button @click="triggerFileImport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm">
-            <i class="fas fa-file-upload mr-1"></i> {{ isPure ? '导入备份' : '读取卷轴' }}
-          </button>
-          <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
-        </div>
-        <p class="text-[10px] text-slate-400 mt-2 text-center" v-if="!isPure">存档已启用 RPG 协议，请妥善保管您的卷轴。</p>
       </div>
     </div>
 

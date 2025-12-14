@@ -10,6 +10,8 @@ export const useSystemStore = defineStore('system', () => {
   const currentDate = ref(getLocalDateStr());
   const analysisRefDate = ref(getLocalDateStr());
 
+  // [Removed] 移除了 aiApiKey，因为 AI 服务尚未开发完成
+
   const analysisActiveTab = ref('daily');
   const guideCurrentStep = ref(0);
 
@@ -95,7 +97,7 @@ export const useSystemStore = defineStore('system', () => {
     if (isPureMode.value) return;
     temp.isShaking = true;
     temp.isDamaged = true;
-    if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    if(typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]);
     setTimeout(() => { temp.isShaking = false; temp.isDamaged = false; }, 500);
   }
 
@@ -110,7 +112,7 @@ export const useSystemStore = defineStore('system', () => {
   function triggerCritEffect() {
     if (isPureMode.value) return;
     temp.isCrit = true;
-    if(navigator.vibrate) navigator.vibrate([50, 50, 200]);
+    if(typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([50, 50, 200]);
     setTimeout(() => { temp.isCrit = false; }, 300);
   }
 
@@ -141,6 +143,7 @@ export const useSystemStore = defineStore('system', () => {
     analysisRefDate,
     analysisActiveTab,
     guideCurrentStep,
+    // [Removed] aiApiKey
     modals,
     temp,
     timestamp,

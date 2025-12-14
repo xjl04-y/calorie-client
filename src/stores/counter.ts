@@ -2,13 +2,25 @@ import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import { RACES } from '@/constants/gameData';
 import { getCombatRank, debounce } from '@/utils/gameUtils';
-import type { FoodItem, FoodLog, Achievement, MealType } from '@/types'; // Import MealType
+import type { FoodItem, FoodLog, Achievement, MealType, UserState } from '@/types';
 
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore';
 import { useBattleStore } from '@/stores/useBattleStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
 import { useLogStore } from '@/stores/useLogStore';
+
+// 定义存档数据的接口，确保类型安全
+interface SaveData {
+  user?: Partial<UserState>;
+  logs?: Record<string, FoodLog[]>;
+  achievements?: Achievement[];
+  foodDb?: FoodItem[];
+  isDarkMode?: boolean;
+  isPureMode?: boolean;
+  activeQuests?: any[];
+  questPoolDay?: string;
+}
 
 export const useGameStore = defineStore('game', () => {
   const system = useSystemStore();
@@ -71,7 +83,7 @@ export const useGameStore = defineStore('game', () => {
 
   const _performSave = () => {
     try {
-      const stateToSave = {
+      const stateToSave: SaveData = {
         user: hero.user,
         logs: logStore.logs,
         achievements: collection.achievements,
@@ -92,16 +104,18 @@ export const useGameStore = defineStore('game', () => {
     const saved = localStorage.getItem('health_rpg_save_v2');
     if (saved) {
       try {
-        const data = JSON.parse(saved);
+        const data = JSON.parse(saved) as SaveData;
 
         if (data && typeof data === 'object') {
           if (data.user) {
             Object.assign(hero.user, data.user);
             if (!hero.user.skillPoints) hero.user.skillPoints = 0;
             if (!hero.user.learnedSkills) hero.user.learnedSkills = {};
+
             // [V4.0 Fix] 兼容旧存档：初始化金币和背包
             if (hero.user.gold === undefined) hero.user.gold = 0;
             if (!hero.user.inventory) hero.user.inventory = { 'item_rebirth_potion': 1 };
+
             // [V4.1 Fix] 兼容旧存档：初始化喝水数据
             if (!hero.user.hydration) {
               hero.user.hydration = {
@@ -131,11 +145,12 @@ export const useGameStore = defineStore('game', () => {
           if (!loadedFood || !collection.foodDb || collection.foodDb.length === 0) {
             collection.initFoodDb(hero.user.race || 'HUMAN', true);
           } else {
+            // 确保即使有数据，也检查是否有缺失的默认数据
             collection.initFoodDb(hero.user.race || 'HUMAN', false);
           }
 
           if (data.achievements) {
-            data.achievements.forEach((oldAch: any) => {
+            data.achievements.forEach((oldAch: Achievement) => {
               const e = collection.achievements.find(a => a.id === oldAch.id);
               if (e) e.unlocked = !!oldAch.unlocked;
             });

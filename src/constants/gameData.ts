@@ -1,6 +1,7 @@
 import type { Race, Monster, SkillNode, Quest, NpcConfig, ShopItem } from '@/types';
 
-// [New V4.0] 商店商品配置
+// [V4.8 Update] 商店商品配置：新增连击护盾
+// [V4.9 Update] 产品经理新增：时光怀表 (断签保护)
 export const SHOP_ITEMS: ShopItem[] = [
   {
     id: 'item_rebirth_potion',
@@ -9,6 +10,24 @@ export const SHOP_ITEMS: ShopItem[] = [
     icon: '🧪',
     price: 1000,
     effect: 'REBIRTH'
+  },
+  {
+    id: 'item_streak_freeze',
+    name: '时光怀表',
+    desc: '能够冻结时间的魔法道具。如果不小心断签，它会自动消耗并保住你的连续登录天数。',
+    icon: '🕰️',
+    price: 800,
+    effect: 'HEAL', // 借用类型，逻辑在 HeroStore 处理
+    value: 0
+  },
+  {
+    id: 'item_combo_shield',
+    name: '时光沙漏',
+    desc: '连击保护神器。当连击即将中断时自动消耗，冻结时间保住连击数。',
+    icon: '⏳',
+    price: 500,
+    effect: 'HEAL', // 借用 effect 类型，实际逻辑在 BattleStore 处理
+    value: 0
   },
   {
     id: 'item_hp_potion',
@@ -100,7 +119,7 @@ export const QUEST_POOL: Omit<Quest, 'status' | 'current'>[] = [
 
 export const RACES: Record<string, Race> = {
   HUMAN: { name: '人类', icon: '🧑‍', desc: '适应力强的均衡种族', bonus: '全属性均衡成长', prefixes: ['皇家', '老式', '秘制', '家乡', '骑士', '帝国', '修道院'], growth: { str: 1.10, agi: 1.10, vit: 1.10 } },
-  ELF: { name: '精灵', icon: '🧝‍♀️', desc: '森林之子，轻盈优雅', bonus: '高敏捷，低力量', prefixes: ['月光', '森林', '晨露', '星辰', '自然', '远古', '世界树'], growth: { str: 0.95, agi: 1.30, vit: 1.00 } },
+  ELF: { name: '精灵', icon: '🧝‍♀️', desc: '森林之子，轻盈优雅', bonus: '高敏捷，低力量', prefixes: ['月光', '森林', '晨露', '星辰', '自然', '远古', '精灵', '世界树'], growth: { str: 0.95, agi: 1.30, vit: 1.00 } },
   ORC: { name: '兽人', icon: '🧟‍♂️', desc: '力量至上，热血沸腾', bonus: '高力量，低敏捷', prefixes: ['蛮荒', '狂暴', '巨魔', '血腥', '战歌', '碎骨', '雷霆'], growth: { str: 1.30, agi: 0.95, vit: 1.05 } },
   DWARF: { name: '矮人', icon: '🧔', desc: '坚如磐石，豪饮佳酿', bonus: '高体质，高力量', prefixes: ['岩石', '熔炉', '精钢', '深渊', '黑铁', '山丘', '符文'], growth: { str: 1.15, agi: 0.90, vit: 1.30 } }
 };

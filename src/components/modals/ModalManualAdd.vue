@@ -16,17 +16,29 @@ const show = computed({
 
 const activeTab = ref<'QUICK' | 'PRECISE'>('QUICK');
 
-// 表单数据
-const form = reactive({
+// [PM Fix] 定义明确的表单接口，避免类型推断错误
+interface ManualAddForm {
+  name: string;
+  icon: string;
+  calories: string | number; // 允许输入字符串，提交时转换
+  p: string | number;
+  c: string | number;
+  f: string | number;
+  grams: number;
+  unit: string;
+  tags: string[];
+}
+
+const form = reactive<ManualAddForm>({
   name: '',
   icon: '🥘',
-  calories: '' as string | number,
-  p: '' as string | number,
-  c: '' as string | number,
-  f: '' as string | number,
+  calories: '',
+  p: '',
+  c: '',
+  f: '',
   grams: 100,
   unit: '份',
-  tags: [] as string[]
+  tags: []
 });
 
 // 图标库
@@ -45,7 +57,7 @@ const toggleTag = (tag: string) => {
   if (activeTab.value === 'QUICK') applyEstimate();
 };
 
-// --- 类型定义 (增加 keywords 用于智能识别) ---
+// --- 类型定义 ---
 const FOOD_TYPES = [
   { label: '主食/谷物', icon: '🍚', baseCal: 200, tags: ['高碳'], ratio: {p:0.1, c:0.8, f:0.1}, isDrink: false, keys: ['饭','面','粉','饼','粥','包子','馒头','粮'] },
   { label: '肉类/蛋奶', icon: '🥩', baseCal: 250, tags: ['高蛋白'], ratio: {p:0.6, c:0.0, f:0.4}, isDrink: false, keys: ['肉','鸡','鸭','牛','羊','鱼','蛋','排','肠'] },
@@ -55,7 +67,7 @@ const FOOD_TYPES = [
   { label: '饮品/酒水', icon: '🥤', baseCal: 150, tags: ['高糖'], ratio: {p:0.0, c:0.95, f:0.05}, isDrink: true, keys: ['水','茶','酒','奶','饮','汁','汤','乐','咖','拿铁'] }
 ];
 
-// 份量系数 (食物版)
+// 份量系数
 const PORTION_FOOD = [
   { label: '尝一口', val: 0.3, desc: '少量', grams: 50 },
   { label: '小份', val: 0.6, desc: '半碗', grams: 150 },
@@ -63,7 +75,6 @@ const PORTION_FOOD = [
   { label: '大份', val: 1.5, desc: '大碗', grams: 400 },
 ];
 
-// 份量系数 (饮品版) - 解决“一碗可乐”的尴尬
 const PORTION_DRINK = [
   { label: '一口', val: 0.2, desc: '润喉', grams: 50 },
   { label: '小杯', val: 0.8, desc: '250ml', grams: 250 },
@@ -90,12 +101,10 @@ watch(() => form.name, (newName) => {
   else if (newName.includes('奶')) form.icon = '🥛';
   else if (newName.includes('果')) form.icon = '🍎';
 
-  // 2. 类型推断 (仅当用户未手动锁定类型时，或者刚开始输入时)
-  // 这里做一个简单的遍历匹配
+  // 2. 类型推断
   const foundTypeIdx = FOOD_TYPES.findIndex(t => t.keys.some(k => newName.includes(k)));
   if (foundTypeIdx !== -1 && foundTypeIdx !== selectedTypeIdx.value) {
     selectedTypeIdx.value = foundTypeIdx;
-    // 顺便把标签也重置为该类型的默认标签
     form.tags = [...FOOD_TYPES[foundTypeIdx].tags];
     applyEstimate();
   }
@@ -196,10 +205,6 @@ watch(show, (val) => {
 </script>
 
 <template>
-  <!--
-    PM Note: 关键修复! z-index 设为 3000，确保高于 ModalAddFood (通常是 2000+)
-    teleport="body" 确保挂载在最外层，避免父级样式干扰
-  -->
   <van-popup
     v-model:show="show"
     position="bottom"
@@ -268,7 +273,7 @@ watch(show, (val) => {
         <!-- Mode 1: 快速估算 -->
         <div v-if="activeTab === 'QUICK'" class="space-y-6 animate-fade-in">
 
-          <!-- 类型选择 (决定了是碗还是杯) -->
+          <!-- 类型选择 -->
           <div>
             <label class="text-xs font-bold text-slate-500 mb-2 block ml-1">它是哪一类？</label>
             <div class="grid grid-cols-3 gap-2">
@@ -284,7 +289,7 @@ watch(show, (val) => {
             </div>
           </div>
 
-          <!-- 份量选择 (动态变化) -->
+          <!-- 份量选择 -->
           <div>
             <label class="text-xs font-bold text-slate-500 mb-2 block ml-1">份量大小</label>
             <div class="grid grid-cols-2 gap-2">
@@ -305,7 +310,7 @@ watch(show, (val) => {
             </div>
           </div>
 
-          <!-- 特征标签 (用户可手动覆盖) -->
+          <!-- 特征标签 -->
           <div>
             <label class="text-xs font-bold text-slate-500 mb-2 block ml-1">特征 (点击微调)</label>
             <div class="flex flex-wrap gap-2">

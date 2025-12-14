@@ -4,7 +4,7 @@ export default { name: 'Home' };
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router'; // [New] Import Router
+import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import AppHud from '@/components/AppHud.vue';
@@ -12,7 +12,7 @@ import DateNavigator from '@/components/DateNavigator.vue';
 import { showConfirmDialog } from 'vant';
 import type { FoodLog, MealType } from '@/types';
 
-const router = useRouter(); // [New] Init Router
+const router = useRouter();
 const store = useGameStore();
 const systemStore = useSystemStore();
 
@@ -31,9 +31,8 @@ const isPure = computed(() => systemStore.isPureMode);
 const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
 const dailyTarget = computed(() => store.dailyTarget);
 
-// [Animation] 动画状态
 const showSlash = computed(() => systemStore.temp.attackVfx === 'slash');
-const projectile = computed(() => systemStore.temp.projectile); // 获取飞行道具
+const projectile = computed(() => systemStore.temp.projectile);
 const shadowHpPercent = ref(100);
 
 const MEAL_LABELS: Record<string, string> = {
@@ -56,19 +55,17 @@ const handleSkillClick = () => {
   store.heroStore.activateSkill();
 };
 
-// [Animation Layer 1] Boss HP 计算与阴影条
 const hpPercent = computed(() => {
   if (!stageInfo.value.currentObj) return 0;
   return Math.floor((stageInfo.value.currentHpRemaining / stageInfo.value.currentObj.maxHp) * 100);
 });
 
-// 监听真实血量变化，延迟更新阴影血量 (制造打击延迟感)
 watch(hpPercent, (newVal) => {
   if (newVal > shadowHpPercent.value) {
-    shadowHpPercent.value = newVal; // 加血瞬间
+    shadowHpPercent.value = newVal;
   } else {
     setTimeout(() => {
-      shadowHpPercent.value = newVal; // 扣血延迟
+      shadowHpPercent.value = newVal;
     }, 500);
   }
 });
@@ -80,18 +77,17 @@ const hpBarColor = computed(() => {
   return 'bg-green-500';
 });
 
-// [Animation Layer 1 & 2] Boss 状态类
 const bossStateClass = computed(() => {
-  if (stageInfo.value.isOverloaded) return 'boss-phase-berserk'; // 暴走 (红色呼吸)
-  if (showSlash.value) return 'boss-hurt-anim'; // 受击瞬间 (震动+闪白)
-  if (hpPercent.value < 20) return 'opacity-80 grayscale-[0.5] translate-y-1'; // 濒死
-  return 'anim-boss'; // 正常浮动
+  if (stageInfo.value.isOverloaded) return 'boss-phase-berserk';
+  if (showSlash.value) return 'boss-hurt-anim';
+  if (hpPercent.value < 20) return 'opacity-80 grayscale-[0.5] translate-y-1';
+  return 'anim-boss';
 });
 
 const bossOverlayIcon = computed(() => {
-  if (stageInfo.value.isOverloaded) return '🔥'; // 暴走
-  if (hpPercent.value < 30) return '💦'; // 虚弱流汗
-  if (hpPercent.value < 60) return '💢'; // 生气
+  if (stageInfo.value.isOverloaded) return '🔥';
+  if (hpPercent.value < 30) return '💦';
+  if (hpPercent.value < 60) return '💢';
   return '';
 });
 
@@ -108,6 +104,44 @@ const comboColor = computed(() => {
   if (c >= 5) return 'text-purple-500 from-purple-500 to-pink-500 drop-shadow-md';
   if (c >= 2) return 'text-blue-500 from-blue-500 to-cyan-500';
   return 'text-slate-400 from-slate-400 to-slate-300';
+});
+
+// [New V4.9] 战术顾问逻辑
+const tacticalTip = computed(() => {
+  if (isPure.value || !stageInfo.value.currentObj) return null;
+
+  const monster = stageInfo.value.currentObj.data;
+  const wType = monster?.weaknessType;
+  const p = todayMacros.value.p;
+  const c = todayMacros.value.c;
+  const f = todayMacros.value.f;
+
+  if (stageInfo.value.isOverloaded) {
+    return { text: 'BOSS 已暴走！停止进食，或者只喝水！', type: 'DANGER', icon: '⛔' };
+  }
+
+  if (wType === '低碳' || wType === 'LOW_CARB') {
+    if (c > 150) return { text: '碳水过量警告！请立刻停止摄入主食！', type: 'WARN', icon: '⚠️' };
+    return { text: '战术建议：多吃肉和蔬菜，少吃米饭。', type: 'INFO', icon: '🍖' };
+  }
+  if (wType === '低脂' || wType === 'LOW_FAT') {
+    if (f > 60) return { text: '油脂过高！Boss 正在回血！', type: 'WARN', icon: '⚠️' };
+    return { text: '战术建议：选择清淡饮食，拒绝油炸。', type: 'INFO', icon: '🥗' };
+  }
+  if (wType === '高蛋白' || wType === 'HIGH_PRO') {
+    if (p < 50) return { text: '攻击力不足！急需补充蛋白质！', type: 'INFO', icon: '🥩' };
+    return { text: '状态良好！继续保持高蛋白摄入。', type: 'GOOD', icon: '✨' };
+  }
+
+  return { text: '保持均衡饮食，稳扎稳打。', type: 'INFO', icon: '🛡️' };
+});
+
+const tipClass = computed(() => {
+  const t = tacticalTip.value?.type;
+  if (t === 'DANGER') return 'bg-red-500 text-white border-red-600 animate-pulse';
+  if (t === 'WARN') return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800';
+  if (t === 'GOOD') return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800';
+  return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
 });
 
 const confirmDelete = (log: FoodLog) => {
@@ -133,14 +167,11 @@ const openAddFood = (key: MealType) => {
   store.setModal('addFood', true);
 }
 
-// [Updated] 核心分流逻辑
 const openLogDetail = (log: FoodLog) => {
   store.temp.selectedLog = log;
   if (isPure.value) {
-    // 纯净模式：跳转到新页面
     router.push('/food-detail');
   } else {
-    // RPG 模式：打开弹窗
     store.setModal('logDetail', true);
   }
 }
@@ -297,7 +328,6 @@ const openLogDetail = (log: FoodLog) => {
         <div class="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] animate-pulse-slow"></div>
         <div class="absolute inset-0 bg-gradient-to-br from-slate-800/50 to-slate-900/50 z-0"></div>
 
-        <!-- [Layer 2] 连击动画增强 -->
         <div v-if="comboState.count > 1" class="absolute top-2 left-2 z-20 flex flex-col items-start anim-combo-pop">
           <div class="text-xs font-bold italic text-yellow-300 tracking-wider">COMBO</div>
           <div class="text-3xl font-black italic bg-clip-text text-transparent bg-gradient-to-b" :class="comboColor">
@@ -311,21 +341,16 @@ const openLogDetail = (log: FoodLog) => {
 
         <div class="relative z-10 flex items-center justify-between mb-4 mt-2">
           <div class="flex items-center">
-            <!-- [Layer 1] Boss 容器 (带动画类) -->
-            <!-- [Layer 3] 使用 Transition 处理 Boss 死亡/生成 -->
             <transition name="boss-transition" mode="out-in">
               <div :key="stageInfo.currentObj?.data?.name" class="relative w-16 h-16">
                 <div class="w-full h-full bg-slate-800 rounded-2xl flex items-center justify-center text-4xl border border-slate-600 shadow-inner relative z-10 transition-transform duration-100"
                      :class="bossStateClass">
                   {{ stageInfo.currentObj?.data?.icon || '❓' }}
-                  <!-- 表情/状态叠加 -->
                   <div v-if="bossOverlayIcon" class="absolute -bottom-1 -right-1 text-sm animate-bounce">
                     {{ bossOverlayIcon }}
                   </div>
                 </div>
-                <!-- 攻击命中特效 (爆炸) -->
                 <div v-if="showSlash" class="anim-impact"></div>
-
                 <div v-if="stageInfo.isBoss" class="absolute -top-2 -right-2 bg-red-600 text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/20 z-20">BOSS</div>
               </div>
             </transition>
@@ -348,14 +373,9 @@ const openLogDetail = (log: FoodLog) => {
           </div>
         </div>
 
-        <!-- [Layer 1] 分段式 HP 条 -->
         <div class="relative h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700 mb-2">
           <div class="absolute inset-0 flex items-center justify-center text-[9px] font-bold z-10 drop-shadow-md">{{ hpPercent }}%</div>
-
-          <!-- 阴影缓冲层 (Shadow Bar) -->
           <div class="absolute inset-y-0 left-0 bg-yellow-300 hp-shadow" :style="{ width: shadowHpPercent + '%' }"></div>
-
-          <!-- 实际血条 -->
           <div class="h-full transition-all duration-300 ease-out relative" :class="hpBarColor" :style="{ width: hpPercent + '%' }">
             <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
           </div>
@@ -368,6 +388,15 @@ const openLogDetail = (log: FoodLog) => {
           <div class="text-[9px] text-slate-500">
             {{ stageInfo.isOverloaded ? 'Boss 已暴走！伤害翻倍！' : (stageInfo.isBoss ? '最终决战' : `第 ${stageInfo.currentIndex + 1} 波`) }}
           </div>
+        </div>
+      </div>
+
+      <!-- [New V4.9] 战术顾问面板 (仅在有提示时显示) -->
+      <div v-if="tacticalTip" class="mt-2 mx-1 px-3 py-2 rounded-xl flex items-center gap-3 border shadow-sm transition-all duration-500 animate-[pulse_3s_infinite]" :class="tipClass">
+        <div class="text-lg">{{ tacticalTip.icon }}</div>
+        <div class="flex-1">
+          <div class="text-[9px] opacity-80 font-bold uppercase tracking-wide">战术顾问</div>
+          <div class="text-xs font-bold">{{ tacticalTip.text }}</div>
         </div>
       </div>
     </div>
