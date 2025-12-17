@@ -15,7 +15,8 @@ import './styles/rpg-animations.css';
 import {
   ConfigProvider, Tabbar, TabbarItem, Icon, Button,
   Popup, Cell, Calendar, Slider, Overlay, Tabs, Tab,
-  Uploader, SwipeCell, Tag, Dialog, Toast, Notify, ActionSheet, Loading, Switch, Stepper
+  Uploader, SwipeCell, Tag, Dialog, Toast, Notify, ActionSheet, Loading, Switch, Stepper,
+  DatePicker // [Fix] 引入 DatePicker
 } from 'vant';
 
 const app = createApp(App);
@@ -30,6 +31,7 @@ app.use(router);
 app.use(ConfigProvider).use(Tabbar).use(TabbarItem).use(Icon).use(Button)
   .use(Popup).use(Cell).use(Calendar).use(Slider).use(Overlay)
   .use(Tabs).use(Tab).use(Uploader).use(SwipeCell).use(Tag)
-  .use(Dialog).use(Toast).use(Notify).use(ActionSheet).use(Loading).use(Switch).use(Stepper);
+  .use(Dialog).use(Toast).use(Notify).use(ActionSheet).use(Loading).use(Switch).use(Stepper)
+  .use(DatePicker); // [Fix] 注册 DatePicker
 
 app.mount('#app');

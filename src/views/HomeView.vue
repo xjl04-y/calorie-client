@@ -1,20 +1,20 @@
-<script lang="ts">
-export default { name: 'Home' };
-</script>
-
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useHeroStore } from '@/stores/useHeroStore'; // [Fix] Import HeroStore
+import { useLogStore } from '@/stores/useLogStore'; // [New] Import LogStore
 import AppHud from '@/components/AppHud.vue';
 import DateNavigator from '@/components/DateNavigator.vue';
-import { showConfirmDialog } from 'vant';
+import { showConfirmDialog, showDialog } from 'vant'; // [Fix] Import showDialog
 import type { FoodLog, MealType } from '@/types';
 
 const router = useRouter();
 const store = useGameStore();
 const systemStore = useSystemStore();
+const heroStore = useHeroStore(); // [Fix] Init
+const logStore = useLogStore(); // [New] Init
 
 const user = computed(() => store.user);
 const stageInfo = computed(() => store.stageInfo);
@@ -29,20 +29,64 @@ const isExhausted = computed(() => store.heroStore.isExhausted);
 const isPure = computed(() => systemStore.isPureMode);
 
 const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
-const dailyTarget = computed(() => store.dailyTarget);
+
+// [Fix] 直接从 heroStore 引用，确保响应式更新
+const dailyTarget = computed(() => heroStore.dailyTarget);
 
 const showSlash = computed(() => systemStore.temp.attackVfx === 'slash');
 const projectile = computed(() => systemStore.temp.projectile);
 const shadowHpPercent = ref(100);
 
 const MEAL_LABELS: Record<string, string> = {
-  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
+  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水', EXERCISE: '运动'
+};
+
+// ... [Existing Fasting Logic] ...
+const fastingTime = ref(0);
+let fastingInterval: number | null = null;
+
+const updateFastingTime = () => {
+  let start = 0;
+  if (store.user.fasting && store.user.fasting.isFasting) {
+    start = store.user.fasting.startTime;
+  } else {
+    start = store.lastMealTime || 0;
+  }
+
+  if (start > 0) {
+    fastingTime.value = Date.now() - start;
+  } else {
+    fastingTime.value = 0;
+  }
+};
+
+const fastingStatus = computed(() => {
+  const hours = fastingTime.value / (1000 * 60 * 60);
+  const isFasting = store.user.fasting?.isFasting;
+
+  if (isFasting) {
+    if (hours > 16) return { text: '⚡ 蓄力完成 (2.0x)', color: 'text-yellow-400 animate-pulse', icon: 'fas fa-bolt' };
+    if (hours > 12) return { text: '🔥 正在蓄力 (1.5x)', color: 'text-orange-400', icon: 'fas fa-fire' };
+    return { text: `🧘 冥想中 ${Math.floor(hours)}h`, color: 'text-purple-400', icon: 'fas fa-hourglass-half' };
+  }
+
+  return { text: `🕒 距上一餐 ${Math.floor(hours)}h`, color: 'text-slate-400', icon: 'fas fa-history' };
+});
+
+const openFastingModal = () => {
+  systemStore.setModal('fasting', true);
 };
 
 onMounted(() => {
   if (store.user.isInitialized) {
     store.refreshQuestHall();
   }
+  updateFastingTime();
+  fastingInterval = window.setInterval(updateFastingTime, 60000);
+});
+
+onUnmounted(() => {
+  if (fastingInterval) clearInterval(fastingInterval);
 });
 
 const handleSkillClick = () => {
@@ -56,6 +100,10 @@ const handleSkillClick = () => {
 };
 
 const hpPercent = computed(() => {
+  // [Fix] 在计算 Boss 血量百分比时，也确保使用最新的 dailyTarget
+  // stageInfo 虽然在 Store 中计算了，但为了页面动画流畅，这里可能需要依赖最新的 dailyTarget 来渲染分母
+  // 但 stageInfo.currentObj.maxHp 实际上已经在 battleStore 里用 dailyTarget 算好了。
+  // 只要 battleStore 响应了 dailyTarget 的变化，这里就没问题。
   if (!stageInfo.value.currentObj) return 0;
   return Math.floor((stageInfo.value.currentHpRemaining / stageInfo.value.currentObj.maxHp) * 100);
 });
@@ -106,34 +154,9 @@ const comboColor = computed(() => {
   return 'text-slate-400 from-slate-400 to-slate-300';
 });
 
-// [New V4.9] 战术顾问逻辑
 const tacticalTip = computed(() => {
   if (isPure.value || !stageInfo.value.currentObj) return null;
-
-  const monster = stageInfo.value.currentObj.data;
-  const wType = monster?.weaknessType;
-  const p = todayMacros.value.p;
-  const c = todayMacros.value.c;
-  const f = todayMacros.value.f;
-
-  if (stageInfo.value.isOverloaded) {
-    return { text: 'BOSS 已暴走！停止进食，或者只喝水！', type: 'DANGER', icon: '⛔' };
-  }
-
-  if (wType === '低碳' || wType === 'LOW_CARB') {
-    if (c > 150) return { text: '碳水过量警告！请立刻停止摄入主食！', type: 'WARN', icon: '⚠️' };
-    return { text: '战术建议：多吃肉和蔬菜，少吃米饭。', type: 'INFO', icon: '🍖' };
-  }
-  if (wType === '低脂' || wType === 'LOW_FAT') {
-    if (f > 60) return { text: '油脂过高！Boss 正在回血！', type: 'WARN', icon: '⚠️' };
-    return { text: '战术建议：选择清淡饮食，拒绝油炸。', type: 'INFO', icon: '🥗' };
-  }
-  if (wType === '高蛋白' || wType === 'HIGH_PRO') {
-    if (p < 50) return { text: '攻击力不足！急需补充蛋白质！', type: 'INFO', icon: '🥩' };
-    return { text: '状态良好！继续保持高蛋白摄入。', type: 'GOOD', icon: '✨' };
-  }
-
-  return { text: '保持均衡饮食，稳扎稳打。', type: 'INFO', icon: '🛡️' };
+  return store.getTacticalSuggestion();
 });
 
 const tipClass = computed(() => {
@@ -175,11 +198,20 @@ const openLogDetail = (log: FoodLog) => {
     store.setModal('logDetail', true);
   }
 }
+
+// [New] 解释统计数据
+const showStatsInfo = () => {
+  showDialog({
+    title: '📊 战斗数据说明',
+    message: '🔥 (左) 运动消耗：\n今日通过运动燃烧的热量，可抵消摄入。\n\n✊ (右) 造成伤害：\n今日饮食摄入的总热量（对Boss造成的伤害）。\n\n目标：让「造成伤害」不要超过「Boss血量 + 运动消耗」。',
+    confirmButtonColor: '#7c3aed'
+  });
+};
 </script>
 
 <template>
   <div class="pb-24 relative overflow-x-hidden">
-    <!-- [Animation Layer 1] 投掷物层 (Projectile) -->
+    <!-- [Animation Layer 1] 投掷物层 -->
     <div v-if="projectile && projectile.show" class="fixed inset-0 pointer-events-none z-[60]" style="perspective: 1000px;">
       <div class="anim-projectile flex items-center justify-center w-12 h-12 bg-white rounded-full shadow-xl border-2 border-slate-200">
         {{ projectile.icon }}
@@ -247,6 +279,19 @@ const openLogDetail = (log: FoodLog) => {
           <div class="text-[10px] font-bold" :class="env.color">
             {{ env.desc }}
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- [New V5.7] 断食状态条 (Pure & RPG) -->
+    <div class="px-4 mt-3" @click="openFastingModal">
+      <div class="bg-slate-900/5 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 flex justify-between items-center active:scale-95 transition cursor-pointer hover:border-purple-400/50">
+        <div class="text-xs font-bold flex items-center gap-2">
+          <i :class="fastingStatus.icon + ' ' + (isPure ? 'text-slate-400' : '')"></i>
+          <span :class="fastingStatus.color">{{ fastingStatus.text }}</span>
+        </div>
+        <div class="text-[9px] text-slate-400 flex items-center">
+          {{ store.user.fasting?.isFasting ? (isPure ? '断食中' : '蓄力中') : '未开启' }} <van-icon name="arrow" class="ml-1" />
         </div>
       </div>
     </div>
@@ -351,19 +396,23 @@ const openLogDetail = (log: FoodLog) => {
                   </div>
                 </div>
                 <div v-if="showSlash" class="anim-impact"></div>
-                <div v-if="stageInfo.isBoss" class="absolute -top-2 -right-2 bg-red-600 text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/20 z-20">BOSS</div>
+                <!-- 优化：Boss 标识更明显 -->
+                <div v-if="stageInfo.isBoss" class="absolute -top-3 -right-3 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black border-2 border-slate-900 z-20 shadow-sm animate-bounce">BOSS</div>
               </div>
             </transition>
 
-            <div class="ml-4 max-w-[120px]">
-              <div class="text-xl font-rpg tracking-wider truncate" :class="stageInfo.isOverloaded ? 'text-red-400' : ''">
+            <div class="ml-4 max-w-[140px]">
+              <div class="text-xl font-rpg tracking-wider truncate text-white drop-shadow-md" :class="stageInfo.isOverloaded ? 'text-red-400' : ''">
                 {{ stageInfo.currentObj?.data?.name || '未知敌人' }}
               </div>
-              <div class="text-[10px] mt-1 flex items-center">
-                <span class="mr-1 text-slate-400">弱点:</span>
+              <div class="text-[10px] mt-1 flex items-center gap-2">
+                <!-- 优化：当前波次显示 -->
+                <span class="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-mono font-bold">
+                  {{ stageInfo.isBoss ? 'FINAL' : `WAVE ${stageInfo.currentIndex + 1}` }}
+                </span>
                 <span class="px-2 py-0.5 rounded border text-[10px] font-bold tracking-wide truncate" :class="weaknessColor">
-                    {{ stageInfo.currentObj?.data?.weakness || '无' }}
-                  </span>
+                  弱点: {{ stageInfo.currentObj?.data?.weakness || '无' }}
+                </span>
               </div>
             </div>
           </div>
@@ -373,7 +422,7 @@ const openLogDetail = (log: FoodLog) => {
           </div>
         </div>
 
-        <div class="relative h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700 mb-2">
+        <div class="relative h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700 mb-3">
           <div class="absolute inset-0 flex items-center justify-center text-[9px] font-bold z-10 drop-shadow-md">{{ hpPercent }}%</div>
           <div class="absolute inset-y-0 left-0 bg-yellow-300 hp-shadow" :style="{ width: shadowHpPercent + '%' }"></div>
           <div class="h-full transition-all duration-300 ease-out relative" :class="hpBarColor" :style="{ width: hpPercent + '%' }">
@@ -381,17 +430,34 @@ const openLogDetail = (log: FoodLog) => {
           </div>
         </div>
 
-        <div class="flex justify-between items-center px-1">
-          <div class="flex gap-1">
-            <div v-for="(s, idx) in stageInfo.stages" :key="idx" class="w-1.5 h-1.5 rounded-full transition-all" :class="idx <= stageInfo.currentIndex ? 'bg-green-500 scale-125' : 'bg-slate-700'"></div>
+        <!-- 优化：底部数据栏 (进度条 + 统计数据) -->
+        <div class="flex justify-between items-center px-1 pt-2 border-t border-slate-700/50" @click.stop="showStatsInfo">
+          <!-- 波次进度点 -->
+          <div class="flex gap-1 items-center">
+            <span class="text-[8px] text-slate-500 font-bold mr-1">STAGE</span>
+            <div v-for="(s, idx) in stageInfo.stages" :key="idx"
+                 class="w-2.5 h-1 rounded-full transition-all"
+                 :class="idx <= stageInfo.currentIndex ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'bg-slate-700'">
+            </div>
           </div>
-          <div class="text-[9px] text-slate-500">
-            {{ stageInfo.isOverloaded ? 'Boss 已暴走！伤害翻倍！' : (stageInfo.isBoss ? '最终决战' : `第 ${stageInfo.currentIndex + 1} 波`) }}
+
+          <!-- 核心统计数据 (带问号提示) -->
+          <div class="flex gap-3 text-[9px] font-bold font-mono cursor-pointer relative group">
+            <div class="absolute -top-4 right-0 text-[8px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">点击查看说明</div>
+            <div class="flex items-center text-orange-400">
+              <i class="fas fa-fire-alt mr-1"></i>
+              <span>-{{ logStore.todayBurn }}</span>
+            </div>
+            <div class="flex items-center text-red-400">
+              <i class="fas fa-fist-raised mr-1"></i>
+              <span>{{ store.todayDamage }}</span>
+            </div>
+            <i class="fas fa-question-circle text-[8px] text-slate-600 ml-1"></i>
           </div>
         </div>
       </div>
 
-      <!-- [New V4.9] 战术顾问面板 (仅在有提示时显示) -->
+      <!-- [New V4.9] 战术顾问面板 -->
       <div v-if="tacticalTip" class="mt-2 mx-1 px-3 py-2 rounded-xl flex items-center gap-3 border shadow-sm transition-all duration-500 animate-[pulse_3s_infinite]" :class="tipClass">
         <div class="text-lg">{{ tacticalTip.icon }}</div>
         <div class="flex-1">
@@ -459,7 +525,9 @@ const openLogDetail = (log: FoodLog) => {
       </div>
       <transition-group name="van-slide-up">
         <van-swipe-cell v-for="log in store.todayLogs" :key="log.id" class="mb-3 rounded-2xl overflow-hidden shadow-sm">
-          <div class="p-3 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between relative" :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken && !isPure}" @click="openLogDetail(log)">
+          <div class="p-3 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between relative"
+               :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken && !isPure, 'border-green-200 dark:border-green-900/30 bg-green-50 dark:bg-green-900/10': log.mealType === 'EXERCISE'}"
+               @click="openLogDetail(log)">
             <div class="flex items-center gap-3 relative z-10">
               <div class="text-2xl w-10 h-10 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm relative">
                 {{ log.icon }}
@@ -470,17 +538,26 @@ const openLogDetail = (log: FoodLog) => {
               <div>
                 <div class="font-bold text-sm dark:text-slate-200 flex items-center">
                   {{ log.name }}
+                  <span v-if="log.mealType === 'EXERCISE'" class="ml-2 text-[8px] px-1 rounded bg-green-100 text-green-600 font-bold border border-green-200">运动</span>
                   <span v-if="log.skillEffect && !isPure" class="ml-2 text-[8px] px-1 rounded bg-indigo-100 text-indigo-600 font-bold border border-indigo-200">✨天赋</span>
                   <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 text-purple-600 font-bold border border-purple-200">复合</span>
+                  <span v-if="log.fastingHours && log.fastingHours > 12" class="ml-2 text-[8px] px-1 rounded bg-yellow-100 text-yellow-600 font-bold border border-yellow-200">⚡蓄力</span>
                 </div>
-                <div class="text-[10px] text-slate-400 mt-0.5" v-if="!log.damageTaken || isPure">
+                <div class="text-[10px] text-slate-400 mt-0.5" v-if="log.mealType === 'EXERCISE'">
+                  消耗 {{ log.calories }} kcal
+                </div>
+                <div class="text-[10px] text-slate-400 mt-0.5" v-else-if="!log.damageTaken || isPure">
                   {{ log.grams }}g · {{ MEAL_LABELS[log.mealType] || log.mealType }}
                 </div>
                 <div class="text-[10px] text-red-400 font-bold mt-0.5" v-else>反击伤害 -{{ log.damageTaken }} (格挡 {{ log.blocked }})</div>
               </div>
             </div>
             <div class="text-right relative z-10">
-              <div v-if="!log.damageTaken || isPure">
+              <div v-if="log.mealType === 'EXERCISE'">
+                <div class="font-bold text-lg text-green-500">+{{ 50 + Math.floor((log.calories || 0) / 10) }} HP</div>
+                <div class="text-[8px] text-slate-400">回复</div>
+              </div>
+              <div v-else-if="!log.damageTaken || isPure">
                 <div class="font-rpg font-bold text-lg" :class="(!isPure && (log.multiplier || 1) < 1) ? 'text-slate-400' : (isPure ? 'text-slate-700 dark:text-slate-300' : 'text-red-500')">
                   {{ isPure ? log.calories : '-' + (log.finalDamageValue || Math.floor(log.calories * (log.multiplier || 1))) }}
                 </div>
@@ -498,22 +575,3 @@ const openLogDetail = (log: FoodLog) => {
 
   </div>
 </template>
-
-<style scoped>
-.van-slide-up-enter-active, .van-slide-up-leave-active { transition: all 0.3s ease; }
-.van-slide-up-enter-from, .van-slide-up-leave-to { opacity: 0; transform: translateY(20px); }
-.animate-pulse-slow { animation: pulse-red 2s infinite; }
-@keyframes pulse-red { 0%, 100% { border-color: rgba(239, 68, 68, 0.6); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 20px 0 rgba(239, 68, 68, 0.7); } }
-
-.float-up-enter-active { animation: float-up 1s ease-out forwards; }
-.float-up-leave-active { transition: opacity 0.5s; opacity: 0; }
-@keyframes float-up {
-  0% { opacity: 0; transform: translate(-50%, 20px) scale(0.5); }
-  20% { opacity: 1; transform: translate(-50%, 0) scale(1.2); }
-  100% { opacity: 0; transform: translate(-50%, -60px) scale(1); }
-}
-.text-stroke {
-  -webkit-text-stroke: 1px rgba(0,0,0,0.5);
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-}
-</style>

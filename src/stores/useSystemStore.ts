@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { reactive, ref, onUnmounted } from 'vue';
 import { getLocalDateStr } from '@/utils/dateUtils';
+import { showNotify } from 'vant'; // [PM Add] 引入通知组件
 import type { SystemTempState, ModalState, FoodItem } from '@/types'; // Import FoodItem
 
 export const useSystemStore = defineStore('system', () => {
@@ -19,10 +20,33 @@ export const useSystemStore = defineStore('system', () => {
   const timestamp = ref(Date.now());
   let timerInterval: number | null = null;
 
+  // [PM Add] 上次检查日期的时间，避免每秒都做字符串转换
+  let lastDateCheck = Date.now();
+
   function startHeartbeat() {
     if (timerInterval) return;
     timerInterval = window.setInterval(() => {
-      timestamp.value = Date.now();
+      const now = Date.now();
+      timestamp.value = now;
+
+      // [PM Feature] 跨天自动检测逻辑 (每分钟检查一次)
+      if (now - lastDateCheck > 60000) {
+        const realDate = getLocalDateStr();
+        if (realDate !== currentDate.value) {
+          console.log(`[System] Cross-day detected: ${currentDate.value} -> ${realDate}`);
+          currentDate.value = realDate;
+          analysisRefDate.value = realDate; // 同步重置分析日期
+
+          // 提示用户
+          showNotify({
+            type: 'primary',
+            message: '📅 新的一天开始了！怪物已刷新。',
+            duration: 3000,
+            background: '#7c3aed'
+          });
+        }
+        lastDateCheck = now;
+      }
     }, 1000);
   }
 
@@ -38,6 +62,7 @@ export const useSystemStore = defineStore('system', () => {
   // [V4.0 Update] 注册商店和转生弹窗
   const modals = reactive<ModalState>({
     addFood: false,
+    addExercise: false, // [New V5.1]
     quantity: false,
     levelUp: false,
     achievements: false,
@@ -56,8 +81,9 @@ export const useSystemStore = defineStore('system', () => {
     rebirth: false,
     hydration: false,
     dailyReport: false,
-    // [New V4.7]
-    manualAdd: false
+    manualAdd: false,
+    fasting: false,
+    targetConfig: false // [New V5.8]
   });
 
   // [Layer 1 & 3] 动画状态定义

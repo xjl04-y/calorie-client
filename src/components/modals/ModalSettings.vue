@@ -124,6 +124,13 @@ const onFileSelected = async (event: Event) => {
     showToast('文件格式错误');
   }
 };
+
+// [PM Feature] 重置悬浮球位置
+const resetFabPosition = () => {
+  localStorage.removeItem('health_rpg_fab_pos');
+  showToast('位置已重置，请刷新页面');
+  setTimeout(() => window.location.reload(), 1000);
+};
 </script>
 
 <template>
@@ -227,7 +234,7 @@ const onFileSelected = async (event: Event) => {
           <!-- 数据管理 -->
           <div>
             <label class="text-[10px] text-slate-500 block mb-2 font-bold">数据备份与迁移</label>
-            <div class="flex gap-3">
+            <div class="flex gap-3 mb-3">
               <button @click="handleFileExport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm flex items-center justify-center">
                 <i class="fas fa-file-download mr-1.5"></i> 导出存档
               </button>
@@ -236,6 +243,11 @@ const onFileSelected = async (event: Event) => {
               </button>
               <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
             </div>
+
+            <!-- [New] UI 重置 -->
+            <button @click="resetFabPosition" class="w-full bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs py-2 rounded-lg font-bold border border-slate-300 dark:border-slate-500 active:scale-95 transition">
+              <i class="fas fa-sync-alt mr-1"></i> 重置操作窗位置 (修复按钮消失)
+            </button>
           </div>
         </div>
 

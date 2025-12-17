@@ -1,7 +1,11 @@
 <script setup lang="ts">
 /**
  * ModalAddFood.vue
- * 负责食物的搜索、筛选、AI识别以及手动录入的入口引导
+ * 专注食物录入 (单一职责)
+ * - Pure Mode: 全屏窗口
+ * - RPG Mode: 底部弹窗
+ * - V5.6 Feature: 新增“最近”历史记录 tab
+ * - V5.7 Feature: 断食拦截 & Tab 顺序调整
  */
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useGameStore } from '@/stores/counter';
@@ -10,8 +14,8 @@ import { useCooking } from '@/composables/useCooking';
 import { AiService } from '@/utils/aiService';
 import { formatRpgFoodName } from '@/utils/gameUtils';
 import { TAG_DEFS } from '@/constants/gameData';
-import { showToast, showNotify } from 'vant';
-import type { FoodItem } from '@/types';
+import { showToast, showNotify, showConfirmDialog } from 'vant';
+import type { FoodItem, FoodLog } from '@/types';
 import type { UploaderFileListItem } from 'vant';
 
 const store = useGameStore();
@@ -32,13 +36,20 @@ const { isBuilding, basket, resetBasket, addToBasket, removeFromBasket, commitBa
 const query = ref('');
 const loading = ref(false);
 const loadingText = ref('AI 思考中...');
-const activeCategory = ref('ALL');
+const activeCategory = ref('ALL'); // [Fix] 默认为“全部”
 const aiResult = ref<FoodItem | null>(null);
 const aiSuggestions = ref<FoodItem[]>([]);
 
-// 打开手动添加/自定义模态框
+// [PM Fix] 监听搜索内容，如果有输入，自动切换到“全部”Tab，避免用户在分类 Tab 下搜不到东西
+watch(query, (newVal) => {
+  if (newVal && newVal.trim().length > 0 && activeCategory.value !== 'ALL') {
+    activeCategory.value = 'ALL';
+  }
+});
+
+const suggestion = computed(() => store.stageInfo.isOverloaded ? null : store.getTacticalSuggestion());
+
 const openManualAdd = () => {
-  // 不关闭当前窗口，直接叠加在上面，体验更流畅
   store.setModal('manualAdd', true);
 };
 
@@ -47,25 +58,47 @@ const resetLocalState = () => {
   aiResult.value = null;
   aiSuggestions.value = [];
   loading.value = false;
+  activeCategory.value = 'ALL';
   resetBasket();
 };
 
-// 列表筛选逻辑
+// 从最近的日志中计算历史记录
+const historyList = computed(() => {
+  const allLogs: FoodLog[] = [];
+  const logEntries = Object.entries(store.logs).sort((a, b) => b[0].localeCompare(a[0]));
+  for (const [date, logs] of logEntries.slice(0, 7)) {
+    allLogs.push(...logs);
+  }
+  const uniqueMap = new Map<string, FoodLog>();
+  allLogs.forEach(log => {
+    if (log.mealType === 'HYDRATION' || log.mealType === 'EXERCISE') return;
+    const key = log.originalName || log.name;
+    if (!uniqueMap.has(key)) {
+      uniqueMap.set(key, log);
+    }
+  });
+  return Array.from(uniqueMap.values());
+});
+
 const filteredList = computed(() => {
   const rawList = (store.foodDb && Array.isArray(store.foodDb)) ? store.foodDb : [];
-  let result = rawList;
+  let result: FoodItem[] = [];
 
-  if (activeCategory.value === 'FAV') {
-    // 常吃：按使用次数排序
+  if (activeCategory.value === 'RECENT') {
+    result = historyList.value.map(log => {
+      const { mealType, timestamp, damageTaken, blocked, dodged, gainedExp, healed, skillEffect, finalDamageValue, ...baseItem } = log;
+      return baseItem as FoodItem;
+    });
+  } else if (activeCategory.value === 'FAV') {
     result = rawList
       .filter((i) => i.usageCount && i.usageCount > 0)
       .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
   } else if (activeCategory.value !== 'ALL') {
-    // 按分类筛选
     result = rawList.filter((i) => i.category === activeCategory.value);
+  } else {
+    result = rawList;
   }
 
-  // 搜索过滤
   if (query.value.trim()) {
     const q = query.value.toLowerCase().trim();
     result = result.filter((i) =>
@@ -84,15 +117,12 @@ const getDisplayName = (item: FoodItem) => {
   return formatRpgFoodName(item.name, store.user.race, item.originalName);
 };
 
-// 文本搜索 / AI 估算
 const onTextSearch = async () => {
   if (!query.value.trim()) return;
-
   loading.value = true;
   loadingText.value = '大贤者正在查阅古籍...';
   aiResult.value = null;
   aiSuggestions.value = [];
-
   try {
     const res = await AiService.estimateText(query.value, store.user.race);
     if (Array.isArray(res) && res.length > 0) aiSuggestions.value = res;
@@ -104,15 +134,12 @@ const onTextSearch = async () => {
   }
 };
 
-// 图片上传识别
 const onImageUpload = async (items: UploaderFileListItem | UploaderFileListItem[]) => {
   const file = Array.isArray(items) ? items[0] : items;
   if (!file) return;
-
   loading.value = true;
   loadingText.value = '正在解析图像魔力...';
   aiResult.value = null;
-
   try {
     const res = await AiService.identifyImage(file.content || '', store.user.race);
     if (Array.isArray(res) && res.length > 0) aiSuggestions.value = res;
@@ -124,8 +151,39 @@ const onImageUpload = async (items: UploaderFileListItem | UploaderFileListItem[
   }
 };
 
-// 选择物品逻辑
+// --- [Fix Logic] 断食拦截与记录处理 ---
 const selectItem = (item: FoodItem) => {
+  // 1. 判断是否正在断食
+  if (store.user.fasting?.isFasting) {
+    // 允许喝水/零热量饮料 (DRINK 分类且热量极低)
+    const isSafeDrink = (item.category === 'DRINK' && (!item.calories || item.calories < 5));
+
+    if (!isSafeDrink) {
+      showConfirmDialog({
+        title: isPure.value ? '断食提醒' : '打破冥想？',
+        message: isPure.value
+          ? '当前处于断食模式，记录食物将自动结束断食。\n确定要进食吗？'
+          : '⚠️ 警告：进食将打断「虚空冥想」蓄力状态！\n确定要放弃当前的加成吗？',
+        confirmButtonText: '进食 (结束断食)',
+        confirmButtonColor: '#ef4444',
+        cancelButtonText: '忍住'
+      }).then(() => {
+        // 用户确认要吃 -> 结束断食
+        store.heroStore.stopFasting();
+        store.saveState();
+        proceedSelection(item);
+      }).catch(() => {
+        // 用户取消 -> 什么都不做
+      });
+      return;
+    }
+  }
+
+  proceedSelection(item);
+};
+
+// 提取原有的处理逻辑
+const proceedSelection = (item: FoodItem) => {
   if (isBuilding.value) {
     if (item.isComposite || item.isPreset) {
       showNotify({ type: 'danger', message: '🚫 套餐内不允许包含其他套餐！' });
@@ -137,7 +195,6 @@ const selectItem = (item: FoodItem) => {
     return;
   }
 
-  // 如果点击的是套餐，且不是预设的（即自制套餐），且还未被使用过，则进入编辑模式（可选逻辑，这里简化为直接使用）
   if (item.isComposite && !item.isPreset && (!item.usageCount || item.usageCount === 0)) {
     store.temp.basket = [];
     store.temp.isBuilding = true;
@@ -157,9 +214,9 @@ const selectItem = (item: FoodItem) => {
 watch(show, (val) => {
   if (val) {
     query.value = '';
+    activeCategory.value = 'ALL'; // [Fix] 每次打开优先显示全部
     if (!store.foodDb || store.foodDb.length === 0) store.loadState();
   } else {
-    // 关闭时如果没有打开数量弹窗，且没有挂起的物品，则重置状态
     if (!store.modals.quantity && !store.temp.pendingItem) {
       resetLocalState();
     }
@@ -167,25 +224,36 @@ watch(show, (val) => {
 });
 
 onUnmounted(() => resetLocalState());
+
+// UI Style Logic
+const popupStyles = computed(() => {
+  if (isPure.value) {
+    return { width: '100%', height: '100%', borderRadius: '0' };
+  }
+  return { height: '90%', borderRadius: '24px 24px 0 0' };
+});
+const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
 </script>
 
 <template>
   <van-popup
     v-model:show="show"
-    position="bottom"
-    round
-    :style="{ height: '90%' }"
-    class="dark:bg-slate-900 flex flex-col"
+    :position="popupPosition"
+    :style="popupStyles"
+    class="dark:bg-slate-900 flex flex-col transition-all duration-300"
     safe-area-inset-bottom
   >
     <div class="flex flex-col h-full bg-slate-50 dark:bg-[#0b1120] relative">
 
       <!-- Top Header -->
       <div class="px-4 py-3 bg-white dark:bg-slate-800 flex justify-between sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 items-center shadow-sm">
-        <van-icon name="arrow-down" @click="show = false" class="text-slate-400 text-lg active:scale-90 transition" />
+        <div v-if="isPure" @click="show = false" class="text-slate-500 flex items-center cursor-pointer">
+          <van-icon name="arrow-left" class="mr-1" /> 返回
+        </div>
+        <van-icon v-else name="arrow-down" @click="show = false" class="text-slate-400 text-lg active:scale-90 transition" />
 
         <div class="font-bold dark:text-white text-lg flex items-center gap-2">
-          <span>{{ isPure ? '记录饮食' : '添加补给' }}</span>
+          <span>{{ isPure ? '饮食记录' : '添加补给' }}</span>
           <span v-if="isBuilding" class="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full animate-pulse border border-purple-200">
             <i class="fas fa-fire-alt mr-1"></i>烹饪模式
           </span>
@@ -194,8 +262,20 @@ onUnmounted(() => resetLocalState());
         <div v-if="isBuilding" @click="resetLocalState" class="text-xs text-red-500 font-bold cursor-pointer active:opacity-70 px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded flex items-center">
           <i class="fas fa-trash-alt mr-1"></i>清空
         </div>
-        <!-- 占位符或小按钮 -->
         <div v-else class="w-8"></div>
+      </div>
+
+      <!-- 战术情报 (Pure模式不显示) -->
+      <div v-if="suggestion && !isPure"
+           class="mx-4 mt-2 px-3 py-2 rounded-xl flex items-center gap-3 border shadow-sm bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-700 border-purple-100 dark:border-slate-600 relative overflow-hidden">
+        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+        <div class="text-2xl z-10">{{ suggestion.icon }}</div>
+        <div class="flex-1 z-10">
+          <div class="text-[10px] text-purple-500 font-bold uppercase tracking-wider flex items-center">
+            战术顾问 <span class="ml-1 text-[8px] px-1 bg-purple-100 rounded text-purple-600">INTEL</span>
+          </div>
+          <div class="text-xs font-bold text-slate-700 dark:text-slate-200">{{ suggestion.text }}</div>
+        </div>
       </div>
 
       <!-- Search & AI Tools -->
@@ -209,12 +289,10 @@ onUnmounted(() => resetLocalState());
           </button>
         </div>
 
-        <!-- 手动添加入口 (图标版) -->
         <button @click="openManualAdd" class="w-10 h-10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-600 active:scale-95 active:bg-slate-200 transition">
           <i class="fas fa-pen-nib"></i>
         </button>
 
-        <!-- 拍照上传 -->
         <van-uploader :after-read="onImageUpload" capture="camera">
           <div class="w-10 h-10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-600 active:scale-95 active:bg-slate-200 transition">
             <i class="fas fa-camera"></i>
@@ -225,7 +303,8 @@ onUnmounted(() => resetLocalState());
       <!-- Categories Tabs -->
       <div class="px-2 mt-2 bg-white dark:bg-slate-800 pb-2 border-b border-slate-100 dark:border-slate-700">
         <van-tabs v-model:active="activeCategory" background="transparent" color="#7c3aed" title-active-color="#7c3aed" shrink line-width="20px">
-          <van-tab title="全部" name="ALL"></van-tab>
+          <van-tab title="全部" name="ALL"></van-tab> <!-- [Fix] 已移至最前 -->
+          <van-tab title="🕒 最近" name="RECENT"></van-tab>
           <van-tab title="❤️ 常吃" name="FAV"></van-tab>
           <van-tab title="🍱 套餐" name="DISH"></van-tab>
           <van-tab title="🍞 主食" name="STAPLE"></van-tab>
@@ -244,7 +323,7 @@ onUnmounted(() => resetLocalState());
           </van-loading>
         </div>
 
-        <!-- AI Result (Single Match) -->
+        <!-- AI Result -->
         <div v-if="aiResult && !loading" class="bg-gradient-to-br from-purple-50 to-white dark:from-slate-800 dark:to-slate-700 p-4 rounded-2xl mb-4 border border-purple-100 dark:border-slate-600 shadow-sm cursor-pointer active:scale-98 transition relative overflow-hidden group" @click="selectItem(aiResult)">
           <div class="absolute top-0 right-0 bg-purple-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">AI 结果</div>
           <div class="flex justify-between items-start">
@@ -257,7 +336,7 @@ onUnmounted(() => resetLocalState());
               </div>
               <div class="text-xs text-purple-500 mt-1 flex items-center"><i class="fas fa-sparkles mr-1"></i> {{ aiResult.tips || '未知的食物' }}</div>
               <div class="text-xs text-slate-500 mt-1">
-                热量: {{ aiResult.calories }} kcal / {{ aiResult.p }}P {{ aiResult.c }}C {{ aiResult.f }}F
+                热量: {{ aiResult.calories }} kcal
               </div>
             </div>
             <van-button size="small" color="#7c3aed" class="h-8 px-4 rounded-lg font-bold shadow-md shadow-purple-200 dark:shadow-none">
@@ -266,7 +345,7 @@ onUnmounted(() => resetLocalState());
           </div>
         </div>
 
-        <!-- Suggestions List (AI Multiple Results) -->
+        <!-- Suggestions List -->
         <div v-if="aiSuggestions.length > 0 && !loading" class="mb-4">
           <div class="text-xs text-slate-400 mb-2">AI 建议结果:</div>
           <div v-for="sugg in aiSuggestions" :key="sugg.name" @click="selectItem(sugg)"
@@ -282,16 +361,13 @@ onUnmounted(() => resetLocalState());
           </div>
         </div>
 
-        <!-- Empty State (With Manual Add Action) -->
+        <!-- Empty State -->
         <div v-if="!loading && filteredList.length === 0 && !aiResult && aiSuggestions.length === 0" class="text-center py-16 text-slate-400">
           <div class="text-5xl mb-4 opacity-50 grayscale">🍃</div>
-          <div class="text-sm font-bold text-slate-500 mb-6">暂无此分类食物</div>
-
-          <!-- 手动添加大按钮引导 -->
+          <div class="text-sm font-bold text-slate-500 mb-6">暂无此分类项目</div>
           <van-button icon="edit" round color="linear-gradient(to right, #7c3aed, #6366f1)" class="shadow-lg shadow-purple-200 dark:shadow-none font-bold px-8" @click="openManualAdd">
             找不到？手动录入
           </van-button>
-          <div class="text-[10px] text-slate-400 mt-2">支持智能估算，无需精确数值</div>
         </div>
 
         <!-- List Items -->
@@ -305,14 +381,15 @@ onUnmounted(() => resetLocalState());
                   <span class="truncate">{{ getDisplayName(item) }}</span>
                   <span v-if="item.isComposite" class="ml-2 text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-200 flex items-center shrink-0"><i class="fas fa-layer-group mr-1"></i>套餐</span>
                 </div>
-                <!-- 纯净模式下隐藏 tips -->
                 <div v-if="item.tips && !isPure" class="text-[9px] text-slate-400 mt-1 truncate flex items-center"><i class="fas fa-info-circle mr-1 text-slate-300"></i> {{ item.tips }}</div>
+
                 <div class="flex gap-1 mt-1.5" v-if="item.tags && item.tags.length">
                   <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="text-[9px] px-1.5 py-0.5 rounded font-bold border tag-badge" :class="'tag-'+tag">{{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}</span>
                 </div>
+
                 <div class="text-xs text-slate-400 mt-1 flex items-center" v-if="!item.tags || item.tags.length === 0">
                   <span class="mr-3 bg-slate-100 dark:bg-slate-700 px-1.5 rounded">{{ item.unit }}</span>
-                  <span class="text-orange-400 font-mono">~{{ item.calories }} kcal</span>
+                  <span class="font-mono text-orange-400">摄入 ~{{ item.calories }} kcal</span>
                 </div>
               </div>
             </div>
@@ -327,7 +404,7 @@ onUnmounted(() => resetLocalState());
         </div>
       </div>
 
-      <!-- Basket Drawer (Cooking Mode) -->
+      <!-- Basket Drawer -->
       <transition name="van-slide-up">
         <div v-if="isBuilding" class="absolute bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-700 p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-20 rounded-t-3xl backdrop-blur-md pb-safe">
           <div class="flex justify-between items-center mb-3">

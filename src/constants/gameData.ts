@@ -1,7 +1,8 @@
-import type { Race, Monster, SkillNode, Quest, NpcConfig, ShopItem } from '@/types';
+import type { Race, Monster, SkillNode, Quest, NpcConfig, ShopItem, FoodItem } from '@/types';
 
-// [V4.8 Update] 商店商品配置：新增连击护盾
-// [V4.9 Update] 产品经理新增：时光怀表 (断签保护)
+// ... (Existing SHOP_ITEMS, RACE_SKILL_TREES, QUEST_POOL, RACES, RACE_NPCS, MONSTERS, TAG_DEFS)
+
+// [Previous constants remain unchanged, just appending new data at the end]
 export const SHOP_ITEMS: ShopItem[] = [
   {
     id: 'item_rebirth_potion',
@@ -17,7 +18,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     desc: '能够冻结时间的魔法道具。如果不小心断签，它会自动消耗并保住你的连续登录天数。',
     icon: '🕰️',
     price: 800,
-    effect: 'HEAL', // 借用类型，逻辑在 HeroStore 处理
+    effect: 'HEAL',
     value: 0
   },
   {
@@ -26,7 +27,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     desc: '连击保护神器。当连击即将中断时自动消耗，冻结时间保住连击数。',
     icon: '⏳',
     price: 500,
-    effect: 'HEAL', // 借用 effect 类型，实际逻辑在 BattleStore 处理
+    effect: 'HEAL',
     value: 0
   },
   {
@@ -141,6 +142,17 @@ export const MONSTERS: Monster[] = [
   { name: '油脂飞龙', icon: '🐉', weakness: '低脂饮食', weaknessType: '低脂', desc: '喷吐着高温油脂，非常危险' },
   { name: '饥饿幽灵', icon: '👻', weakness: '需肉/高蛋白', weaknessType: '高蛋白', desc: '昨日蛋白质不足引来的恶灵，渴望肌肉' },
   { name: '荒野暴徒', icon: '🐗', weakness: '红肉/高蛋白', weaknessType: '高蛋白', desc: '只有吃得像个战士才能击败它' },
+];
+
+// [New V5.0] Default Exercises
+export const DEFAULT_EXERCISES: FoodItem[] = [
+  { id: 'ex_run', name: '跑步 (中速)', originalName: '跑步', calories: 400, p: 0, c: 0, f: 0, grams: 30, unit: '分钟', icon: '🏃', tags: ['有氧'], isExercise: true, tips: '提升心肺，净化身心' },
+  { id: 'ex_walk', name: '快走', originalName: '快走', calories: 150, p: 0, c: 0, f: 0, grams: 30, unit: '分钟', icon: '🚶', tags: ['有氧'], isExercise: true, tips: '轻松的战备活动' },
+  { id: 'ex_swim', name: '游泳', originalName: '游泳', calories: 350, p: 0, c: 0, f: 0, grams: 30, unit: '分钟', icon: '🏊', tags: ['有氧'], isExercise: true, tips: '全身性的锻炼' },
+  { id: 'ex_hiit', name: 'HIIT', originalName: 'HIIT', calories: 450, p: 0, c: 0, f: 0, grams: 30, unit: '分钟', icon: '🔥', tags: ['高强度'], isExercise: true, tips: '短时间爆发，燃烧极限' },
+  { id: 'ex_gym', name: '力量训练', originalName: '力量训练', calories: 250, p: 0, c: 0, f: 0, grams: 45, unit: '分钟', icon: '🏋️', tags: ['增肌'], isExercise: true, tips: '强化肌肉，提升格挡' },
+  { id: 'ex_yoga', name: '瑜伽', originalName: '瑜伽', calories: 100, p: 0, c: 0, f: 0, grams: 45, unit: '分钟', icon: '🧘', tags: ['柔韧'], isExercise: true, tips: '冥想与恢复' },
+  { id: 'ex_cycle', name: '骑行', originalName: '骑行', calories: 300, p: 0, c: 0, f: 0, grams: 45, unit: '分钟', icon: '🚴', tags: ['有氧'], isExercise: true, tips: '追风之旅' }
 ];
 
 const BASE_TAGS = {

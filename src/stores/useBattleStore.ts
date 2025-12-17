@@ -80,8 +80,9 @@ export const useBattleStore = defineStore('battle', () => {
   });
 
   const stageInfo = computed(() => {
+    // [Modified] Boss HP (Target) now includes exercise burn (done in heroStore.dailyTarget)
     const target = heroStore.dailyTarget || 2000;
-    const damageProgress = logStore.todayDamage;
+    const damageProgress = logStore.todayDamage; // Only counts food
 
     const bossReserveHP = Math.max(500, Math.floor(target * 0.4));
     const minionHP = 500;
@@ -143,7 +144,7 @@ export const useBattleStore = defineStore('battle', () => {
       const isFuture = dateStr > todayStr;
 
       const dayLogs = logStore.logs[dateStr] || [];
-      const total = dayLogs.reduce((sum, log) => sum + (Number(log.calories) || 0), 0);
+      const total = dayLogs.filter(l => l.mealType !== 'EXERCISE').reduce((sum, log) => sum + (Number(log.calories) || 0), 0);
 
       let rpgStatus = 'UNKNOWN';
       if (total > 0) {
@@ -254,10 +255,7 @@ export const useBattleStore = defineStore('battle', () => {
       newCombo += 1;
     } else if (!isWithinWindow) {
       // [V4.8 Feature] 连击保护逻辑
-      // 只有当连击数大于 1 且有保护道具时才触发
       if (newCombo > 1 && heroStore.consumeItem('item_combo_shield', 1)) {
-        // 连击保护成功：虽然超时，但视为刚好吃完上一顿
-        // 不增加连击，也不归零，维持现状
         comboMsg = '⏳ 时光倒流！连击保护生效！';
         setTimeout(() => showNotify({ type: 'success', message: '✨ 使用了时光沙漏，连击未中断！', background: '#7c3aed' }), 500);
       } else {
@@ -290,11 +288,131 @@ export const useBattleStore = defineStore('battle', () => {
     }, 1500);
   }
 
+  // [New] 战术建议生成
+  function getTacticalSuggestion() {
+    const monster = dailyMonster.value;
+    const wType = monster?.weaknessType;
+    const macros = logStore.todayMacros;
+    const isOverloaded = stageInfo.value.isOverloaded;
+
+    if (isOverloaded) return { text: 'BOSS 已暴走！停止进食，或者只喝水！', type: 'DANGER', icon: '⛔', tags: ['纯净', '水'] };
+
+    // 断食检测
+    const now = Date.now();
+    const lastMeal = logStore.lastMealTime;
+    if (lastMeal > 0 && (now - lastMeal) > 16 * 60 * 60 * 1000) {
+      return { text: '蓄力完成！现在进食必定暴击！建议摄入高热量主食！', type: 'GOOD', icon: '⚡', tags: ['高蛋白', '高碳'] };
+    }
+
+    if (wType === '低碳' || wType === 'LOW_CARB') {
+      if (macros.c > 150) return { text: '碳水过量警告！请立刻停止摄入主食！', type: 'WARN', icon: '⚠️', tags: ['高蛋白', '纯净'] };
+      return { text: '战术建议：多吃肉和蔬菜，少吃米饭。', type: 'INFO', icon: '🍖', tags: ['高蛋白', '纯净'] };
+    }
+    if (wType === '低脂' || wType === 'LOW_FAT') {
+      if (macros.f > 60) return { text: '油脂过高！Boss 正在回血！', type: 'WARN', icon: '⚠️', tags: ['纯净', '低脂'] };
+      return { text: '战术建议：选择清淡饮食，拒绝油炸。', type: 'INFO', icon: '🥗', tags: ['纯净', '低脂'] };
+    }
+    if (wType === '高蛋白' || wType === 'HIGH_PRO') {
+      if (macros.p < 50) return { text: '攻击力不足！急需补充蛋白质！', type: 'INFO', icon: '🥩', tags: ['高蛋白'] };
+      return { text: '状态良好！继续保持高蛋白摄入。', type: 'GOOD', icon: '✨', tags: ['高蛋白'] };
+    }
+
+    return { text: '保持均衡饮食，稳扎稳打。', type: 'INFO', icon: '🛡️', tags: ['均衡'] };
+  }
+
   // [Fix] 支持 forcedMealType 参数，确保补水不变成零食
   function battleCommit(item: FoodItem, forcedMealType?: MealType) {
     if (!item) return;
 
-    // ... (Keep existing tag logic) ...
+    // --- Special: Exercise Logic ---
+    // 运动不计算伤害，而是治疗/增加Target
+    if (item.isExercise || forcedMealType === 'EXERCISE') {
+      const exerciseLog: FoodLog = {
+        ...item,
+        mealType: 'EXERCISE',
+        timestamp: new Date().toISOString()
+      };
+
+      const savedLog = logStore.addLog(exerciseLog);
+
+      // 运动效果
+      const healAmt = 50 + Math.floor((item.calories || 0) / 10);
+
+      // [Modified Logic V6.2] 护盾转化机制
+      const currentHp = heroStore.user.heroCurrentHp;
+      const maxHp = heroStore.user.heroMaxHp;
+      const missingHp = maxHp - currentHp;
+
+      if (healAmt <= missingHp) {
+        // 1. 未满血：全部用于治疗
+        heroStore.heal(healAmt);
+        if (!systemStore.isPureMode) {
+          systemStore.triggerHealEffect();
+          spawnFloatingText(`+${healAmt}`, 'HEAL');
+          showNotify({ type: 'success', message: `🏋️ 运动恢复：HP +${healAmt}` });
+        }
+      } else {
+        // 2. 溢出：先补满血，剩余转护盾/金币
+        if (missingHp > 0) heroStore.heal(missingHp);
+        const overflow = healAmt - missingHp;
+
+        // 如果护盾未满，加护盾
+        // 如果护盾已满，加金币
+        const shieldCap = maxHp; // 护盾上限=血量上限
+        const currentShield = heroStore.user.heroShield || 0;
+        const shieldSpace = shieldCap - currentShield;
+
+        if (shieldSpace > 0) {
+          // 优先填补护盾
+          const shieldGain = Math.min(overflow, shieldSpace);
+          heroStore.addShield(shieldGain);
+
+          if (!systemStore.isPureMode) {
+            systemStore.triggerHealEffect();
+            if (missingHp > 0) spawnFloatingText(`+${missingHp}`, 'HEAL');
+            setTimeout(() => spawnFloatingText(`+${shieldGain}`, 'BLOCK'), 200); // 蓝色护盾飘字
+
+            showNotify({
+              type: 'primary',
+              message: `🛡️ 状态绝佳！获得 ${shieldGain} 点护盾！`,
+              background: '#0ea5e9',
+              duration: 2500
+            });
+          }
+
+          // 如果还有剩余溢出 (护盾也满了)，则转金币
+          const remainingOverflow = overflow - shieldGain;
+          if (remainingOverflow > 0) {
+            const goldBonus = Math.floor(remainingOverflow * 0.5);
+            if (goldBonus > 0) {
+              heroStore.addGold(goldBonus);
+              setTimeout(() => spawnFloatingText(`+${goldBonus}G`, 'EXP'), 400);
+            }
+          }
+
+        } else {
+          // 护盾已满，全额转金币 (50%比例)
+          const goldBonus = Math.floor(overflow * 0.5);
+          heroStore.addGold(goldBonus);
+          if (!systemStore.isPureMode) {
+            spawnFloatingText(`+${goldBonus}G`, 'EXP');
+            showNotify({
+              type: 'warning',
+              message: `💪 巅峰状态！溢出的活力转化为 ${goldBonus} 金币！`,
+              background: '#f59e0b',
+              duration: 2500
+            });
+          }
+        }
+      }
+
+      if (systemStore.isPureMode) {
+        showToast(`运动记录成功，消耗 ${item.calories} kcal`);
+      }
+      return;
+    }
+
+    // ... (Existing tag logic) ...
     const tags = item.tags || [];
     const c = Number(item.c)||0, f = Number(item.f)||0, p = Number(item.p)||0;
     const grams = Number(item.grams)||100;
@@ -347,8 +465,7 @@ export const useBattleStore = defineStore('battle', () => {
       return;
     }
 
-    // [New V4.5] 触发投掷动画 (Layer 1 Animation)
-    // 立即触发飞行物，伤害计算在飞行结束前完成，但视觉上会等飞行结束
+    // [New V4.5] 触发投掷动画
     systemStore.triggerProjectile(item.icon);
 
     const monster = stageInfo.value.currentObj?.data;
@@ -363,6 +480,21 @@ export const useBattleStore = defineStore('battle', () => {
     let resistReason = '';
     const isBossOverloaded = stageInfo.value.isOverloaded;
     const ignoreResist = activeSkill?.effectType === 'IGNORE_RESIST';
+
+    // [New] 断食蓄力机制 (Fasting Bonus)
+    const now = Date.now();
+    const lastMeal = logStore.lastMealTime;
+    let fastingBonus = 0;
+    if (lastMeal > 0) {
+      const hours = (now - lastMeal) / (1000 * 60 * 60);
+      if (hours > 16) fastingBonus = 1.0; // 16小时断食，伤害翻倍
+      else if (hours > 12) fastingBonus = 0.5; // 12小时断食，伤害+50%
+
+      if (fastingBonus > 0) {
+        multiplier += fastingBonus;
+        battleItem.fastingHours = parseFloat(hours.toFixed(1));
+      }
+    }
 
     // ... (Keep weakness logic) ...
     if (monster && !ignoreResist) {
@@ -457,7 +589,7 @@ export const useBattleStore = defineStore('battle', () => {
               spawnFloatingText('MISS', 'BLOCK');
               showNotify({ type: 'success', message: '⚡ 装备生效！完美闪避！', duration: 2000 });
             } else {
-              heroStore.damage(damage);
+              heroStore.damage(damage); // [Updated] Use new damage logic (shield first)
               battleItem.damageTaken = damage;
               battleItem.blocked = stats.blockValue;
               spawnFloatingText(`-${damage}`, 'DAMAGE');
@@ -503,6 +635,7 @@ export const useBattleStore = defineStore('battle', () => {
         if (newCombo > 1) msg += ` | 连击 x${newCombo}`;
         if (activeSkill) msg += ` | ${activeSkill.name}`;
         if (env.type === 'BUFF') msg += ` | ${env.icon}环境加成`;
+        if (fastingBonus > 0) msg += ` | 🕒 蓄力一击!`; // [New]
 
         showNotify({ type: 'success', message: msg, duration: 2000 });
       }
@@ -545,7 +678,13 @@ export const useBattleStore = defineStore('battle', () => {
     const removed = logStore.removeLog(log.id);
     if (removed) {
       if (removed.gainedExp) heroStore.addExp(-removed.gainedExp);
-      if (removed.damageTaken) heroStore.heal(removed.damageTaken);
+      // 如果是运动，扣除治疗量
+      if (removed.mealType === 'EXERCISE') {
+        const healAmt = 50 + Math.floor((removed.calories || 0) / 10);
+        heroStore.damage(healAmt);
+      } else {
+        if (removed.damageTaken) heroStore.heal(removed.damageTaken);
+      }
 
       if (systemStore.currentDate === getLocalDateStr()) {
         comboState.count = Math.max(0, comboState.count - 1);
@@ -563,6 +702,7 @@ export const useBattleStore = defineStore('battle', () => {
     environment,
     battleCommit,
     deleteLog,
-    checkAchievements
+    checkAchievements,
+    getTacticalSuggestion
   };
 });

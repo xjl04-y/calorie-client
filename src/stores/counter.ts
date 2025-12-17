@@ -20,6 +20,11 @@ interface SaveData {
   isPureMode?: boolean;
   activeQuests?: any[];
   questPoolDay?: string;
+  comboState?: {
+    count: number;
+    lastLogTime: number;
+    lastLogId: string | number;
+  };
 }
 
 export const useGameStore = defineStore('game', () => {
@@ -91,7 +96,8 @@ export const useGameStore = defineStore('game', () => {
         isDarkMode: system.isDarkMode,
         isPureMode: system.isPureMode,
         activeQuests: collection.quests,
-        questPoolDay: collection.questPoolDay
+        questPoolDay: collection.questPoolDay,
+        comboState: { ...battle.comboState }
       };
       localStorage.setItem('health_rpg_save_v2', JSON.stringify(stateToSave));
     } catch (e) { console.error("Save failed:", e); }
@@ -112,17 +118,31 @@ export const useGameStore = defineStore('game', () => {
             if (!hero.user.skillPoints) hero.user.skillPoints = 0;
             if (!hero.user.learnedSkills) hero.user.learnedSkills = {};
 
-            // [V4.0 Fix] 兼容旧存档：初始化金币和背包
             if (hero.user.gold === undefined) hero.user.gold = 0;
             if (!hero.user.inventory) hero.user.inventory = { 'item_rebirth_potion': 1 };
 
-            // [V4.1 Fix] 兼容旧存档：初始化喝水数据
             if (!hero.user.hydration) {
               hero.user.hydration = {
                 dailyTargetCups: 8,
                 cupSizeMl: 250,
                 reminderInterval: 60,
                 enableNotifications: false
+              };
+            }
+
+            if (!hero.user.fasting) {
+              hero.user.fasting = {
+                isFasting: false,
+                startTime: 0,
+                targetHours: 16
+              };
+            }
+
+            if (!hero.user.targetConfig) {
+              hero.user.targetConfig = {
+                mode: 'AUTO',
+                goal: 'MAINTAIN',
+                activityLevel: 1.2
               };
             }
           }
@@ -136,6 +156,12 @@ export const useGameStore = defineStore('game', () => {
           if (data.activeQuests) collection.quests = data.activeQuests;
           if (data.questPoolDay) collection.questPoolDay = data.questPoolDay;
 
+          if (data.comboState) {
+            battle.comboState.count = data.comboState.count || 0;
+            battle.comboState.lastLogTime = data.comboState.lastLogTime || 0;
+            battle.comboState.lastLogId = data.comboState.lastLogId || 0;
+          }
+
           let loadedFood = false;
           if (data.foodDb && Array.isArray(data.foodDb) && data.foodDb.length > 0) {
             collection.foodDb = data.foodDb;
@@ -145,7 +171,6 @@ export const useGameStore = defineStore('game', () => {
           if (!loadedFood || !collection.foodDb || collection.foodDb.length === 0) {
             collection.initFoodDb(hero.user.race || 'HUMAN', true);
           } else {
-            // 确保即使有数据，也检查是否有缺失的默认数据
             collection.initFoodDb(hero.user.race || 'HUMAN', false);
           }
 
@@ -193,7 +218,10 @@ export const useGameStore = defineStore('game', () => {
     temp: system.temp,
     user: hero.user,
     heroStore: hero,
-    dailyTarget: hero.dailyTarget,
+    logStore: logStore,
+
+    // [Fix] 关键修改：使用 computed 包装 dailyTarget，确保响应式链条不断
+    dailyTarget: computed(() => hero.dailyTarget),
     heroStats,
 
     achievements: computed(() => collection.achievements),
@@ -207,6 +235,8 @@ export const useGameStore = defineStore('game', () => {
     logsReverse: computed(() => logStore.logsReverse),
     todayMacros: computed(() => logStore.todayMacros),
     historyTotalMacros: computed(() => logStore.historyTotalMacros),
+
+    lastMealTime: computed(() => logStore.lastMealTime),
 
     weeklyStats: computed(() => battle.weeklyStats),
     stageInfo: computed(() => battle.stageInfo),
@@ -224,10 +254,11 @@ export const useGameStore = defineStore('game', () => {
     acceptQuest: collection.acceptQuest,
     claimQuest: collection.claimQuest,
 
-    // [Fix] 透传 optional mealType
     commitLog: (item: FoodItem, mealType?: MealType) => { battle.battleCommit(item, mealType); saveState(); },
     deleteLog: (log: FoodLog) => { battle.deleteLog(log); saveState(); },
     battleCommit: (item: FoodItem, mealType?: MealType) => { battle.battleCommit(item, mealType); saveState(); },
+
+    getTacticalSuggestion: battle.getTacticalSuggestion,
 
     saveState,
     forceSave,

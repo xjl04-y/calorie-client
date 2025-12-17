@@ -46,6 +46,21 @@ const hpLogs = computed(() => {
             <div class="font-bold text-green-600 dark:text-green-400">{{ (store.heroStats.dodgeChance * 100).toFixed(1) }}%</div>
           </div>
         </div>
+        <!-- [New] 护盾状态 -->
+        <div class="col-span-2 bg-cyan-50 dark:bg-slate-800 p-3 rounded-xl border border-cyan-100 dark:border-slate-700 flex items-center justify-between">
+          <div class="flex items-center">
+            <div class="text-2xl mr-2">🛡️</div>
+            <div>
+              <div class="text-xs text-slate-500">能量护盾 (Shield)</div>
+              <div class="font-bold text-cyan-600 dark:text-cyan-400">
+                {{ store.user.heroShield || 0 }} / {{ store.heroStats.maxHp }}
+              </div>
+            </div>
+          </div>
+          <div class="text-xs text-slate-400">
+            优先抵扣伤害
+          </div>
+        </div>
       </div>
 
       <h4 class="text-xs text-slate-400 mb-2 font-bold">最近受伤记录</h4>

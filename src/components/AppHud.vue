@@ -16,6 +16,16 @@ const toggleTheme = () => {
   else document.documentElement.classList.remove('dark');
   store.saveState();
 };
+
+// [New] 护盾相关计算
+// 护盾百分比：分母为护盾上限 (目前逻辑是 MaxHP)
+const shieldPercent = computed(() => {
+  if (!heroStats.value || heroStats.value.maxHp <= 0) return 0;
+  return Math.min((user.value.heroShield || 0) / heroStats.value.maxHp * 100, 100);
+});
+
+// [New] 是否有护盾
+const hasShield = computed(() => (user.value.heroShield || 0) > 0);
 </script>
 
 <template>
@@ -66,19 +76,75 @@ const toggleTheme = () => {
         </div>
       </div>
 
-      <!-- 下半部分：HP 条 (纯净模式隐藏) -->
-      <div v-if="!isPure && heroStats" class="relative w-full" @click.stop="store.setModal('hpHistory', true)">
-        <div class="flex justify-between text-[9px] font-bold mb-1 px-0.5">
-          <span class="text-red-500 flex items-center gap-1"><i class="fas fa-heart text-[8px]"></i> 英雄状态</span>
-          <span class="text-slate-600 dark:text-slate-300 font-mono">{{ Math.floor(user.heroCurrentHp) }} / {{ heroStats.maxHp }}</span>
-        </div>
-        <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shadow-inner">
-          <div class="h-full bg-gradient-to-r from-red-500 to-rose-400 transition-all duration-500 relative"
-               :style="{ width: Math.min((user.heroCurrentHp / (heroStats.maxHp || 1) * 100), 100) + '%' }">
-            <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
+      <!-- 下半部分：状态条区域 (HP + Shield) -->
+      <div v-if="!isPure && heroStats" class="relative w-full mt-1" @click.stop="store.setModal('hpHistory', true)">
+
+        <!-- 数值展示行 -->
+        <div class="flex justify-between items-end mb-1 px-0.5">
+          <div class="flex items-center gap-2">
+            <span class="text-red-500 text-[9px] font-bold flex items-center gap-1"><i class="fas fa-heart"></i> HP</span>
+            <!-- 护盾数值 (独立显示) -->
+            <transition name="fade">
+               <span v-if="hasShield" class="text-[9px] font-bold text-cyan-500 flex items-center gap-1 bg-cyan-50 dark:bg-cyan-900/30 px-1.5 py-0.5 rounded animate-pulse shadow-sm border border-cyan-100 dark:border-cyan-800">
+                 <i class="fas fa-shield-alt"></i> {{ Math.floor(user.heroShield) }}
+               </span>
+            </transition>
           </div>
+          <span class="text-[9px] font-mono font-bold text-slate-400">
+            {{ Math.floor(user.heroCurrentHp) }} / {{ heroStats.maxHp }}
+          </span>
+        </div>
+
+        <!-- 复合能量条容器 -->
+        <div class="relative flex flex-col gap-0.5">
+
+          <!-- 1. 独立护盾条 (Energy Shield) -->
+          <!-- 只有有护盾时才显示高度，否则高度为0但保留过渡 -->
+          <div class="relative w-full bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden transition-all duration-500 ease-out"
+               :style="{ height: hasShield ? '6px' : '0px', opacity: hasShield ? 1 : 0, marginBottom: hasShield ? '2px' : '0' }">
+
+            <!-- 护盾底纹 -->
+            <div class="absolute inset-0 bg-cyan-100/30 dark:bg-cyan-900/20"></div>
+
+            <!-- 护盾进度 -->
+            <div class="h-full bg-gradient-to-r from-cyan-400 to-blue-500 relative transition-all duration-500 ease-out shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+                 :style="{ width: shieldPercent + '%' }">
+              <!-- 科技感斜纹动画 -->
+              <div class="absolute inset-0 w-full h-full bg-[linear-gradient(45deg,rgba(255,255,255,0.25)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.25)_50%,rgba(255,255,255,0.25)_75%,transparent_75%,transparent)] bg-[length:10px_10px] animate-[stripes-move_1s_linear_infinite]"></div>
+              <!-- 头部高光 -->
+              <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-white/80 shadow-[0_0_4px_#fff]"></div>
+            </div>
+          </div>
+
+          <!-- 2. 主血条 (Main HP) -->
+          <div class="relative h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-inner overflow-hidden">
+            <div class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-500 to-rose-400 transition-all duration-500"
+                 :style="{ width: Math.min((user.heroCurrentHp / (heroStats.maxHp || 1) * 100), 100) + '%' }">
+              <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 护盾条纹动画 */
+@keyframes stripes-move {
+  0% { background-position: 0 0; }
+  100% { background-position: 20px 20px; } /* 必须匹配 bg-length 的倍数 (10px * 2) 或者是它的倍数 */
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+</style>

@@ -6,6 +6,7 @@ export default { name: 'Profile' };
 import { ref, reactive, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useHeroStore } from '@/stores/useHeroStore'; // [Fix] Import HeroStore
 import { showToast, Dialog } from 'vant';
 import { getCombatRank } from '@/utils/gameUtils';
 import type { Achievement } from '@/types';
@@ -13,10 +14,14 @@ import type { UploaderFileListItem } from 'vant';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const heroStore = useHeroStore(); // [Fix] Init HeroStore
 
 const user = computed(() => store.user);
 const heroStats = computed(() => store.heroStats);
 const isPure = computed(() => systemStore.isPureMode);
+
+// [Fix] 直接从 heroStore 获取 BMR，确保最快响应
+const currentBMR = computed(() => heroStore.dailyTarget);
 
 const equipment = computed(() => {
   const slotDefinitions = [
@@ -115,7 +120,7 @@ const validate = () => {
 const saveProfile = () => {
   if (!validate()) return;
   store.user.height = editData.height;
-  store.updateWeight(editData.weight);
+  store.updateWeight(editData.weight); // 这里会触发 recalcBMR，进而应用新的 targetConfig
   store.user.age = editData.age;
   store.saveState();
   showToast(isPure.value ? '身体数据已更新' : '档案已更新，Boss数值重算中...');
@@ -143,6 +148,9 @@ const openRebirth = () => {
 };
 const openShop = () => {
   systemStore.setModal('shop', true);
+};
+const openTargetConfig = () => {
+  systemStore.setModal('targetConfig', true);
 };
 </script>
 
@@ -200,7 +208,7 @@ const openShop = () => {
             </div>
           </div>
 
-          <!-- [New] 金币显示 (纯净模式隐藏) -->
+          <!-- 金币显示 -->
           <div class="bg-black/40 px-3 py-0.5 rounded-full border border-yellow-500/30 flex items-center text-xs text-yellow-400 font-mono font-bold cursor-pointer hover:scale-105 transition" @click="openShop">
             <i class="fas fa-coins mr-1.5"></i> {{ user.gold || 0 }}
           </div>
@@ -212,9 +220,10 @@ const openShop = () => {
             <div class="text-[10px] text-slate-400 uppercase">BMI</div>
             <div class="text-lg font-black" :class="bmiStatus.color">{{ bmi }}</div>
           </div>
-          <div class="text-center px-4 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
-            <div class="text-[10px] text-slate-400 uppercase">BMR</div>
-            <div class="text-lg font-black text-slate-700 dark:text-slate-200">{{ store.dailyTarget }}</div>
+          <!-- [Fix] 使用 currentBMR 替换 store.dailyTarget -->
+          <div class="text-center px-4 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 cursor-pointer active:scale-95 transition" @click="openTargetConfig">
+            <div class="text-[10px] text-slate-400 uppercase flex items-center justify-center gap-1">BMR <i class="fas fa-cog text-[8px]"></i></div>
+            <div class="text-lg font-black text-slate-700 dark:text-slate-200">{{ currentBMR }}</div>
           </div>
         </div>
 
@@ -227,7 +236,7 @@ const openShop = () => {
 
     <!-- RPG Content -->
     <div v-if="!isPure">
-      <!-- [New] 功能入口区 (纯净模式隐藏) -->
+      <!-- [New] 功能入口区 -->
       <div class="px-6 mt-4 flex gap-3">
         <button @click="openShop" class="flex-1 bg-gradient-to-r from-yellow-600 to-orange-600 text-white py-2 rounded-xl font-bold text-xs shadow-lg active:scale-95 transition flex items-center justify-center border border-yellow-400/30">
           <i class="fas fa-store mr-1.5"></i> 道具商店
@@ -243,6 +252,14 @@ const openShop = () => {
           <span class="bg-slate-800 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold flex items-center">
               <span class="mr-1 text-lg">{{ heroStats.raceIcon }}</span> {{ heroStats.raceName }}
           </span>
+        </div>
+
+        <!-- [Fix] 使用 currentBMR -->
+        <div @click="openTargetConfig" class="mx-auto w-full max-w-[200px] mb-4 bg-slate-800/80 border border-slate-600 rounded-lg py-1 px-3 flex justify-between items-center cursor-pointer active:scale-95 transition hover:border-purple-500">
+          <div class="text-[10px] text-slate-400 font-bold uppercase">当前战术目标</div>
+          <div class="text-xs font-bold text-yellow-400">
+            <i class="fas fa-crosshairs mr-1"></i> {{ currentBMR }} <span class="text-[8px]">HP</span>
+          </div>
         </div>
 
         <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700 shadow-inner mb-4 relative overflow-hidden group hover:border-purple-500/50 transition-colors">
@@ -359,7 +376,3 @@ const openShop = () => {
     </van-dialog>
   </div>
 </template>
-
-<style scoped>
-.stat-bar-overflow { background: repeating-linear-gradient(45deg, #ef4444, #ef4444 10px, #b91c1c 10px, #b91c1c 20px); }
-</style>

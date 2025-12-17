@@ -1,9 +1,20 @@
-// 核心数据接口定义 - V4.2 Updated (PM: Merged & Cleaned)
+// 核心数据接口定义 - V5.2 Updated (Quest Types)
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
-export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'HYDRATION';
+export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'HYDRATION' | 'EXERCISE';
 export type Gender = 'MALE' | 'FEMALE';
 export type ItemRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+// [New V5.8] 目标与推荐设置
+export type DietGoal = 'LOSE' | 'MAINTAIN' | 'GAIN';
+export type ActivityLevel = 1.2 | 1.375 | 1.55 | 1.725 | 1.9;
+
+export interface TargetConfig {
+  mode: 'AUTO' | 'MANUAL'; // 自动推荐 or 手动锁定
+  goal: DietGoal;          // 目标
+  activityLevel: ActivityLevel; // 活动系数
+  manualBMR?: number;      // 手动设定的值
+}
 
 // V2.5: 技能节点
 export interface SkillNode {
@@ -23,6 +34,7 @@ export interface SkillNode {
 }
 
 // V3.2: 任务定义
+// [PM Fix] 扩充任务类型：LOW_SUGAR, CUSTOM
 export interface Quest {
   id: string;
   title: string;
@@ -30,9 +42,16 @@ export interface Quest {
   rarity: 'D' | 'C' | 'B' | 'A' | 'S' | 'SS';
   target: number;
   current: number;
-  type: 'COUNT' | 'PROTEIN' | 'VEG' | 'WATER' | 'CALORIE_CONTROL' | 'LOW_CARB' | 'LOW_FAT';
+  type: 'COUNT' | 'PROTEIN' | 'VEG' | 'WATER' | 'CALORIE_CONTROL' | 'LOW_CARB' | 'LOW_FAT' | 'LOW_SUGAR' | 'CUSTOM';
   rewardExp: number;
   status: 'AVAILABLE' | 'ACCEPTED' | 'COMPLETED' | 'CLAIMED';
+  // 自定义任务的额外校验规则
+  template?: {
+    keyword?: string;
+    tag?: string;
+    excludeTag?: string;
+    metric?: 'COUNT' | 'CALORIES';
+  };
 }
 
 export interface WeightRecord {
@@ -66,7 +85,6 @@ export interface EnvironmentEffect {
   color: string;
 }
 
-// [V4.0 Update] 用户状态：新增金币与背包
 export interface UserState {
   isInitialized: boolean;
   level: number;
@@ -85,6 +103,7 @@ export interface UserState {
   age: number;
   heroCurrentHp: number;
   heroMaxHp: number;
+  heroShield: number; // [New V6.2] 护盾值
   equipped: Record<SlotType, number | null>;
   skillPoints: number;
   learnedSkills: Record<string, number>;
@@ -94,48 +113,50 @@ export interface UserState {
   lastLoginDate: string;
   gold: number;
   inventory: Record<string, number>;
-  // [New V4.1] 喝水计划配置
   hydration: {
     dailyTargetCups: number;
-    cupSizeMl: number; // 默认 250
-    reminderInterval: number; // 分钟，默认 60
+    cupSizeMl: number;
+    reminderInterval: number;
     enableNotifications: boolean;
     lastDrinkTime?: number;
   };
+  fasting: {
+    isFasting: boolean;
+    startTime: number;
+    targetHours: number;
+  };
+  targetConfig: TargetConfig;
 }
 
-// [Moved & Merged] 模态框状态定义 - 唯一的权威定义
 export interface ModalState {
-  // 核心功能
   addFood: boolean;
+  addExercise: boolean;
   quantity: boolean;
-  manualAdd: boolean; // [New V4.7]
-  hydration: boolean; // [New V4.1]
+  manualAdd: boolean;
+  hydration: boolean;
+  fasting: boolean;
+  targetConfig: boolean;
 
-  // 角色成长
   levelUp: boolean;
   achievements: boolean;
   skillTree: boolean;
-  rebirth: boolean; // [New V4.0]
+  rebirth: boolean;
 
-  // 信息展示
   unlock: boolean;
   itemDetail: boolean;
   historyDetail: boolean;
   logDetail: boolean;
   hpHistory: boolean;
-  dailyReport: boolean; // [New V4.2]
+  dailyReport: boolean;
 
-  // 系统与引导
   onboarding: boolean;
   equipmentSwap: boolean;
   questBoard: boolean;
   npcGuide: boolean;
   settings: boolean;
-  shop: boolean; // [New V4.0]
+  shop: boolean;
 }
 
-// [New V4.0] 商店商品定义
 export interface ShopItem {
   id: string;
   name: string;
@@ -174,6 +195,7 @@ export interface FoodItem {
   isPreset?: boolean;
   usageCount?: number;
   ingredients?: FoodItem[];
+  isExercise?: boolean;
 }
 
 export interface FoodLog extends FoodItem {
@@ -189,6 +211,7 @@ export interface FoodLog extends FoodItem {
   healed?: number;
   skillEffect?: string;
   finalDamageValue?: number;
+  fastingHours?: number;
 }
 
 export interface Monster {
@@ -215,7 +238,6 @@ export interface Achievement {
   bonusBMR: number;
 }
 
-// [New V4.2] 战报数据结构
 export interface DailyReportData {
   date: string;
   totalCalories: number;
@@ -241,10 +263,7 @@ export interface SystemTempState {
   selectedLog: FoodLog | null;
   pendingItem?: FoodItem;
   floatingTexts: FloatingText[];
-  // [New V4.2] 暂存战报数据
   reportData: DailyReportData | null;
-
-  // 动画状态
   isHealing: boolean;
   isCrit: boolean;
   attackVfx: string | null;
