@@ -1,0 +1,76 @@
+/* 双主题核心变量定义
+  策略：语义化命名，通过 data-theme 属性切换值
+*/
+
+:root {
+  /* 默认使用 RPG 模式作为兜底 */
+  --theme-name: 'rpg';
+}
+
+/* =========================================
+   🌑 RPG Mode (Dungeon)
+   ========================================= */
+[data-theme="rpg"] {
+  /* --- 色彩体系 --- */
+  --bg-app: #0c0c0c;                 /* 全局背景：深渊黑 */
+  --bg-card: #181818;                /* 卡片背景：岩石灰 */
+  --bg-input: #080808;               /* 输入框背景：凹槽黑 */
+  --bg-highlight: #2a2520;           /* 高亮背景：暗金底 */
+
+  --text-primary: #d4c5a3;           /* 主文字：羊皮纸 */
+  --text-secondary: #8b8b8b;         /* 次要文字：灰尘 */
+  --text-accent: #c5a059;            /* 强调色：做旧金 */
+  --text-danger: #a94442;            /* 警告色：血红 */
+
+  --border-main: 2px solid #3e3e3e;  /* 主边框：粗糙铁条 */
+  --border-focus: 2px solid #c5a059; /* 聚焦边框：魔法光晕 */
+  --border-color-base: #3e3e3e;
+
+  /* --- 质感与形状 --- */
+  --radius-sm: 2px;                  /* 极小圆角，硬朗 */
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  --shadow-card: 4px 4px 0px #000000; /* 像素风硬阴影 */
+  --shadow-float: 6px 6px 0px rgba(0,0,0,0.8);
+
+  --font-family: "Cinzel", "Georgia", serif; /* 衬线体 */
+  --letter-spacing: 0.5px;
+
+  --transition-speed: 0.15s;         /* 快速，干脆 */
+  --btn-transform: translateY(2px);  /* 物理按压感 */
+}
+
+/* =========================================
+   ☁️ Pure Mode (Zen)
+   ========================================= */
+[data-theme="pure"] {
+  /* --- 色彩体系 --- */
+  --bg-app: #f4f6f8;                 /* 全局背景：云雾白 */
+  --bg-card: #ffffff;                /* 卡片背景：纯白 */
+  --bg-input: #f0f2f5;               /* 输入框背景：浅灰填充 */
+  --bg-highlight: #e3f2fd;           /* 高亮背景：淡蓝 */
+
+  --text-primary: #2d3436;           /* 主文字：水墨黑 */
+  --text-secondary: #636e72;         /* 次要文字：石墨灰 */
+  --text-accent: #0984e3;            /* 强调色：科技蓝 */
+  --text-danger: #d63031;            /* 警告色：珊瑚红 */
+
+  --border-main: 1px solid #dfe6e9;  /* 主边框：极细 */
+  --border-focus: 1px solid #0984e3; /* 聚焦 */
+  --border-color-base: #dfe6e9;
+
+  /* --- 质感与形状 --- */
+  --radius-sm: 8px;                  /* 柔和圆角 */
+  --radius-md: 12px;
+  --radius-lg: 20px;
+
+  --shadow-card: 0 4px 20px rgba(0,0,0,0.05); /* 弥散阴影 */
+  --shadow-float: 0 10px 30px rgba(0,0,0,0.08);
+
+  --font-family: "Inter", "Helvetica Neue", sans-serif; /* 无衬线 */
+  --letter-spacing: 0px;
+
+  --transition-speed: 0.3s;          /* 缓慢，优雅 */
+  --btn-transform: scale(0.98);      /* 轻微缩放 */
+}

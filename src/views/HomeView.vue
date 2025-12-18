@@ -3,18 +3,27 @@ import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
-import { useHeroStore } from '@/stores/useHeroStore'; // [Fix] Import HeroStore
-import { useLogStore } from '@/stores/useLogStore'; // [New] Import LogStore
+import { useHeroStore } from '@/stores/useHeroStore';
+import { useLogStore } from '@/stores/useLogStore';
 import AppHud from '@/components/AppHud.vue';
 import DateNavigator from '@/components/DateNavigator.vue';
-import { showConfirmDialog, showDialog } from 'vant'; // [Fix] Import showDialog
+import { showConfirmDialog, showDialog } from 'vant';
 import type { FoodLog, MealType } from '@/types';
 
 const router = useRouter();
 const store = useGameStore();
 const systemStore = useSystemStore();
-const heroStore = useHeroStore(); // [Fix] Init
-const logStore = useLogStore(); // [New] Init
+const heroStore = useHeroStore();
+const logStore = useLogStore();
+
+// --- [PM Add] 新增：连胜奖励弹窗状态 ---
+const showDailyBonusModal = ref(false);
+const dailyBonusMessage = ref('');
+
+const handleBonusConfirm = () => {
+  showDailyBonusModal.value = false;
+};
+// ------------------------------------
 
 const user = computed(() => store.user);
 const stageInfo = computed(() => store.stageInfo);
@@ -30,7 +39,6 @@ const isPure = computed(() => systemStore.isPureMode);
 
 const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
 
-// [Fix] 直接从 heroStore 引用，确保响应式更新
 const dailyTarget = computed(() => heroStore.dailyTarget);
 
 const showSlash = computed(() => systemStore.temp.attackVfx === 'slash');
@@ -83,6 +91,23 @@ onMounted(() => {
   }
   updateFastingTime();
   fastingInterval = window.setInterval(updateFastingTime, 60000);
+
+  // --- [PM Add] 新增：检查每日连胜 ---
+  // 注意：这需要依赖之前的 useSystemStore 更新，确保 checkDailyLogin 方法存在
+  if (systemStore.checkDailyLogin) {
+    const loginResult = systemStore.checkDailyLogin();
+    if (loginResult.isNewDay) {
+      // 发放奖励
+      heroStore.addGold(loginResult.streakBonus);
+      dailyBonusMessage.value = `${loginResult.message}\n额外获得金币: ${loginResult.streakBonus}`;
+
+      // 延迟 1秒 显示，避免和页面加载动画冲突
+      setTimeout(() => {
+        showDailyBonusModal.value = true;
+      }, 1000);
+    }
+  }
+  // --------------------------------
 });
 
 onUnmounted(() => {
@@ -100,10 +125,6 @@ const handleSkillClick = () => {
 };
 
 const hpPercent = computed(() => {
-  // [Fix] 在计算 Boss 血量百分比时，也确保使用最新的 dailyTarget
-  // stageInfo 虽然在 Store 中计算了，但为了页面动画流畅，这里可能需要依赖最新的 dailyTarget 来渲染分母
-  // 但 stageInfo.currentObj.maxHp 实际上已经在 battleStore 里用 dailyTarget 算好了。
-  // 只要 battleStore 响应了 dailyTarget 的变化，这里就没问题。
   if (!stageInfo.value.currentObj) return 0;
   return Math.floor((stageInfo.value.currentHpRemaining / stageInfo.value.currentObj.maxHp) * 100);
 });
@@ -199,7 +220,6 @@ const openLogDetail = (log: FoodLog) => {
   }
 }
 
-// [New] 解释统计数据
 const showStatsInfo = () => {
   showDialog({
     title: '📊 战斗数据说明',
@@ -264,6 +284,8 @@ const showStatsInfo = () => {
         </div>
         <div>
           <div class="text-[9px] text-slate-400 uppercase tracking-wide">连续讨伐</div>
+          <!-- 这里使用 user.loginStreak 还是 systemStore.streak.currentStreak 取决于你是否完全迁移 -->
+          <!-- 暂时保留 user.loginStreak 以防 UI 变化太大，但弹窗奖励用的是 SystemStore -->
           <div class="text-sm font-black text-slate-700 dark:text-slate-200">
             {{ user.loginStreak }} <span class="text-[9px] font-normal">天</span>
           </div>
@@ -573,5 +595,111 @@ const showStatsInfo = () => {
       </transition-group>
     </div>
 
+    <!-- [PM Add] 新增：全局弹窗，层级最高 -->
+    <div v-if="showDailyBonusModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
+      <div class="bg-slate-800 border-2 border-yellow-500 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(234,179,8,0.2)] animate-bounce-in relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-yellow-500/10 to-transparent pointer-events-none"></div>
+        <h3 class="text-2xl font-bold text-yellow-400 mb-2 drop-shadow-md">每日登录奖励!</h3>
+        <div class="text-6xl my-6 animate-pulse">🎁</div>
+        <p class="text-slate-200 whitespace-pre-line mb-8 font-medium">{{ dailyBonusMessage }}</p>
+        <button
+          @click="handleBonusConfirm"
+          class="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold py-3.5 px-6 rounded-lg transition-all transform active:scale-95 shadow-lg border-t border-yellow-400/20"
+        >
+          收入囊中
+        </button>
+      </div>
+    </div>
+
   </div>
 </template>
+
+<style scoped>
+/* [PM Add] 新增动画，其他样式保持不变 */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+.animate-bounce-in {
+  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 你的原始样式保留 */
+.boss-phase-berserk {
+  @apply bg-red-900 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.6)] scale-110 rotate-1;
+}
+.boss-hurt-anim {
+  animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+  filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5);
+}
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+.anim-boss {
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.anim-combo-pop {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes popIn {
+  from { transform: scale(0) rotate(-10deg); opacity: 0; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.anim-impact {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  height: 150%;
+  background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  animation: impact 0.2s ease-out forwards;
+  pointer-events: none;
+  z-index: 50;
+}
+@keyframes impact {
+  to { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}
+.font-rpg {
+  font-family: 'Courier New', Courier, monospace; /* Fallback if custom font not loaded */
+}
+.text-stroke {
+  -webkit-text-stroke: 1px rgba(0,0,0,0.5);
+}
+.hp-shadow {
+  transition: width 0.5s ease-in-out 0.2s;
+}
+.float-up-enter-active {
+  transition: all 0.8s ease-out;
+}
+.float-up-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.5);
+}
+.float-up-leave-active {
+  transition: all 0.5s ease-in;
+}
+.float-up-leave-to {
+  opacity: 0;
+  transform: translateY(-50px);
+}
+.animate-pulse-slow {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+</style>

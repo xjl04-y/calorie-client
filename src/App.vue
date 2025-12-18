@@ -1,33 +1,36 @@
 <script setup lang="ts">
-import { onMounted, computed, ref } from 'vue';
+import { onMounted, computed, ref, defineAsyncComponent } from 'vue'; // [新增] 引入 defineAsyncComponent
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import AppHud from '@/components/AppHud.vue';
 
-// --- 全局模态框引入 (Modals) ---
-import ModalOnboarding from '@/components/modals/ModalOnboarding.vue';
-import ModalAddFood from '@/components/modals/ModalAddFood.vue';
-import ModalAddExercise from '@/components/modals/ModalAddExercise.vue';
-import ModalQuantity from '@/components/modals/ModalQuantity.vue';
-import ModalLevelUp from '@/components/modals/ModalLevelUp.vue';
-import ModalAchievements from '@/components/modals/ModalAchievements.vue';
-import ModalUnlock from '@/components/modals/ModalUnlock.vue';
-import ModalItemDetail from '@/components/modals/ModalItemDetail.vue';
-import ModalEquipmentSwap from '@/components/modals/ModalEquipmentSwap.vue';
-import ModalHistoryDetail from '@/components/modals/ModalHistoryDetail.vue';
-import ModalLogDetail from '@/components/modals/ModalLogDetail.vue';
-import ModalHpHistory from '@/components/modals/ModalHpHistory.vue';
-import ModalQuestBoard from '@/components/modals/ModalQuestBoard.vue';
-import ModalSkillTree from '@/components/modals/ModalSkillTree.vue';
-import ModalNpcGuide from '@/components/modals/ModalNpcGuide.vue';
-import ModalSettings from '@/components/modals/ModalSettings.vue';
-import ModalShop from '@/components/modals/ModalShop.vue';
-import ModalRebirth from '@/components/modals/ModalRebirth.vue';
-import ModalHydration from '@/components/modals/ModalHydration.vue';
-import ModalDailyReport from '@/components/modals/ModalDailyReport.vue';
-import ModalManualAdd from '@/components/modals/ModalManualAdd.vue';
-import ModalFasting from '@/components/modals/ModalFasting.vue';
-import ModalTargetConfig from '@/components/modals/ModalTargetConfig.vue'; // [New]
+// --- 全局模态框引入 (Modals) - 改为异步加载 ---
+// [优化] 之前是同步引入，会导致首屏加载所有弹窗代码。
+// 改为 defineAsyncComponent 后，只有组件显示时才会下载/执行代码，大幅提升 App 启动速度。
+
+const ModalOnboarding = defineAsyncComponent(() => import('@/components/modals/ModalOnboarding.vue'));
+const ModalAddFood = defineAsyncComponent(() => import('@/components/modals/ModalAddFood.vue'));
+const ModalAddExercise = defineAsyncComponent(() => import('@/components/modals/ModalAddExercise.vue'));
+const ModalQuantity = defineAsyncComponent(() => import('@/components/modals/ModalQuantity.vue'));
+const ModalLevelUp = defineAsyncComponent(() => import('@/components/modals/ModalLevelUp.vue'));
+const ModalAchievements = defineAsyncComponent(() => import('@/components/modals/ModalAchievements.vue'));
+const ModalUnlock = defineAsyncComponent(() => import('@/components/modals/ModalUnlock.vue'));
+const ModalItemDetail = defineAsyncComponent(() => import('@/components/modals/ModalItemDetail.vue'));
+const ModalEquipmentSwap = defineAsyncComponent(() => import('@/components/modals/ModalEquipmentSwap.vue'));
+const ModalHistoryDetail = defineAsyncComponent(() => import('@/components/modals/ModalHistoryDetail.vue'));
+const ModalLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalLogDetail.vue'));
+const ModalHpHistory = defineAsyncComponent(() => import('@/components/modals/ModalHpHistory.vue'));
+const ModalQuestBoard = defineAsyncComponent(() => import('@/components/modals/ModalQuestBoard.vue'));
+const ModalSkillTree = defineAsyncComponent(() => import('@/components/modals/ModalSkillTree.vue'));
+const ModalNpcGuide = defineAsyncComponent(() => import('@/components/modals/ModalNpcGuide.vue'));
+const ModalSettings = defineAsyncComponent(() => import('@/components/modals/ModalSettings.vue'));
+const ModalShop = defineAsyncComponent(() => import('@/components/modals/ModalShop.vue'));
+const ModalRebirth = defineAsyncComponent(() => import('@/components/modals/ModalRebirth.vue'));
+const ModalHydration = defineAsyncComponent(() => import('@/components/modals/ModalHydration.vue'));
+const ModalDailyReport = defineAsyncComponent(() => import('@/components/modals/ModalDailyReport.vue'));
+const ModalManualAdd = defineAsyncComponent(() => import('@/components/modals/ModalManualAdd.vue'));
+const ModalFasting = defineAsyncComponent(() => import('@/components/modals/ModalFasting.vue'));
+const ModalTargetConfig = defineAsyncComponent(() => import('@/components/modals/ModalTargetConfig.vue'));
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -173,6 +176,7 @@ const openExercise = () => {
 const openHydration = () => {
   systemStore.setModal('hydration', true);
 };
+
 </script>
 
 <template>
@@ -183,6 +187,7 @@ const openHydration = () => {
       <div class="heal-overlay" :class="{'heal-active': store.temp.isHealing}"></div>
       <div class="crit-overlay" :class="{'crit-active': store.temp.isCrit}"></div>
 
+      <!-- 顶部安全区域占位：保持原有逻辑 -->
       <div class="h-[var(--status-bar-height)] w-full safe-area-top bg-white dark:bg-slate-900 transition-colors"></div>
 
       <div class="flex-1 overflow-y-auto no-scrollbar bg-slate-50 dark:bg-[#0b1120] relative" id="main-scroll-view">
@@ -289,7 +294,7 @@ const openHydration = () => {
 
       <div v-if="isFabExpanded" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity duration-500" @click="isFabExpanded = false"></div>
 
-      <!-- 全局模态框组件 -->
+      <!-- 全局模态框组件 - 这里的组件现在都是异步加载的 -->
       <ModalOnboarding />
       <ModalAddFood />
       <ModalAddExercise />
@@ -312,7 +317,7 @@ const openHydration = () => {
       <ModalDailyReport />
       <ModalManualAdd />
       <ModalFasting />
-      <ModalTargetConfig /> <!-- Added -->
+      <ModalTargetConfig />
 
     </div>
   </van-config-provider>

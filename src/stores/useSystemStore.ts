@@ -1,27 +1,30 @@
 import { defineStore } from 'pinia';
-import { reactive, ref, onUnmounted } from 'vue';
+import { reactive, ref, computed } from 'vue';
 import { getLocalDateStr } from '@/utils/dateUtils';
-import { showNotify } from 'vant'; // [PM Add] 引入通知组件
-import type { SystemTempState, ModalState, FoodItem } from '@/types'; // Import FoodItem
+import { showNotify } from 'vant';
+import type { SystemTempState, ModalState, FoodItem, DailyStreak } from '@/types';
 
 export const useSystemStore = defineStore('system', () => {
-  // --- State ---
+  // --- State: 基础设置 ---
   const isDarkMode = ref(true);
   const isPureMode = ref(false);
   const currentDate = ref(getLocalDateStr());
   const analysisRefDate = ref(getLocalDateStr());
 
-  // [Removed] 移除了 aiApiKey，因为 AI 服务尚未开发完成
+  // [PM Add] 连胜系统状态
+  const streak = ref<DailyStreak>({
+    currentStreak: 0,
+    lastLoginDate: '',
+    maxStreak: 0
+  });
 
   const analysisActiveTab = ref('daily');
   const guideCurrentStep = ref(0);
 
-  // 全局心跳
+  // --- State: 全局心跳 ---
   const timestamp = ref(Date.now());
   let timerInterval: number | null = null;
-
-  // [PM Add] 上次检查日期的时间，避免每秒都做字符串转换
-  let lastDateCheck = Date.now();
+  let lastDateCheck = Date.now(); // 内部变量，用于 heartbeat 节流
 
   function startHeartbeat() {
     if (timerInterval) return;
@@ -29,7 +32,7 @@ export const useSystemStore = defineStore('system', () => {
       const now = Date.now();
       timestamp.value = now;
 
-      // [PM Feature] 跨天自动检测逻辑 (每分钟检查一次)
+      // [Feature] 跨天自动检测逻辑 (每分钟检查一次)
       if (now - lastDateCheck > 60000) {
         const realDate = getLocalDateStr();
         if (realDate !== currentDate.value) {
@@ -57,12 +60,21 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
+  // 启动心跳
   startHeartbeat();
 
-  // [V4.0 Update] 注册商店和转生弹窗
+  // --- Getters ---
+
+  // [PM Add] 连胜加成计算: 每连胜1天+5%奖励，最高50%
+  const streakBonusMultiplier = computed(() => {
+    const bonus = 1 + Math.min(streak.value.currentStreak * 0.05, 0.5);
+    return Number(bonus.toFixed(2));
+  });
+
+  // --- State: 模态框管理 (保留你原有的完整列表) ---
   const modals = reactive<ModalState>({
     addFood: false,
-    addExercise: false, // [New V5.1]
+    addExercise: false,
     quantity: false,
     levelUp: false,
     achievements: false,
@@ -83,13 +95,13 @@ export const useSystemStore = defineStore('system', () => {
     dailyReport: false,
     manualAdd: false,
     fasting: false,
-    targetConfig: false // [New V5.8]
+    targetConfig: false
   });
 
-  // [Layer 1 & 3] 动画状态定义
+  // --- State: 临时/动画状态 (保留你原有的逻辑) ---
   const temp = reactive<SystemTempState & {
     attackVfx: string | null;
-    projectile: { show: boolean, icon: string, id: number } | null; // 飞行道具状态
+    projectile: { show: boolean, icon: string, id: number } | null;
   }>({
     activeMealType: 'SNACK',
     isBuilding: false,
@@ -105,19 +117,83 @@ export const useSystemStore = defineStore('system', () => {
     pendingItem: undefined,
     floatingTexts: [],
     reportData: null,
-    // [V4.3] 特效状态
     isHealing: false,
     isCrit: false,
-    // [V4.4] 攻击动画
     attackVfx: null,
-    // [V4.5] 飞行道具 (投掷物)
     projectile: null
   });
 
   // --- Actions ---
+
   function setModal(key: keyof ModalState, val: boolean) {
     modals[key] = val;
   }
+
+  /**
+   * [PM Add] 核心逻辑：检查每日登录并处理连胜
+   * 此方法由 HomeView 在 onMounted 时调用
+   */
+  function checkDailyLogin() {
+    const today = getLocalDateStr(); // 使用你工具类里的日期获取
+
+    // 1. 如果今天已经结算过了，直接返回
+    if (streak.value.lastLoginDate === today) {
+      return { isNewDay: false, streakBonus: 0, message: '' };
+    }
+
+    const lastLogin = streak.value.lastLoginDate;
+    let isStreakKept = false;
+
+    // 2. 连胜判断逻辑
+    if (!lastLogin) {
+      // 首次登录
+      streak.value.currentStreak = 1;
+    } else {
+      const oneDay = 24 * 60 * 60 * 1000;
+      const lastTime = new Date(lastLogin).getTime();
+      const thisTime = new Date(today).getTime();
+      const diff = thisTime - lastTime;
+
+      // 允许 48 小时内的登录算作“连续”（容错1天）
+      // 比如：昨天没登，今天登了，如果时间差在合理范围内，可以通过道具补签（道具逻辑在 HeroStore），
+      // 但这里 SystemStore 做基础的日期判定。
+      // 简化逻辑：只要是昨天或今天，就算连续。
+
+      // 判断是否是“昨天”
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = getLocalDateStr(yesterday);
+
+      if (lastLogin === yesterdayStr) {
+        streak.value.currentStreak += 1;
+        isStreakKept = true;
+      } else {
+        // 断签重置
+        streak.value.currentStreak = 1;
+        isStreakKept = false;
+      }
+    }
+
+    // 更新历史最高
+    if (streak.value.currentStreak > streak.value.maxStreak) {
+      streak.value.maxStreak = streak.value.currentStreak;
+    }
+
+    // 更新最后登录日期
+    streak.value.lastLoginDate = today;
+
+    const message = isStreakKept
+      ? `🔥 连胜延续！当前连胜：${streak.value.currentStreak} 天`
+      : `⚔️ 新的冒险开始！连胜：1 天`;
+
+    return {
+      isNewDay: true,
+      streakBonus: streak.value.currentStreak * 10, // 基础金币奖励
+      message
+    };
+  }
+
+  // --- VFX Actions (保留原逻辑) ---
 
   function triggerShake() {
     if (isPureMode.value) return;
@@ -127,14 +203,12 @@ export const useSystemStore = defineStore('system', () => {
     setTimeout(() => { temp.isShaking = false; temp.isDamaged = false; }, 500);
   }
 
-  // 触发治疗特效 (蓝色柔光)
   function triggerHealEffect() {
     if (isPureMode.value) return;
     temp.isHealing = true;
     setTimeout(() => { temp.isHealing = false; }, 800);
   }
 
-  // 触发暴击特效 (金色闪光)
   function triggerCritEffect() {
     if (isPureMode.value) return;
     temp.isCrit = true;
@@ -142,22 +216,17 @@ export const useSystemStore = defineStore('system', () => {
     setTimeout(() => { temp.isCrit = false; }, 300);
   }
 
-  // 触发攻击特效 (Boss受击)
   function triggerAttackEffect(type: 'slash' | 'magic' = 'slash') {
     if (isPureMode.value) return;
     temp.attackVfx = type;
     setTimeout(() => { temp.attackVfx = null; }, 400);
   }
 
-  // [New V4.5] 触发投掷动画 (Source -> Trajectory -> Hit)
   function triggerProjectile(icon: string) {
     if (isPureMode.value) return;
-    // 重置状态以支持连续触发
     temp.projectile = { show: true, icon, id: Date.now() };
-    // 动画时长与 CSS 保持一致 (0.6s)
     setTimeout(() => {
       temp.projectile = null;
-      // 投掷结束后，触发命中特效
       triggerAttackEffect('slash');
     }, 550);
   }
@@ -169,15 +238,19 @@ export const useSystemStore = defineStore('system', () => {
     analysisRefDate,
     analysisActiveTab,
     guideCurrentStep,
-    // [Removed] aiApiKey
     modals,
     temp,
     timestamp,
+    streak, // Export state
+    streakBonusMultiplier, // Export getter
     setModal,
     triggerShake,
     triggerHealEffect,
     triggerCritEffect,
     triggerAttackEffect,
-    triggerProjectile // Export
+    triggerProjectile,
+    checkDailyLogin // Export action
   };
+}, {
+  persist: true
 });

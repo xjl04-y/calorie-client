@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import HomeView from '@/views/HomeView.vue'; // 首页通常包含核心逻辑，建议预加载
+// 首页包含核心逻辑，建议保持静态引入以保证首屏速度
+import HomeView from '@/views/HomeView.vue';
 
 const routes = [
   {
@@ -8,13 +9,13 @@ const routes = [
     component: HomeView,
     meta: {
       title: '讨伐战场',
-      keepAlive: true // 首页战斗状态建议缓存
+      keepAlive: true // 首页战斗状态必须缓存，防止切回时重置
     }
   },
   {
     path: '/analysis',
     name: 'Analysis',
-    // 路由懒加载：只有访问时才加载此 chunk
+    // 路由懒加载：只有点击"冒险手札"时才加载此代码块
     component: () => import('@/views/AnalysisView.vue'),
     meta: {
       title: '冒险手札',
@@ -27,7 +28,7 @@ const routes = [
     component: () => import('@/views/ProfileView.vue'),
     meta: {
       title: '英雄档案',
-      keepAlive: true // 避免频繁切换导致人物模型重新渲染
+      keepAlive: true // 避免频繁切换导致3D人物模型重新渲染卡顿
     }
   },
   // [New V4.6] 纯净模式专属 - 食物详情页
@@ -39,19 +40,26 @@ const routes = [
       title: '食物详情',
       keepAlive: false
     }
-  }
+  },
+
+  // --- [PM Add] 纯净模式专属路由 End ---
 ];
 
 const router = createRouter({
-  // 使用 Hash 模式 (/#/home) 兼容性更好，不需要服务器配置
+  // 使用 Hash 模式 (/#/home) 是 Capacitor/Hybrid App 的最佳实践
+  // 它可以避免 file:// 协议下的路径解析错误
   history: createWebHashHistory(),
-  routes
+  routes,
+  // 切换路由时重置窗口滚动位置 (虽然主要滚动在 div 中，但这能防止部分弹窗导致 body 错位)
+  scrollBehavior() {
+    return { top: 0 };
+  }
 });
 
-// 全局后置钩子：在此处修改页面标题
+// 全局后置钩子：动态修改页面标题
 router.afterEach((to) => {
   if (to.meta.title) {
-    document.title = `${to.meta.title} - 健康乐园 RPG`;
+    document.title = `${to.meta.title as string} - 健康乐园 RPG`;
   }
 });
 

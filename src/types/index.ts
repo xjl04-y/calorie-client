@@ -277,3 +277,41 @@ export interface FloatingText {
   x: number;
   y: number;
 }
+
+// --- [PM Add] 新增：AI 分析服务接口 ---
+// 用于 aiService.ts 的类型检查，完全独立，不影响上方任何类型
+
+export interface AIAnalysisRequest {
+  user: UserState;         // 传入完整用户状态以便 AI 判断等级、种族、BMR
+  logs: FoodLog[];         // 传入今日记录
+  targetBMR: number;       // 今日目标热量
+  prompt?: string;         // 用户自定义提问
+}
+
+export interface AIAnalysisResponse {
+  success: boolean;
+  analysis: string;        // 核心分析文本
+  suggestions: string[];   // 建议列表 ( bullet points )
+  score: number;           // 健康评分 0-100
+  buffGranted?: {          // AI 可能会给予的临时 Buff
+    type: 'EXP' | 'GOLD' | 'ATK';
+    value: number;
+    desc: string;
+  };
+  error?: string;
+}
+
+// [PM Add] 连胜系统辅助接口 (State 中已有 UserState.loginStreak，此接口用于 UI 展示)
+export interface DailyStreakInfo {
+  days: number;
+  bonusExp: number;
+  bonusGold: number;
+  isFrozen: boolean; // 是否使用了时光怀表
+}
+
+// [PM Add] 连胜系统核心状态接口 (Fix: 之前遗漏的接口定义)
+export interface DailyStreak {
+  currentStreak: number;
+  lastLoginDate: string; // ISO Date String YYYY-MM-DD
+  maxStreak: number;
+}
