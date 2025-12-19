@@ -12,6 +12,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './style.css';
 import './styles/rpg-animations.css';
 import './styles/theme.css' // [NEW] 引入主题变量系统
+import './styles/theme-components.css' // [NEW V2.0] 引入主题化组件样式
 
 // 引入 Vant 组件
 import {

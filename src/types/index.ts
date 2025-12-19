@@ -1,7 +1,10 @@
-// 核心数据接口定义 - V5.2 Updated (Quest Types)
+// 核心数据接口定义 - V6.0 Updated (Separated Log Types)
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
+// [Refactor V6.0] 分离餐食类型与记录类型
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'HYDRATION' | 'EXERCISE';
+export type FoodMealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK'; // 仅食物相关
+export type LogType = 'FOOD' | 'EXERCISE' | 'HYDRATION'; // 记录类型标识
 export type Gender = 'MALE' | 'FEMALE';
 export type ItemRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
@@ -198,8 +201,9 @@ export interface FoodItem {
   isExercise?: boolean;
 }
 
+// [Refactor V6.0] FoodLog - 仅包含食物相关字段
 export interface FoodLog extends FoodItem {
-  mealType: MealType;
+  mealType: MealType; // 保持兼容，实际食物使用 FoodMealType
   quantity?: number;
   multiplier?: number;
   comboCount?: number;
@@ -212,6 +216,72 @@ export interface FoodLog extends FoodItem {
   skillEffect?: string;
   finalDamageValue?: number;
   fastingHours?: number;
+}
+
+// [New V6.0] ExerciseLog - 独立运动记录接口
+export interface ExerciseLog {
+  id: number | string;
+  logType: 'EXERCISE';           // 类型标识
+  name: string;                   // 运动名称
+  icon: string;                   // 图标
+  duration: number;               // 运动时长 (分钟)
+  caloriesBurned: number;         // 消耗热量
+  timestamp: string;              // 记录时间
+  // 计算相关
+  userWeight?: number;            // 记录时的用户体重 (用于回溯计算)
+  baseExerciseId?: string;        // 基于哪个预设运动
+  intensity?: 'LOW' | 'MEDIUM' | 'HIGH'; // 运动强度
+  // RPG 模式专属
+  healAmount?: number;            // 恢复的 HP
+  shieldGained?: number;          // 获得的护盾
+  goldGained?: number;            // 溢出转化的金币
+  expGained?: number;             // 获得的经验
+  tips?: string;                  // 提示信息
+  tags?: string[];                // 标签
+}
+
+// [New V6.0] HydrationLog - 独立补水记录接口
+export interface HydrationLog {
+  id: number | string;
+  logType: 'HYDRATION';           // 类型标识
+  name: string;                   // 饮品名称
+  icon: string;                   // 图标 (默认 💧)
+  amount: number;                 // 饮水量 (ml)
+  timestamp: string;              // 记录时间
+  // 可选扩展
+  cupSize?: number;               // 使用的杯子容量
+  temperature?: 'COLD' | 'WARM' | 'HOT'; // 水温
+  type?: 'WATER' | 'TEA' | 'COFFEE' | 'OTHER'; // 饮品类型
+  // RPG 模式专属
+  healAmount?: number;            // 恢复的 HP (通常为 0 或微量)
+  buffEffect?: string;            // 特殊效果 (如清除高盐状态)
+}
+
+// [New V6.0] DailyLog - 统一日志联合类型 (向后兼容)
+export type DailyLog = FoodLog | ExerciseLog | HydrationLog;
+
+// [New V6.0] 类型守卫函数 - 用于运行时类型判断
+export function isExerciseLog(log: DailyLog): log is ExerciseLog {
+  return 'logType' in log && log.logType === 'EXERCISE';
+}
+
+export function isHydrationLog(log: DailyLog): log is HydrationLog {
+  return 'logType' in log && log.logType === 'HYDRATION';
+}
+
+export function isFoodLog(log: DailyLog): log is FoodLog {
+  // 旧数据没有 logType，通过排除法判断
+  if ('logType' in log) return false;
+  return 'mealType' in log && !['EXERCISE', 'HYDRATION'].includes((log as FoodLog).mealType);
+}
+
+// [New V6.0] 兼容旧数据：判断旧格式的运动/补水记录
+export function isLegacyExerciseLog(log: FoodLog): boolean {
+  return log.mealType === 'EXERCISE' || log.isExercise === true;
+}
+
+export function isLegacyHydrationLog(log: FoodLog): boolean {
+  return log.mealType === 'HYDRATION';
 }
 
 export interface Monster {
@@ -261,6 +331,9 @@ export interface SystemTempState {
   selectedItem: FoodItem | null;
   unlockedAchievement: Achievement | null;
   selectedLog: FoodLog | null;
+  // [New V6.1] 记录详情临时状态
+  selectedExerciseLog: ExerciseLog | null;
+  selectedHydrationLog: HydrationLog | null;
   pendingItem?: FoodItem;
   floatingTexts: FloatingText[];
   reportData: DailyReportData | null;

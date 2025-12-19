@@ -76,26 +76,29 @@ export const useSystemStore = defineStore('system', () => {
     addFood: false,
     addExercise: false,
     quantity: false,
+    manualAdd: false,
+    hydration: false,
+    fasting: false,
+    targetConfig: false,
+    
     levelUp: false,
     achievements: false,
-    unlock: false,
-    onboarding: true,
-    itemDetail: false,
-    equipmentSwap: false,
-    historyDetail: false,
-    logDetail: false,
-    hpHistory: false,
-    questBoard: false,
     skillTree: false,
+    rebirth: false,
+    
+    unlock: false,
+    itemDetail: false,
+    historyDetail: false,
+    logDetail: false,  // 修复：使用统一的 logDetail modal
+    hpHistory: false,
+    dailyReport: false,
+    
+    onboarding: false,
+    equipmentSwap: false,
+    questBoard: false,
     npcGuide: false,
     settings: false,
     shop: false,
-    rebirth: false,
-    hydration: false,
-    dailyReport: false,
-    manualAdd: false,
-    fasting: false,
-    targetConfig: false
   });
 
   // --- State: 临时/动画状态 (保留你原有的逻辑) ---

@@ -1,76 +1,464 @@
-/* 双主题核心变量定义
-  策略：语义化命名，通过 data-theme 属性切换值
-*/
-
-:root {
-  /* 默认使用 RPG 模式作为兜底 */
-  --theme-name: 'rpg';
-}
+/**
+ * ========================================
+ *  双主题核心变量系统 v2.0
+ *  策略：通过 .theme-rpg / .theme-pure 类切换
+ *  设计理念：RPG=地牢冒险感 | Pure=禅意极简
+ * ========================================
+ */
 
 /* =========================================
-   🌑 RPG Mode (Dungeon)
+   🏰 RPG Mode (Dungeon / Medieval)
+   关键词：复古、神秘、冒险、手绘、低饱和、深色
    ========================================= */
-[data-theme="rpg"] {
-  /* --- 色彩体系 --- */
-  --bg-app: #0c0c0c;                 /* 全局背景：深渊黑 */
-  --bg-card: #181818;                /* 卡片背景：岩石灰 */
-  --bg-input: #080808;               /* 输入框背景：凹槽黑 */
-  --bg-highlight: #2a2520;           /* 高亮背景：暗金底 */
+.theme-rpg {
+  /* === 色彩体系 === */
+  --color-bg-base: #0a0908;           /* 深渊黑：主背景 */
+  --color-bg-elevated: #1a1614;       /* 岩石灰：卡片/浮层 */
+  --color-bg-sunken: #0d0b0a;         /* 凹陷黑：输入框/凹槽 */
+  --color-bg-highlight: #2a231e;      /* 暗金底：选中高亮 */
+  --color-bg-overlay: rgba(10, 9, 8, 0.92); /* 遮罩层 */
 
-  --text-primary: #d4c5a3;           /* 主文字：羊皮纸 */
-  --text-secondary: #8b8b8b;         /* 次要文字：灰尘 */
-  --text-accent: #c5a059;            /* 强调色：做旧金 */
-  --text-danger: #a94442;            /* 警告色：血红 */
+  --color-text-primary: #d4c5a3;      /* 羊皮纸黄：主文字 */
+  --color-text-secondary: #8b8070;    /* 灰尘色：次要文字 */
+  --color-text-muted: #5c544a;        /* 暗淡色：禁用/占位 */
+  --color-text-inverse: #0a0908;      /* 反色文字 */
 
-  --border-main: 2px solid #3e3e3e;  /* 主边框：粗糙铁条 */
-  --border-focus: 2px solid #c5a059; /* 聚焦边框：魔法光晕 */
-  --border-color-base: #3e3e3e;
+  --color-accent-primary: #c4a35a;    /* 做旧金：主强调 */
+  --color-accent-secondary: #8b5e34;  /* 焦棕：次强调 */
+  --color-accent-glow: rgba(196, 163, 90, 0.3); /* 金色光晕 */
 
-  /* --- 质感与形状 --- */
-  --radius-sm: 2px;                  /* 极小圆角，硬朗 */
+  --color-success: #4a7c59;           /* 森林绿 */
+  --color-warning: #a67c52;           /* 铜棕色 */
+  --color-danger: #8b3a3a;            /* 深血红 */
+  --color-info: #4a6785;              /* 钢蓝色 */
+
+  /* === 边框体系 === */
+  --border-width: 2px;
+  --border-color: #3d3632;            /* 铁条灰 */
+  --border-color-light: #2a2522;      /* 暗边框 */
+  --border-color-accent: #c4a35a;     /* 金色边框 */
+  --border-style: solid;
+  --border-main: var(--border-width) var(--border-style) var(--border-color);
+
+  /* === 圆角体系（硬朗风格） === */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
   --radius-md: 4px;
   --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-full: 4px;                 /* 按钮等也用小圆角 */
 
-  --shadow-card: 4px 4px 0px #000000; /* 像素风硬阴影 */
-  --shadow-float: 6px 6px 0px rgba(0,0,0,0.8);
+  /* === 阴影体系（像素风硬阴影） === */
+  --shadow-xs: 2px 2px 0 #000000;
+  --shadow-sm: 3px 3px 0 #000000;
+  --shadow-md: 4px 4px 0 #000000;
+  --shadow-lg: 6px 6px 0 rgba(0,0,0,0.9);
+  --shadow-xl: 8px 8px 0 rgba(0,0,0,0.85);
+  --shadow-inner: inset 2px 2px 4px rgba(0,0,0,0.6);
+  --shadow-glow: 0 0 12px var(--color-accent-glow);
 
-  --font-family: "Cinzel", "Georgia", serif; /* 衬线体 */
-  --letter-spacing: 0.5px;
+  /* === 字体体系 - 与纯净模式保持一致 === */
+  --font-family-base: "Inter", "SF Pro Display", "Noto Sans SC", -apple-system, sans-serif;
+  --font-family-display: "Inter", "SF Pro Display", sans-serif;
+  --font-family-mono: "JetBrains Mono", "SF Mono", monospace;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+  --letter-spacing-base: 0.03em;
+  --letter-spacing-wide: 0.08em;
+  --line-height-base: 1.6;
 
-  --transition-speed: 0.15s;         /* 快速，干脆 */
-  --btn-transform: translateY(2px);  /* 物理按压感 */
+  /* === 间距体系 === */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* === 动画体系（快速、干脆、戏剧化） === */
+  --transition-fast: 0.1s ease-out;
+  --transition-base: 0.15s ease-out;
+  --transition-slow: 0.25s ease-out;
+  --transition-bounce: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* === 交互反馈 === */
+  --btn-active-transform: translateY(2px);
+  --btn-active-shadow: 2px 2px 0 #000000;
+  --hover-brightness: 1.1;
+  --focus-ring: 0 0 0 2px var(--color-accent-primary);
+
+  /* === 装饰性纹理 === */
+  --texture-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  --texture-stone: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+
+  /* === 特殊效果 === */
+  --gradient-gold: linear-gradient(135deg, #c4a35a 0%, #8b5e34 50%, #c4a35a 100%);
+  --gradient-metal: linear-gradient(180deg, #3d3632 0%, #1a1614 100%);
+  --gradient-fire: linear-gradient(180deg, #8b3a3a 0%, #5c2626 100%);
+
+  /* === 组件专用变量 === */
+  --btn-bg-primary: var(--color-bg-elevated);
+  --btn-text-primary: var(--color-text-primary);
+  --btn-border: var(--border-width) solid var(--border-color-accent);
+  --btn-shadow: var(--shadow-md);
+  --btn-hover-transform: translateY(-1px);
+  --btn-active-filter: brightness(1.2);
+  
+  --card-bg: var(--color-bg-elevated);
+  --card-border: var(--border-main);
+  --card-shadow: var(--shadow-sm);
+  --card-texture: var(--texture-paper);
+  
+  --input-bg: var(--color-bg-sunken);
+  --input-border: 2px solid var(--border-color);
+  --input-focus-border: 2px solid var(--color-accent-primary);
+  --input-shadow-focus: var(--shadow-glow);
+  
+  --modal-bg: var(--color-bg-elevated);
+  --modal-border: 3px solid var(--border-color-accent);
+  --modal-shadow: var(--shadow-xl);
+  --modal-overlay: var(--color-bg-overlay);
 }
 
 /* =========================================
-   ☁️ Pure Mode (Zen)
+   🍃 Pure Mode (Zen / Minimal)
+   关键词：极简、留白、明亮、通透、秩序感
    ========================================= */
-[data-theme="pure"] {
-  /* --- 色彩体系 --- */
-  --bg-app: #f4f6f8;                 /* 全局背景：云雾白 */
-  --bg-card: #ffffff;                /* 卡片背景：纯白 */
-  --bg-input: #f0f2f5;               /* 输入框背景：浅灰填充 */
-  --bg-highlight: #e3f2fd;           /* 高亮背景：淡蓝 */
+.theme-pure {
+  /* === 色彩体系 === */
+  --color-bg-base: #f8fafc;           /* 云雾白：主背景 */
+  --color-bg-elevated: #ffffff;       /* 纯白：卡片/浮层 */
+  --color-bg-sunken: #f1f5f9;         /* 浅灰：输入框/凹槽 */
+  --color-bg-highlight: #e0f2fe;      /* 淡蓝：选中高亮 */
+  --color-bg-overlay: rgba(248, 250, 252, 0.95); /* 遮罩层 */
 
-  --text-primary: #2d3436;           /* 主文字：水墨黑 */
-  --text-secondary: #636e72;         /* 次要文字：石墨灰 */
-  --text-accent: #0984e3;            /* 强调色：科技蓝 */
-  --text-danger: #d63031;            /* 警告色：珊瑚红 */
+  --color-text-primary: #0f172a;      /* 墨黑：主文字 */
+  --color-text-secondary: #475569;    /* 石墨灰：次要文字 */
+  --color-text-muted: #94a3b8;        /* 浅灰：禁用/占位 */
+  --color-text-inverse: #ffffff;      /* 反色文字 */
 
-  --border-main: 1px solid #dfe6e9;  /* 主边框：极细 */
-  --border-focus: 1px solid #0984e3; /* 聚焦 */
-  --border-color-base: #dfe6e9;
+  --color-accent-primary: #0284c7;    /* 天空蓝：主强调 */
+  --color-accent-secondary: #0ea5e9;  /* 亮蓝：次强调 */
+  --color-accent-glow: rgba(2, 132, 199, 0.15); /* 蓝色光晕 */
 
-  /* --- 质感与形状 --- */
-  --radius-sm: 8px;                  /* 柔和圆角 */
+  --color-success: #10b981;           /* 薄荷绿 */
+  --color-warning: #f59e0b;           /* 琥珀黄 */
+  --color-danger: #ef4444;            /* 珊瑚红 */
+  --color-info: #6366f1;              /* 靛蓝紫 */
+
+  /* === 边框体系 === */
+  --border-width: 1px;
+  --border-color: #e2e8f0;            /* 极淡灰 */
+  --border-color-light: #f1f5f9;      /* 更淡 */
+  --border-color-accent: #0284c7;     /* 蓝色边框 */
+  --border-style: solid;
+  --border-main: var(--border-width) var(--border-style) var(--border-color);
+
+  /* === 圆角体系（柔和圆润） === */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 20px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;              /* 胶囊形 */
 
-  --shadow-card: 0 4px 20px rgba(0,0,0,0.05); /* 弥散阴影 */
-  --shadow-float: 0 10px 30px rgba(0,0,0,0.08);
+  /* === 阴影体系（弥散柔和） === */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.1);
+  --shadow-inner: inset 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-glow: 0 0 20px var(--color-accent-glow);
 
-  --font-family: "Inter", "Helvetica Neue", sans-serif; /* 无衬线 */
-  --letter-spacing: 0px;
+  /* === 字体体系 === */
+  --font-family-base: "Inter", "SF Pro Display", "Noto Sans SC", -apple-system, sans-serif;
+  --font-family-display: "Inter", "SF Pro Display", sans-serif;
+  --font-family-mono: "JetBrains Mono", "SF Mono", monospace;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+  --letter-spacing-base: -0.01em;
+  --letter-spacing-wide: 0.02em;
+  --line-height-base: 1.5;
 
-  --transition-speed: 0.3s;          /* 缓慢，优雅 */
-  --btn-transform: scale(0.98);      /* 轻微缩放 */
+  /* === 间距体系 === */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* === 动画体系（平顺、克制、优雅） === */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.4s ease;
+  --transition-bounce: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* === 交互反馈 === */
+  --btn-active-transform: scale(0.98);
+  --btn-active-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  --hover-brightness: 1.02;
+  --focus-ring: 0 0 0 3px var(--color-accent-glow);
+
+  /* === 装饰性纹理（无） === */
+  --texture-paper: none;
+  --texture-stone: none;
+
+  /* === 特殊效果 === */
+  --gradient-gold: none;
+  --gradient-metal: none;
+  --gradient-fire: none;
+
+  /* === 组件专用变量 === */
+  --btn-bg-primary: var(--color-accent-primary);
+  --btn-text-primary: var(--color-text-inverse);
+  --btn-border: none;
+  --btn-shadow: var(--shadow-sm);
+  --btn-hover-transform: scale(1.02);
+  --btn-active-filter: brightness(0.95);
+  
+  --card-bg: var(--color-bg-elevated);
+  --card-border: var(--border-main);
+  --card-shadow: var(--shadow-md);
+  --card-texture: none;
+  
+  --input-bg: var(--color-bg-elevated);
+  --input-border: 1px solid var(--border-color);
+  --input-focus-border: 2px solid var(--color-accent-primary);
+  --input-shadow-focus: var(--focus-ring);
+  
+  --modal-bg: var(--color-bg-elevated);
+  --modal-border: none;
+  --modal-shadow: var(--shadow-xl);
+  --modal-overlay: var(--color-bg-overlay);
+}
+
+/* =========================================
+   主题通用工具类
+   ========================================= */
+
+/* 应用主题背景 */
+.theme-bg-base { background-color: var(--color-bg-base); }
+.theme-bg-elevated { background-color: var(--color-bg-elevated); }
+.theme-bg-sunken { background-color: var(--color-bg-sunken); }
+
+/* 应用主题文字 */
+.theme-text-primary { color: var(--color-text-primary); }
+.theme-text-secondary { color: var(--color-text-secondary); }
+.theme-text-accent { color: var(--color-accent-primary); }
+
+/* 应用主题边框 */
+.theme-border { border: var(--border-main); }
+.theme-border-accent { border-color: var(--border-color-accent); }
+
+/* 应用主题圆角 */
+.theme-rounded-sm { border-radius: var(--radius-sm); }
+.theme-rounded-md { border-radius: var(--radius-md); }
+.theme-rounded-lg { border-radius: var(--radius-lg); }
+.theme-rounded-full { border-radius: var(--radius-full); }
+
+/* 应用主题阴影 */
+.theme-shadow-sm { box-shadow: var(--shadow-sm); }
+.theme-shadow-md { box-shadow: var(--shadow-md); }
+.theme-shadow-lg { box-shadow: var(--shadow-lg); }
+
+/* =========================================
+   通用组件样式类（主题自适应）
+   ========================================= */
+
+/* 🔘 按钮组件 */
+.theme-btn {
+  background: var(--btn-bg-primary);
+  color: var(--btn-text-primary);
+  border: var(--btn-border);
+  box-shadow: var(--btn-shadow);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-base);
+  transition: all var(--transition-base);
+  cursor: pointer;
+  position: relative;
+}
+
+.theme-btn:hover {
+  transform: var(--btn-hover-transform);
+}
+
+.theme-btn:active {
+  transform: var(--btn-active-transform);
+  box-shadow: var(--btn-active-shadow);
+  filter: var(--btn-active-filter);
+}
+
+.theme-btn-primary {
+  background: var(--gradient-gold);
+  background-color: var(--btn-bg-primary);
+  color: var(--btn-text-primary);
+  border: var(--btn-border);
+}
+
+.theme-rpg .theme-btn-primary {
+  background: var(--gradient-gold);
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.theme-pure .theme-btn-primary {
+  background: var(--color-accent-primary);
+  color: var(--color-text-inverse);
+}
+
+/* 📦 卡片组件 */
+.theme-card {
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+  padding: var(--spacing-md);
+  transition: all var(--transition-base);
+  position: relative;
+}
+
+.theme-rpg .theme-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--card-texture);
+  opacity: 1;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.theme-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* 📝 输入框组件 */
+.theme-input {
+  background: var(--input-bg);
+  border: var(--input-border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+  transition: all var(--transition-base);
+  outline: none;
+}
+
+.theme-input:focus {
+  border: var(--input-focus-border);
+  box-shadow: var(--input-shadow-focus);
+}
+
+.theme-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* 🪟 弹窗/模态框组件 */
+.theme-modal {
+  background: var(--modal-bg);
+  border: var(--modal-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--modal-shadow);
+  padding: var(--spacing-lg);
+  position: relative;
+}
+
+.theme-modal-overlay {
+  background: var(--modal-overlay);
+  backdrop-filter: blur(4px);
+}
+
+.theme-rpg .theme-modal {
+  box-shadow: var(--shadow-xl), inset 0 1px 0 rgba(196, 163, 90, 0.2);
+}
+
+.theme-rpg .theme-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--texture-paper);
+  opacity: 1;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* 🏷️ 标签组件 */
+.theme-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  border: 1px solid currentColor;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.theme-rpg .theme-badge {
+  text-transform: uppercase;
+  font-family: var(--font-family-mono);
+}
+
+.theme-pure .theme-badge {
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-medium);
+}
+
+/* 🎯 焦点环 */
+.theme-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* 📱 列表项 */
+.theme-list-item {
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.theme-list-item:hover {
+  background: var(--color-bg-highlight);
+  border-color: var(--border-color-accent);
+}
+
+.theme-list-item:active {
+  transform: var(--btn-active-transform);
+}
+
+/* 💫 动画效果 */
+.theme-rpg .theme-transition {
+  transition: all var(--transition-base);
+}
+
+.theme-pure .theme-transition {
+  transition: all var(--transition-slow);
+}
+
+/* 🎨 装饰性元素 */
+.theme-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: var(--spacing-md) 0;
+}
+
+.theme-rpg .theme-divider {
+  height: 2px;
+  background: var(--gradient-metal);
+  box-shadow: 0 1px 0 rgba(196, 163, 90, 0.1);
 }

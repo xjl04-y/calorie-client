@@ -1,3 +1,6 @@
+/* 引入主题变量 - 必须在 @tailwind 之前 */
+@import './styles/theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -16,6 +19,299 @@
   --rarity-rare: #3b82f6;
   --rarity-epic: #a855f7;
   --rarity-legendary: #f59e0b;
+}
+
+/* =========================================
+   全局主题基础样式
+   ========================================= */
+html {
+  font-family: var(--font-family-base, 'Noto Sans SC', sans-serif);
+  letter-spacing: var(--letter-spacing-base, 0);
+  line-height: var(--line-height-base, 1.5);
+}
+
+body {
+  font-family: inherit;
+  background-color: var(--color-bg-base, var(--app-bg));
+  color: var(--color-text-primary, #2d3436);
+  overscroll-behavior-y: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--transition-base, 0.3s),
+              color var(--transition-base, 0.3s);
+}
+
+/* =========================================
+   🏰 RPG 主题特殊样式
+   ========================================= */
+.theme-rpg body {
+  background-image: var(--texture-paper), var(--texture-stone);
+}
+
+/* RPG 模式卡片样式 */
+.theme-rpg .theme-card {
+  background: var(--color-bg-elevated);
+  border: var(--border-main);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+
+.theme-rpg .theme-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--texture-paper);
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* RPG 模式按钮样式 */
+.theme-rpg .theme-btn {
+  background: var(--gradient-metal);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-rpg .theme-btn:hover {
+  filter: brightness(var(--hover-brightness));
+  border-color: var(--color-accent-primary);
+}
+
+.theme-rpg .theme-btn:active {
+  transform: var(--btn-active-transform);
+  box-shadow: var(--btn-active-shadow);
+}
+
+.theme-rpg .theme-btn-primary {
+  background: var(--gradient-gold);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent-primary);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.theme-rpg .theme-btn-primary:hover {
+  box-shadow: var(--shadow-glow);
+}
+
+/* RPG 模式输入框 */
+.theme-rpg .theme-input {
+  background: var(--color-bg-sunken);
+  border: var(--border-main);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-inner);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+}
+
+.theme-rpg .theme-input:focus {
+  border-color: var(--color-accent-primary);
+  box-shadow: var(--shadow-inner), var(--focus-ring);
+}
+
+.theme-rpg .theme-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* RPG 弹窗样式 */
+.theme-rpg .theme-modal {
+  background: var(--color-bg-elevated);
+  border: 3px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl), 0 0 60px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+.theme-rpg .theme-modal::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  background: var(--gradient-gold);
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+/* RPG 标题样式 */
+.theme-rpg .theme-title {
+  font-family: var(--font-family-display);
+  color: var(--color-accent-primary);
+  text-shadow: 2px 2px 0 var(--color-bg-base);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* RPG 分割线 */
+.theme-rpg .theme-divider {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--border-color) 20%,
+    var(--color-accent-primary) 50%,
+    var(--border-color) 80%,
+    transparent 100%
+  );
+  border: none;
+}
+
+/* =========================================
+   🍃 Pure 主题特殊样式
+   ========================================= */
+
+/* Pure 模式卡片样式 */
+.theme-pure .theme-card {
+  background: var(--color-bg-elevated);
+  border: var(--border-main);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* Pure 模式按钮样式 */
+.theme-pure .theme-btn {
+  background: var(--color-bg-elevated);
+  border: var(--border-main);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-base);
+}
+
+.theme-pure .theme-btn:hover {
+  background: var(--color-bg-sunken);
+  box-shadow: var(--shadow-md);
+}
+
+.theme-pure .theme-btn:active {
+  transform: var(--btn-active-transform);
+  box-shadow: var(--btn-active-shadow);
+}
+
+.theme-pure .theme-btn-primary {
+  background: var(--color-accent-primary);
+  color: var(--color-text-inverse);
+  border: none;
+  box-shadow: var(--shadow-md);
+}
+
+.theme-pure .theme-btn-primary:hover {
+  background: var(--color-accent-secondary);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Pure 模式输入框 */
+.theme-pure .theme-input {
+  background: var(--color-bg-sunken);
+  border: var(--border-main);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  transition: all var(--transition-base);
+}
+
+.theme-pure .theme-input:focus {
+  border-color: var(--color-accent-primary);
+  box-shadow: var(--focus-ring);
+  background: var(--color-bg-elevated);
+}
+
+.theme-pure .theme-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Pure 弹窗样式 */
+.theme-pure .theme-modal {
+  background: var(--color-bg-elevated);
+  border: none;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+}
+
+/* Pure 标题样式 */
+.theme-pure .theme-title {
+  font-family: var(--font-family-display);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Pure 分割线 */
+.theme-pure .theme-divider {
+  height: 1px;
+  background: var(--border-color);
+  border: none;
+}
+
+/* =========================================
+   通用组件动画
+   ========================================= */
+
+/* RPG 模式动画：戏剧化 */
+.theme-rpg .theme-fade-enter-active {
+  animation: rpg-fade-in 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.theme-rpg .theme-fade-leave-active {
+  animation: rpg-fade-out 0.2s ease-out;
+}
+
+@keyframes rpg-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes rpg-fade-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Pure 模式动画：克制平顺 */
+.theme-pure .theme-fade-enter-active {
+  animation: pure-fade-in 0.4s ease;
+}
+
+.theme-pure .theme-fade-leave-active {
+  animation: pure-fade-out 0.3s ease;
+}
+
+@keyframes pure-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pure-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* 深色模式变量覆盖 */
@@ -42,7 +338,6 @@ body {
   /* 这里我们不给 body 加 padding-top，避免双重间距 */
 }
 
-.font-rpg { font-family: 'Zcool KuaiLe', cursive; }
 /* 使用变量增强通用性 */
 .safe-area-top { padding-top: var(--safe-area-top); }
 .safe-area-bottom { padding-bottom: var(--safe-area-bottom); }

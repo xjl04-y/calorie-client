@@ -41,6 +41,54 @@ const routes = [
       keepAlive: false
     }
   },
+  // [New V6.0] 运动记录页面
+  {
+    path: '/exercise',
+    name: 'Exercise',
+    component: () => import('@/views/ExerciseDetailView.vue'),
+    meta: {
+      title: '记录运动',
+      keepAlive: false
+    }
+  },
+  // [New V6.0] 补水记录页面
+  {
+    path: '/hydration',
+    name: 'Hydration',
+    component: () => import('@/views/HydrationView.vue'),
+    meta: {
+      title: '补水站',
+      keepAlive: false
+    }
+  },
+  // [New V6.1] 记录详情页面
+  {
+    path: '/exercise-log-detail',
+    name: 'ExerciseLogDetail',
+    component: () => import('@/views/ExerciseLogDetailView.vue'),
+    meta: {
+      title: '运动详情',
+      keepAlive: false
+    }
+  },
+  {
+    path: '/hydration-log-detail',
+    name: 'HydrationLogDetail',
+    component: () => import('@/views/HydrationLogDetailView.vue'),
+    meta: {
+      title: '补水详情',
+      keepAlive: false
+    }
+  },
+  {
+    path: '/food-log-detail',
+    name: 'FoodLogDetail',
+    component: () => import('@/views/FoodLogDetailView.vue'),
+    meta: {
+      title: '食物详情',
+      keepAlive: false
+    }
+  },
 
   // --- [PM Add] 纯净模式专属路由 End ---
 ];

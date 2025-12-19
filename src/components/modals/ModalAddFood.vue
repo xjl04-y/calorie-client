@@ -240,26 +240,36 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
     v-model:show="show"
     :position="popupPosition"
     :style="popupStyles"
-    class="dark:bg-slate-900 flex flex-col transition-all duration-300"
+    :class="['theme-modal-container', isPure ? 'theme-pure' : 'theme-rpg']"
+    class="flex flex-col transition-all duration-300"
     safe-area-inset-bottom
   >
-    <div class="flex flex-col h-full bg-slate-50 dark:bg-[#0b1120] relative">
+    <div class="flex flex-col h-full theme-bg-base relative overflow-hidden">
+
+      <!-- 🏰 RPG模式专属：装饰性纹理背景 -->
+      <div v-if="!isPure" class="absolute inset-0 opacity-[0.03] pointer-events-none z-0" 
+           style="background-image: var(--texture-paper);"></div>
 
       <!-- Top Header -->
-      <div class="px-4 py-3 bg-white dark:bg-slate-800 flex justify-between sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 items-center shadow-sm">
-        <div v-if="isPure" @click="show = false" class="text-slate-500 flex items-center cursor-pointer">
+      <div class="header-bar theme-bg-elevated theme-border-b sticky top-0 z-10 theme-shadow-sm">
+        <div v-if="isPure" @click="show = false" class="nav-button theme-text-secondary">
           <van-icon name="arrow-left" class="mr-1" /> 返回
         </div>
-        <van-icon v-else name="arrow-down" @click="show = false" class="text-slate-400 text-lg active:scale-90 transition" />
+        <van-icon v-else name="arrow-down" @click="show = false" 
+                  class="theme-text-muted text-lg active:scale-90 theme-transition cursor-pointer" />
 
-        <div class="font-bold dark:text-white text-lg flex items-center gap-2">
+        <div class="header-title theme-text-primary">
           <span>{{ isPure ? '饮食记录' : '添加补给' }}</span>
-          <span v-if="isBuilding" class="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full animate-pulse border border-purple-200">
+          <span v-if="isBuilding" 
+                :class="isPure 
+                  ? 'status-badge-pure' 
+                  : 'status-badge-rpg'">
             <i class="fas fa-fire-alt mr-1"></i>烹饪模式
           </span>
         </div>
 
-        <div v-if="isBuilding" @click="resetLocalState" class="text-xs text-red-500 font-bold cursor-pointer active:opacity-70 px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded flex items-center">
+        <div v-if="isBuilding" @click="resetLocalState" 
+             :class="isPure ? 'reset-btn-pure' : 'reset-btn-rpg'">
           <i class="fas fa-trash-alt mr-1"></i>清空
         </div>
         <div v-else class="w-8"></div>
@@ -267,34 +277,38 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
 
       <!-- 战术情报 (Pure模式不显示) -->
       <div v-if="suggestion && !isPure"
-           class="mx-4 mt-2 px-3 py-2 rounded-xl flex items-center gap-3 border shadow-sm bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-700 border-purple-100 dark:border-slate-600 relative overflow-hidden">
+           class="tactical-panel-rpg">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <div class="text-2xl z-10">{{ suggestion.icon }}</div>
         <div class="flex-1 z-10">
-          <div class="text-[10px] text-purple-500 font-bold uppercase tracking-wider flex items-center">
+          <div class="tactical-label">
             战术顾问 <span class="ml-1 text-[8px] px-1 bg-purple-100 rounded text-purple-600">INTEL</span>
           </div>
-          <div class="text-xs font-bold text-slate-700 dark:text-slate-200">{{ suggestion.text }}</div>
+          <div class="tactical-text theme-text-primary">{{ suggestion.text }}</div>
         </div>
       </div>
 
       <!-- Search & AI Tools -->
-      <div class="p-4 pb-0 flex gap-2 items-center bg-white dark:bg-slate-800 pt-2">
-        <div class="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full px-4 py-2 flex items-center border border-transparent focus-within:border-purple-500 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:ring-2 focus-within:ring-purple-500/20 transition-all">
-          <van-icon name="search" class="text-slate-400 mr-2" />
-          <input v-model="query" :placeholder="isPure ? '搜索食物' : '搜索 / 描述食物 (AI)'" class="bg-transparent w-full text-sm outline-none dark:text-white placeholder-slate-400" @keyup.enter="onTextSearch" />
-          <button v-if="query" @click="query = ''" class="mr-2 text-slate-400 hover:text-slate-600"><van-icon name="clear" /></button>
-          <button v-if="query" @click="onTextSearch" class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-3 py-1 rounded-full font-bold whitespace-nowrap active:scale-95 transition flex items-center">
+      <div class="search-container theme-bg-elevated">
+        <div class="search-input-wrapper theme-input theme-focus-ring">
+          <van-icon name="search" class="theme-text-muted mr-2" />
+          <input v-model="query" 
+                 :placeholder="isPure ? '搜索食物' : '搜索 / 描述食物 (AI)'"
+                 class="search-input theme-text-primary" 
+                 @keyup.enter="onTextSearch" />
+          <button v-if="query" @click="query = ''" class="clear-btn theme-text-muted"><van-icon name="clear" /></button>
+          <button v-if="query" @click="onTextSearch" 
+                  :class="isPure ? 'ai-btn-pure' : 'ai-btn-rpg'">
             <i class="fas fa-magic mr-1"></i>{{ isPure ? 'AI识别' : '鉴定' }}
           </button>
         </div>
 
-        <button @click="openManualAdd" class="w-10 h-10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-600 active:scale-95 active:bg-slate-200 transition">
+        <button @click="openManualAdd" class="icon-button theme-bg-sunken theme-text-secondary theme-border">
           <i class="fas fa-pen-nib"></i>
         </button>
 
         <van-uploader :after-read="onImageUpload" capture="camera">
-          <div class="w-10 h-10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-600 active:scale-95 active:bg-slate-200 transition">
+          <div class="icon-button theme-bg-sunken theme-text-secondary theme-border">
             <i class="fas fa-camera"></i>
           </div>
         </van-uploader>
@@ -437,17 +451,315 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
 </template>
 
 <style scoped>
+/* 📜 Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #d8b4fe; border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { 
+  background: #d8b4fe; 
+  border-radius: 4px; 
+}
+
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-/* Tag styles reuse from global */
-.tag-badge { @apply font-bold rounded mr-1; }
-.tag-高糖 { @apply bg-red-100 text-red-800 border-red-200; }
-.tag-高油 { @apply bg-yellow-100 text-yellow-800 border-yellow-200; }
-.tag-高盐 { @apply bg-slate-200 text-slate-700 border-slate-300; }
-.tag-高碳 { @apply bg-orange-100 text-orange-800 border-orange-200; }
-.tag-高蛋白 { @apply bg-green-100 text-green-800 border-green-200; }
-.tag-纯净 { @apply bg-cyan-100 text-cyan-800 border-cyan-200; }
-.tag-均衡 { @apply bg-purple-100 text-purple-800 border-purple-200; }
+
+/* 📝 Header Bar */
+.header-bar {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom-width: 1px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.header-title {
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-button {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: rgb(100 116 139);
+  font-size: 14px;
+  transition: all 0.15s;
+}
+
+.nav-button:hover {
+  color: rgb(147 51 234);
+}
+
+/* 🏷️ Status Badge */
+.status-badge-rpg {
+  font-size: 10px;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-width: 1px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #c4a35a 0%, #8b5e34 50%, #c4a35a 100%);
+  color: #0a0908;
+  border-color: #c4a35a;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 #000000;
+  letter-spacing: 0.05em;
+}
+
+.status-badge-pure {
+  font-size: 10px;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+  border-width: 1px;
+  font-weight: 500;
+  background: rgba(2, 132, 199, 0.15);
+  color: #0284c7;
+  border-color: #0284c7;
+  border-radius: 9999px;
+}
+
+/* 🗑️ Reset Button */
+.reset-btn-rpg {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(to bottom, #8b3a3a, #5c2626);
+  color: #d4c5a3;
+  border: 2px solid #8b3a3a;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 #000000;
+  transition: all 0.1s;
+}
+
+.reset-btn-rpg:active {
+  transform: translateY(2px);
+  box-shadow: 2px 2px 0 #000000;
+}
+
+.reset-btn-pure {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+  border-radius: 9999px;
+  transition: all 0.25s;
+}
+
+.reset-btn-pure:active {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* 📡 Tactical Panel */
+.tactical-panel-rpg {
+  margin-left: 1rem;
+  margin-right: 1rem;
+  margin-top: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-width: 1px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #3d3632 0%, #1a1614 100%);
+  border-color: #c4a35a;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 #000000, inset 0 1px 0 rgba(196, 163, 90, 0.1);
+}
+
+.tactical-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  color: #c4a35a;
+}
+
+.tactical-text {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+/* 🔍 Search Container */
+.search-container {
+  padding: 1rem;
+  padding-bottom: 0;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding-top: 0.5rem;
+  transition: all 0.15s;
+}
+
+.search-input-wrapper {
+  flex: 1 1 0%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.search-input {
+  background-color: transparent;
+  width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.clear-btn {
+  margin-right: 0.5rem;
+  cursor: pointer;
+  transition-property: color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* ✨ AI Button */
+.ai-btn-rpg {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  font-weight: 700;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #c4a35a 0%, #8b5e34 50%, #c4a35a 100%);
+  color: #0a0908;
+  border: 2px solid #c4a35a;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.1s;
+}
+
+.ai-btn-rpg:active {
+  transform: translateY(2px);
+  filter: brightness(1.2);
+}
+
+.ai-btn-pure {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  font-weight: 500;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+  transition: all 0.25s;
+}
+
+.ai-btn-pure:active {
+  transform: scale(0.95);
+  filter: brightness(0.9);
+}
+
+/* 🔘 Icon Button */
+.icon-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 9999px;
+  transition: all 0.1s;
+}
+
+.icon-button:active {
+  transform: scale(0.9);
+}
+
+/* Tag styles */
+.tag-badge { 
+  font-weight: 700;
+  border-radius: 0.25rem;
+  margin-right: 0.25rem;
+}
+.tag-高糖 { 
+  background-color: rgb(254 226 226);
+  color: rgb(153 27 27);
+  border-color: rgb(254 202 202);
+}
+.tag-高油 { 
+  background-color: rgb(254 249 195);
+  color: rgb(133 77 14);
+  border-color: rgb(254 240 138);
+}
+.tag-高盐 { 
+  background-color: rgb(226 232 240);
+  color: rgb(51 65 85);
+  border-color: rgb(203 213 225);
+}
+.tag-高碳 { 
+  background-color: rgb(255 237 213);
+  color: rgb(154 52 18);
+  border-color: rgb(254 215 170);
+}
+.tag-高蛋白 { 
+  background-color: rgb(220 252 231);
+  color: rgb(22 101 52);
+  border-color: rgb(187 247 208);
+}
+.tag-纯净 { 
+  background-color: rgb(207 250 254);
+  color: rgb(21 94 117);
+  border-color: rgb(165 243 252);
+}
+.tag-均衡 { 
+  background-color: rgb(243 232 255);
+  color: rgb(107 33 168);
+  border-color: rgb(233 213 255);
+}
 </style>

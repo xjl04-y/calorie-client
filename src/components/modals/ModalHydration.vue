@@ -1,12 +1,17 @@
 <script setup lang="ts">
+/**
+ * ModalHydration.vue - RPG模式补水弹窗
+ * [Refactor V6.1] 使用新的 hydrationStore，确保数据同步
+ */
 import { computed, ref } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useHydrationStore } from '@/stores/useHydrationStore';
 import { showToast, showNotify } from 'vant';
-import type { FoodItem, MealType } from '@/types';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const hydrationStore = useHydrationStore();
 
 const show = computed({
   get: () => systemStore.modals.hydration,
@@ -14,27 +19,16 @@ const show = computed({
 });
 
 const isPure = computed(() => systemStore.isPureMode);
-const config = computed(() => store.user.hydration || {
-  dailyTargetCups: 8, cupSizeMl: 250, reminderInterval: 60, enableNotifications: false
-});
 
-const todayWaterLogs = computed(() => {
-  return store.todayLogs.filter(l =>
-    l.mealType === 'HYDRATION' || (l.category === 'DRINK' && l.tags?.includes('纯净'))
-  );
-});
+// [Refactor V6.1] 使用 hydrationStore 的配置和进度
+const config = computed(() => hydrationStore.hydrationConfig);
+const progress = computed(() => hydrationStore.todayProgress);
 
-const currentCups = computed(() => todayWaterLogs.value.length);
-const currentMl = computed(() => {
-  return todayWaterLogs.value.reduce((sum, log) => sum + (log.grams || config.value.cupSizeMl), 0);
-});
+// 今日补水记录 (合并新旧格式)
+const currentCups = computed(() => progress.value.cups);
+const currentMl = computed(() => progress.value.amount);
 
-const progressPercent = computed(() => {
-  const target = config.value.dailyTargetCups;
-  if (target <= 0) return 0;
-  // 允许超过100%，以展示超额完成的效果
-  return Math.round((currentCups.value / target) * 100);
-});
+const progressPercent = computed(() => progress.value.percentage);
 
 // 计算波浪遮罩的位置：百分比越高，遮罩越往上移（露出更多水）
 // 0% -> top: 100% (全遮住, 水在下面)
@@ -47,7 +41,6 @@ const waveTranslateY = computed(() => {
   return 100 - (pct * 1.1);
 });
 
-// ... existing editing logic ...
 const isEditing = ref(false);
 const editForm = ref({ target: 8, size: 250, interval: 60, notify: false });
 
@@ -64,46 +57,29 @@ const openSettings = () => {
 const cancelSettings = () => { isEditing.value = false; };
 
 const saveSettings = () => {
-  if (!store.user.hydration) {
-    store.user.hydration = { dailyTargetCups: 8, cupSizeMl: 250, reminderInterval: 60, enableNotifications: false };
-  }
-  store.user.hydration.dailyTargetCups = editForm.value.target;
-  store.user.hydration.cupSizeMl = editForm.value.size;
-  store.user.hydration.reminderInterval = editForm.value.interval;
-  store.user.hydration.enableNotifications = editForm.value.notify;
+  // [Refactor V6.1] 使用 hydrationStore 保存设置
+  hydrationStore.updateConfig({
+    dailyTargetCups: editForm.value.target,
+    cupSizeMl: editForm.value.size,
+    reminderInterval: editForm.value.interval,
+    enableNotifications: editForm.value.notify
+  });
   if (editForm.value.notify) showToast('提醒服务已更新 (模拟)');
   store.saveState();
   isEditing.value = false;
   showToast('计划已更新');
 };
 
+// [Refactor V6.1] 使用 hydrationStore 的 commitHydration
 const drinkWater = () => {
   const itemName = isPure.value ? '补水' : '净化之泉';
-
-  const waterItem: FoodItem = {
-    id: Date.now(),
+  
+  hydrationStore.commitHydration({
     name: itemName,
     icon: '💧',
-    calories: 0,
-    p: 0, c: 0, f: 0,
-    grams: config.value.cupSizeMl,
-    unit: '杯',
-    category: 'DRINK',
-    tags: ['纯净', '无糖'],
-    tips: isPure.value ? '补充水分' : '恢复微量生命，清除异常状态'
-  };
-
-  store.battleCommit(waterItem, 'HYDRATION');
-
-  store.user.hydration.lastDrinkTime = Date.now();
-  store.saveState();
-
-  if (!isPure.value) {
-    systemStore.triggerHealEffect();
-    showNotify({ type: 'primary', message: '💧 净化之水！身心舒畅！' });
-  } else {
-    showToast({ type: 'success', message: '💧 补水 +1' });
-  }
+    amount: config.value.cupSizeMl,
+    type: 'WATER'
+  });
 };
 </script>
 

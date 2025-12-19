@@ -188,16 +188,53 @@ const tipClass = computed(() => {
   return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
 });
 
-const confirmDelete = (log: FoodLog) => {
+const confirmDelete = (log: any) => {
   showConfirmDialog({
     title: isPure.value ? '确认删除' : '时光倒流',
     message: isPure.value ? '确定要删除这条记录吗？' : '确定要撤销这条记录吗？',
     confirmButtonText: '确认',
     confirmButtonColor: '#1e293b'
   }).then(() => {
-    store.deleteLog(log);
+    // 根据记录类型调用不同的删除方法
+    if (log.mealType === 'EXERCISE' || log.logType === 'EXERCISE') {
+      logStore.removeExerciseLog(log.id);
+    } else if (log.mealType === 'HYDRATION' || log.logType === 'HYDRATION') {
+      logStore.removeHydrationLog(log.id);
+    } else {
+      store.deleteLog(log);
+    }
   }).catch(() => {});
 };
+
+// [New V6.1] 合并所有类型的记录（食物、运动、补水）
+const allTodayLogs = computed(() => {
+  const foodLogs = logStore.todayLogs;
+  const exerciseLogs = logStore.allTodayExercise;
+  const hydrationLogs = logStore.allTodayHydration;
+  
+  // 将所有记录合并并按时间倒序排序
+  const allLogs: any[] = [
+    ...foodLogs,
+    ...exerciseLogs.map(log => ({
+      ...log,
+      mealType: 'EXERCISE',
+      calories: log.caloriesBurned,
+      grams: log.duration
+    })),
+    ...hydrationLogs.map(log => ({
+      ...log,
+      mealType: 'HYDRATION',
+      grams: log.amount
+    }))
+  ];
+  
+  // 按时间戳倒序排序
+  return allLogs.sort((a, b) => {
+    const timeA = new Date(a.timestamp).getTime();
+    const timeB = new Date(b.timestamp).getTime();
+    return timeB - timeA;
+  });
+});
 
 const rpgMeals = [
   { key: 'BREAKFAST', label: '早餐', rpgName: '晨间补给', icon: '🌅' },
@@ -211,12 +248,32 @@ const openAddFood = (key: MealType) => {
   store.setModal('addFood', true);
 }
 
-const openLogDetail = (log: FoodLog) => {
-  store.temp.selectedLog = log;
-  if (isPure.value) {
-    router.push('/food-detail');
+const openLogDetail = (log: any) => {
+  // 判断记录类型
+  if (log.mealType === 'EXERCISE' || log.logType === 'EXERCISE') {
+    // 运动记录
+    systemStore.temp.selectedExerciseLog = log;
+    if (isPure.value) {
+      router.push('/exercise-log-detail');
+    } else {
+      store.setModal('exerciseLogDetail', true);
+    }
+  } else if (log.mealType === 'HYDRATION' || log.logType === 'HYDRATION') {
+    // 补水记录
+    systemStore.temp.selectedHydrationLog = log;
+    if (isPure.value) {
+      router.push('/hydration-log-detail');
+    } else {
+      store.setModal('hydrationLogDetail', true);
+    }
   } else {
-    store.setModal('logDetail', true);
+    // 食物记录
+    systemStore.temp.selectedLog = log;
+    if (isPure.value) {
+      router.push('/food-detail');
+    } else {
+      store.setModal('logDetail', true);
+    }
   }
 }
 
@@ -242,7 +299,7 @@ const showStatsInfo = () => {
     <div v-if="!isPure" class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
       <transition-group name="float-up">
         <div v-for="ft in floatingTexts" :key="ft.id"
-             class="absolute text-2xl font-black font-rpg drop-shadow-md text-stroke"
+             class="absolute text-2xl font-black drop-shadow-md text-stroke"
              :class="{
                'text-red-500': ft.type === 'DAMAGE',
                'text-green-400': ft.type === 'HEAL',
@@ -366,10 +423,10 @@ const showStatsInfo = () => {
       <div v-if="raceSkill"
            class="absolute -top-3 -right-2 z-30 flex flex-col items-center"
            @click="handleSkillClick">
-        <div class="w-14 h-14 rounded-full border-4 shadow-xl flex items-center justify-center text-2xl transition-all active:scale-95 cursor-pointer bg-slate-800 relative overflow-hidden group"
+        <div class="skill-orb-rpg"
              :class="[
-                    skillStatus.active ? 'border-yellow-400 animate-pulse ring-4 ring-yellow-400/30' :
-                    skillStatus.ready ? 'border-green-400 hover:scale-105' : 'border-slate-600 grayscale'
+                    skillStatus.active ? 'skill-orb-active' :
+                    skillStatus.ready ? 'skill-orb-ready' : 'skill-orb-disabled'
                   ]">
           <span class="relative z-10">{{ raceSkill.icon }}</span>
           <div v-if="!skillStatus.ready && !skillStatus.active" class="absolute inset-0 bg-black/60 z-20 flex items-center justify-center">
@@ -383,14 +440,14 @@ const showStatsInfo = () => {
                   fill="none" stroke="currentColor" stroke-width="4" />
           </svg>
         </div>
-        <div class="mt-1 bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[9px] text-white font-bold whitespace-nowrap"
+        <div class="skill-label-rpg"
              :class="skillStatus.active ? 'text-yellow-300' : ''">
           {{ skillStatus.active ? '生效中' : raceSkill.name }}
         </div>
       </div>
 
-      <div class="bg-slate-900 dark:bg-black rounded-3xl p-5 text-white shadow-xl relative overflow-hidden border-2 transition-all duration-300"
-           :class="stageInfo.isOverloaded ? 'border-red-500 shadow-red-500/50 animate-pulse-slow' : 'border-slate-700'">
+      <div class="boss-card-rpg"
+           :class="stageInfo.isOverloaded ? 'boss-card-berserk' : ''">
 
         <div class="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] animate-pulse-slow"></div>
         <div class="absolute inset-0 bg-gradient-to-br from-slate-800/50 to-slate-900/50 z-0"></div>
@@ -424,7 +481,7 @@ const showStatsInfo = () => {
             </transition>
 
             <div class="ml-4 max-w-[140px]">
-              <div class="text-xl font-rpg tracking-wider truncate text-white drop-shadow-md" :class="stageInfo.isOverloaded ? 'text-red-400' : ''">
+              <div class="text-xl tracking-wider truncate text-white drop-shadow-md" :class="stageInfo.isOverloaded ? 'text-red-400' : ''">
                 {{ stageInfo.currentObj?.data?.name || '未知敌人' }}
               </div>
               <div class="text-[10px] mt-1 flex items-center gap-2">
@@ -541,15 +598,15 @@ const showStatsInfo = () => {
         <h3 class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ isPure ? '今日记录' : '战斗记录' }}</h3>
         <span class="text-[10px] text-slate-400">左滑删除 / 点击详情</span>
       </div>
-      <div v-if="store.todayLogs.length === 0" class="text-center py-10 text-slate-400">
+      <div v-if="allTodayLogs.length === 0" class="text-center py-10 text-slate-400">
         <div class="text-4xl mb-2 grayscale opacity-50">📜</div>
         <div class="text-xs">暂无记录，快去补给！</div>
       </div>
       <transition-group name="van-slide-up">
-        <van-swipe-cell v-for="log in store.todayLogs" :key="log.id" class="mb-3 rounded-2xl overflow-hidden shadow-sm">
+        <van-swipe-cell v-for="log in allTodayLogs" :key="log.id" class="mb-3 rounded-2xl overflow-hidden shadow-sm">
           <div class="p-3 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between relative"
-               :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken && !isPure, 'border-green-200 dark:border-green-900/30 bg-green-50 dark:bg-green-900/10': log.mealType === 'EXERCISE'}"
-               @click="openLogDetail(log)">
+               :class="{'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10': log.damageTaken && !isPure, 'border-green-200 dark:border-green-900/30 bg-green-50 dark:bg-green-900/10': log.mealType === 'EXERCISE', 'border-blue-200 dark:border-blue-900/30 bg-blue-50 dark:bg-blue-900/10': log.mealType === 'HYDRATION'}"
+               @click.stop="openLogDetail(log)">
             <div class="flex items-center gap-3 relative z-10">
               <div class="text-2xl w-10 h-10 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm relative">
                 {{ log.icon }}
@@ -561,12 +618,16 @@ const showStatsInfo = () => {
                 <div class="font-bold text-sm dark:text-slate-200 flex items-center">
                   {{ log.name }}
                   <span v-if="log.mealType === 'EXERCISE'" class="ml-2 text-[8px] px-1 rounded bg-green-100 text-green-600 font-bold border border-green-200">运动</span>
+                  <span v-if="log.mealType === 'HYDRATION'" class="ml-2 text-[8px] px-1 rounded bg-blue-100 text-blue-600 font-bold border border-blue-200">💧补水</span>
                   <span v-if="log.skillEffect && !isPure" class="ml-2 text-[8px] px-1 rounded bg-indigo-100 text-indigo-600 font-bold border border-indigo-200">✨天赋</span>
                   <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 text-purple-600 font-bold border border-purple-200">复合</span>
                   <span v-if="log.fastingHours && log.fastingHours > 12" class="ml-2 text-[8px] px-1 rounded bg-yellow-100 text-yellow-600 font-bold border border-yellow-200">⚡蓄力</span>
                 </div>
                 <div class="text-[10px] text-slate-400 mt-0.5" v-if="log.mealType === 'EXERCISE'">
                   消耗 {{ log.calories }} kcal
+                </div>
+                <div class="text-[10px] text-slate-400 mt-0.5" v-else-if="log.mealType === 'HYDRATION'">
+                  {{ log.grams || log.amount }}ml
                 </div>
                 <div class="text-[10px] text-slate-400 mt-0.5" v-else-if="!log.damageTaken || isPure">
                   {{ log.grams }}g · {{ MEAL_LABELS[log.mealType] || log.mealType }}
@@ -579,8 +640,12 @@ const showStatsInfo = () => {
                 <div class="font-bold text-lg text-green-500">+{{ 50 + Math.floor((log.calories || 0) / 10) }} HP</div>
                 <div class="text-[8px] text-slate-400">回复</div>
               </div>
+              <div v-else-if="log.mealType === 'HYDRATION'">
+                <div class="font-bold text-lg text-blue-500">+{{ log.grams || log.amount }}</div>
+                <div class="text-[8px] text-slate-400">ml</div>
+              </div>
               <div v-else-if="!log.damageTaken || isPure">
-                <div class="font-rpg font-bold text-lg" :class="(!isPure && (log.multiplier || 1) < 1) ? 'text-slate-400' : (isPure ? 'text-slate-700 dark:text-slate-300' : 'text-red-500')">
+                <div class="font-bold text-lg" :class="(!isPure && (log.multiplier || 1) < 1) ? 'text-slate-400' : (isPure ? 'text-slate-700 dark:text-slate-300' : 'text-red-500')">
                   {{ isPure ? log.calories : '-' + (log.finalDamageValue || Math.floor(log.calories * (log.multiplier || 1))) }}
                 </div>
                 <div class="text-[8px] text-slate-400">{{ isPure ? 'kcal' : 'DMG' }}</div>
@@ -633,9 +698,111 @@ const showStatsInfo = () => {
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* 🎯 技能球 - RPG专属样式 */
+.skill-orb-rpg {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  border-width: 4px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+  cursor: pointer;
+  background-color: rgb(30 41 59);
+  position: relative;
+  overflow: hidden;
+}
+
+.skill-orb-rpg:active {
+  transform: scale(0.95);
+}
+
+.skill-orb-active {
+  border-color: rgb(250 204 21);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.3), 0 8px 24px rgba(0,0,0,0.8);
+}
+
+.skill-orb-ready {
+  border-color: rgb(74 222 128);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+}
+
+.skill-orb-ready:hover {
+  transform: scale(1.05);
+}
+
+.skill-orb-disabled {
+  border-color: rgb(71 85 105);
+  filter: grayscale(100%);
+}
+
+.skill-label-rpg {
+  margin-top: 0.25rem;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+  border-radius: 0.25rem;
+  font-size: 9px;
+  color: white;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+
+/* 👾 Boss卡片 - RPG专属 */
+.boss-card-rpg {
+  border-radius: 1.5rem;
+  padding: 1.25rem;
+  color: white;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+  border-width: 2px;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+  background: linear-gradient(135deg, #1a1614 0%, #0a0908 100%);
+  border-color: #c4a35a;
+  box-shadow: 0 16px 48px rgba(0,0,0,1), inset 0 1px 0 rgba(196, 163, 90, 0.1);
+}
+
+.boss-card-rpg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+.boss-card-berserk {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-color: #ef4444;
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.5), 0 16px 48px rgba(0,0,0,1);
+}
+
 /* 你的原始样式保留 */
 .boss-phase-berserk {
-  @apply bg-red-900 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.6)] scale-110 rotate-1;
+  background-color: rgb(127 29 29);
+  border-color: rgb(239 68 68);
+  box-shadow: 0 0 20px rgba(239,68,68,0.6);
+  transform: scale(1.1) rotate(1deg);
 }
 .boss-hurt-anim {
   animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
@@ -675,9 +842,6 @@ const showStatsInfo = () => {
 }
 @keyframes impact {
   to { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
-}
-.font-rpg {
-  font-family: 'Courier New', Courier, monospace; /* Fallback if custom font not loaded */
 }
 .text-stroke {
   -webkit-text-stroke: 1px rgba(0,0,0,0.5);

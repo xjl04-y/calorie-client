@@ -5,16 +5,19 @@
  * - Pure Mode: 全屏窗口风格
  * - RPG Mode: 底部弹窗风格 (战备修整)
  * - V5.3 Feature: 强化自定义录入 & 动态体重计算
+ * - [Refactor V6.1] 使用新的 exerciseStore，确保数据同步
  */
 import { ref, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useExerciseStore } from '@/stores/useExerciseStore';
 import { DEFAULT_EXERCISES } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
 import type { FoodItem } from '@/types';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const exerciseStore = useExerciseStore();
 
 const isPure = computed(() => systemStore.isPureMode);
 const user = computed(() => store.user); // 获取用户数据用于计算
@@ -82,45 +85,37 @@ const selectExercise = (item: FoodItem) => {
   mode.value = 'CALCULATE';
 };
 
-// 提交逻辑
+// [Refactor V6.1] 提交逻辑：使用 exerciseStore.commitExercise
 const submit = () => {
   if (manualDuration.value <= 0) {
     showToast('请输入有效时长');
     return;
   }
 
-  let finalItem: FoodItem;
-
   if (mode.value === 'CALCULATE' && selectedItem.value) {
-    finalItem = {
-      ...selectedItem.value,
-      calories: calculatedCalories.value,
-      grams: manualDuration.value,
-      // 增加动态提示，让用户知道这是算出来的
-      tips: `基于 ${user.value.weight}kg 体重估算`,
-      id: Date.now()
-    };
+    // 使用预设项目
+    exerciseStore.commitExercise({
+      name: selectedItem.value.name,
+      icon: selectedItem.value.icon,
+      duration: manualDuration.value,
+      caloriesBurned: calculatedCalories.value,
+      baseExerciseId: String(selectedItem.value.id),
+      tips: `基于 ${user.value.weight}kg 体重估算`
+    });
   } else {
     // 纯手动模式
     if (!manualName.value.trim()) {
       manualName.value = isPure.value ? '自定义运动' : '秘密特训';
     }
 
-    finalItem = {
-      id: Date.now(),
+    exerciseStore.commitExercise({
       name: manualName.value,
-      icon: '🧘', // 默认图标，后续可以扩展图标选择
-      calories: manualCalories.value,
-      p: 0, c: 0, f: 0,
-      grams: manualDuration.value,
-      unit: '分钟',
-      tags: ['自定义'],
-      isExercise: true,
+      icon: '🧘',
+      duration: manualDuration.value,
+      caloriesBurned: manualCalories.value,
       tips: `自主训练 (${manualDuration.value}min)`
-    };
+    });
   }
-
-  store.battleCommit(finalItem, 'EXERCISE');
 
   if (isPure.value) {
     show.value = false;

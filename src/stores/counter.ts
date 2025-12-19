@@ -2,18 +2,28 @@ import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import { RACES } from '@/constants/gameData';
 import { getCombatRank, debounce } from '@/utils/gameUtils';
-import type { FoodItem, FoodLog, Achievement, MealType, UserState } from '@/types';
+import type { FoodItem, FoodLog, Achievement, MealType, UserState, ExerciseLog, HydrationLog } from '@/types';
 
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore';
 import { useBattleStore } from '@/stores/useBattleStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
 import { useLogStore } from '@/stores/useLogStore';
+// [New V6.0] 独立运动/补水 Store
+import { useExerciseStore } from '@/stores/useExerciseStore';
+import { useHydrationStore } from '@/stores/useHydrationStore';
 
 // 定义存档数据的接口，确保类型安全
+// [Updated V6.0] 支持新格式运动/补水数据
 interface SaveData {
   user?: Partial<UserState>;
   logs?: Record<string, FoodLog[]>;
+  // [New V6.0] 独立运动日志
+  exerciseLogs?: Record<string, ExerciseLog[]>;
+  // [New V6.0] 独立补水日志
+  hydrationLogs?: Record<string, HydrationLog[]>;
+  // [New V6.0] 自定义运动库
+  customExercises?: any[];
   achievements?: Achievement[];
   foodDb?: FoodItem[];
   isDarkMode?: boolean;
@@ -33,6 +43,9 @@ export const useGameStore = defineStore('game', () => {
   const battle = useBattleStore();
   const collection = useCollectionStore();
   const logStore = useLogStore();
+  // [New V6.0] 独立运动/补水 Store
+  const exerciseStore = useExerciseStore();
+  const hydrationStore = useHydrationStore();
 
   const heroStats = computed(() => {
     const { totalP, totalC, totalF } = logStore.historyTotalMacros;
@@ -91,6 +104,10 @@ export const useGameStore = defineStore('game', () => {
       const stateToSave: SaveData = {
         user: hero.user,
         logs: logStore.logs,
+        // [New V6.0] 保存独立的运动/补水日志
+        exerciseLogs: logStore.exerciseLogs,
+        hydrationLogs: logStore.hydrationLogs,
+        customExercises: [...exerciseStore.customExercises],
         achievements: collection.achievements,
         foodDb: collection.foodDb,
         isDarkMode: system.isDarkMode,
@@ -148,6 +165,14 @@ export const useGameStore = defineStore('game', () => {
           }
 
           if (data.logs) Object.assign(logStore.logs, data.logs);
+          // [New V6.0] 加载独立的运动/补水日志
+          if (data.exerciseLogs) Object.assign(logStore.exerciseLogs, data.exerciseLogs);
+          if (data.hydrationLogs) Object.assign(logStore.hydrationLogs, data.hydrationLogs);
+          // [New V6.0] 加载自定义运动库
+          if (data.customExercises && Array.isArray(data.customExercises)) {
+            exerciseStore.customExercises.length = 0;
+            exerciseStore.customExercises.push(...data.customExercises);
+          }
           logStore.recalculateGlobalStats();
 
           if (data.isDarkMode !== undefined) system.isDarkMode = !!data.isDarkMode;
@@ -238,6 +263,12 @@ export const useGameStore = defineStore('game', () => {
 
     lastMealTime: computed(() => logStore.lastMealTime),
 
+    // [New V6.0] 运动/补水 Store 快捷访问
+    exerciseStore,
+    hydrationStore,
+    todayExerciseStats: computed(() => exerciseStore.todayStats),
+    todayHydrationProgress: computed(() => hydrationStore.todayProgress),
+
     weeklyStats: computed(() => battle.weeklyStats),
     stageInfo: computed(() => battle.stageInfo),
     comboState: computed(() => battle.comboState),
@@ -259,6 +290,23 @@ export const useGameStore = defineStore('game', () => {
     battleCommit: (item: FoodItem, mealType?: MealType) => { battle.battleCommit(item, mealType); saveState(); },
 
     getTacticalSuggestion: battle.getTacticalSuggestion,
+
+    // [New V6.0] 运动/补水快捷方法
+    commitExercise: (options?: Parameters<typeof exerciseStore.commitExercise>[0]) => {
+      const result = exerciseStore.commitExercise(options);
+      saveState();
+      return result;
+    },
+    commitHydration: (options?: Parameters<typeof hydrationStore.commitHydration>[0]) => {
+      const result = hydrationStore.commitHydration(options);
+      saveState();
+      return result;
+    },
+    quickDrink: (presetId?: string) => {
+      const result = hydrationStore.quickDrink(presetId);
+      saveState();
+      return result;
+    },
 
     saveState,
     forceSave,

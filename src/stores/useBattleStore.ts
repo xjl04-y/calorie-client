@@ -1,7 +1,7 @@
 // ... existing imports ...
 import { defineStore } from 'pinia';
 import { reactive, computed } from 'vue';
-import type { FoodLog, FoodItem, EnvironmentEffect, MealType } from '@/types';
+import type { FoodLog, FoodItem, EnvironmentEffect, MealType, ExerciseLog, HydrationLog } from '@/types';
 import { MONSTERS, RACES } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
 import { getLocalDateStr } from '@/utils/dateUtils';
@@ -229,7 +229,7 @@ export const useBattleStore = defineStore('battle', () => {
     return { blockValue, dodgeChance };
   }
 
-  function calculateCombo(tags: string[], timestamp: number) {
+  function calculateCombo(tags: string[], _timestamp: number) {
     const todayStr = getLocalDateStr();
     const systemDate = systemStore.currentDate;
 
@@ -320,100 +320,188 @@ export const useBattleStore = defineStore('battle', () => {
     return { text: '保持均衡饮食，稳扎稳打。', type: 'INFO', icon: '🛡️', tags: ['均衡'] };
   }
 
+  // [New V6.0] 独立的运动提交方法
+  function commitExercise(exerciseData: {
+    name: string;
+    icon: string;
+    duration: number;
+    caloriesBurned: number;
+    baseExerciseId?: string;
+    intensity?: 'LOW' | 'MEDIUM' | 'HIGH';
+    tips?: string;
+    tags?: string[];
+  }) {
+    const userWeight = heroStore.user.weight || 60;
+    
+    // 使用新格式存储
+    const savedLog = logStore.addExerciseLog({
+      name: exerciseData.name,
+      icon: exerciseData.icon,
+      duration: exerciseData.duration,
+      caloriesBurned: exerciseData.caloriesBurned,
+      userWeight,
+      baseExerciseId: exerciseData.baseExerciseId,
+      intensity: exerciseData.intensity,
+      tips: exerciseData.tips,
+      tags: exerciseData.tags
+    });
+    
+    // RPG 模式效果计算
+    const healAmt = 50 + Math.floor((exerciseData.caloriesBurned || 0) / 10);
+    
+    // 护盾转化机制
+    const currentHp = heroStore.user.heroCurrentHp;
+    const maxHp = heroStore.user.heroMaxHp;
+    const missingHp = maxHp - currentHp;
+    
+    let actualHeal = 0;
+    let shieldGained = 0;
+    let goldGained = 0;
+
+    if (healAmt <= missingHp) {
+      // 未满血：全部用于治疗
+      heroStore.heal(healAmt);
+      actualHeal = healAmt;
+      if (!systemStore.isPureMode) {
+        systemStore.triggerHealEffect();
+        spawnFloatingText(`+${healAmt}`, 'HEAL');
+        showNotify({ type: 'success', message: `🏋️ 运动恢复：HP +${healAmt}` });
+      }
+    } else {
+      // 溢出：先补满血，剩余转护盾/金币
+      if (missingHp > 0) {
+        heroStore.heal(missingHp);
+        actualHeal = missingHp;
+      }
+      const overflow = healAmt - missingHp;
+
+      const shieldCap = maxHp;
+      const currentShield = heroStore.user.heroShield || 0;
+      const shieldSpace = shieldCap - currentShield;
+
+      if (shieldSpace > 0) {
+        shieldGained = Math.min(overflow, shieldSpace);
+        heroStore.addShield(shieldGained);
+
+        if (!systemStore.isPureMode) {
+          systemStore.triggerHealEffect();
+          if (missingHp > 0) spawnFloatingText(`+${missingHp}`, 'HEAL');
+          setTimeout(() => spawnFloatingText(`+${shieldGained}`, 'BLOCK'), 200);
+          showNotify({
+            type: 'primary',
+            message: `🛡️ 状态绝佳！获得 ${shieldGained} 点护盾！`,
+            background: '#0ea5e9',
+            duration: 2500
+          });
+        }
+
+        const remainingOverflow = overflow - shieldGained;
+        if (remainingOverflow > 0) {
+          goldGained = Math.floor(remainingOverflow * 0.5);
+          if (goldGained > 0) {
+            heroStore.addGold(goldGained);
+            setTimeout(() => spawnFloatingText(`+${goldGained}G`, 'EXP'), 400);
+          }
+        }
+      } else {
+        goldGained = Math.floor(overflow * 0.5);
+        heroStore.addGold(goldGained);
+        if (!systemStore.isPureMode) {
+          spawnFloatingText(`+${goldGained}G`, 'EXP');
+          showNotify({
+            type: 'warning',
+            message: `💪 巅峰状态！溢出的活力转化为 ${goldGained} 金币！`,
+            background: '#f59e0b',
+            duration: 2500
+          });
+        }
+      }
+    }
+
+    if (systemStore.isPureMode) {
+      showToast(`运动记录成功，消耗 ${exerciseData.caloriesBurned} kcal`);
+    }
+    
+    // 返回结果，便于 UI 层展示
+    return {
+      log: savedLog,
+      effects: { healAmount: actualHeal, shieldGained, goldGained }
+    };
+  }
+  
+  // [New V6.0] 独立的补水提交方法
+  function commitHydration(hydrationData: {
+    name: string;
+    icon?: string;
+    amount: number;
+    cupSize?: number;
+    type?: 'WATER' | 'TEA' | 'COFFEE' | 'OTHER';
+  }) {
+    // 使用新格式存储
+    const savedLog = logStore.addHydrationLog({
+      name: hydrationData.name,
+      icon: hydrationData.icon || '💧',
+      amount: hydrationData.amount,
+      cupSize: hydrationData.cupSize,
+      type: hydrationData.type || 'WATER'
+    });
+    
+    // 更新用户补水时间
+    if (heroStore.user.hydration) {
+      heroStore.user.hydration.lastDrinkTime = Date.now();
+    }
+    
+    // RPG 模式效果 (微量治疗 + 可能清除负面状态)
+    if (!systemStore.isPureMode) {
+      systemStore.triggerHealEffect();
+      showNotify({ type: 'primary', message: '💧 净化之水！身心舒畅！' });
+    } else {
+      showToast({ type: 'success', message: '💧 补水 +1' });
+    }
+    
+    // 任务检查 (兼容旧的任务系统)
+    // 需要将新格式转换为旧格式用于任务检测
+    const legacyFormat: FoodLog = {
+      id: savedLog.id,
+      name: savedLog.name,
+      icon: savedLog.icon,
+      calories: 0,
+      p: 0, c: 0, f: 0,
+      grams: savedLog.amount,
+      mealType: 'HYDRATION',
+      timestamp: savedLog.timestamp,
+      category: 'DRINK',
+      tags: ['纯净']
+    };
+    collectionStore.checkDailyQuests(legacyFormat);
+    checkAchievements(false);
+    
+    return { log: savedLog };
+  }
+
   // [Fix] 支持 forcedMealType 参数，确保补水不变成零食
   function battleCommit(item: FoodItem, forcedMealType?: MealType) {
     if (!item) return;
 
     // --- Special: Exercise Logic ---
     // 运动不计算伤害，而是治疗/增加Target
+    // [Refactor V6.0] 委托给独立方法处理，同时保持向后兼容
     if (item.isExercise || forcedMealType === 'EXERCISE') {
-      const exerciseLog: FoodLog = {
-        ...item,
-        mealType: 'EXERCISE',
-        timestamp: new Date().toISOString()
-      };
-
-      const savedLog = logStore.addLog(exerciseLog);
-
-      // 运动效果
-      const healAmt = 50 + Math.floor((item.calories || 0) / 10);
-
-      // [Modified Logic V6.2] 护盾转化机制
-      const currentHp = heroStore.user.heroCurrentHp;
-      const maxHp = heroStore.user.heroMaxHp;
-      const missingHp = maxHp - currentHp;
-
-      if (healAmt <= missingHp) {
-        // 1. 未满血：全部用于治疗
-        heroStore.heal(healAmt);
-        if (!systemStore.isPureMode) {
-          systemStore.triggerHealEffect();
-          spawnFloatingText(`+${healAmt}`, 'HEAL');
-          showNotify({ type: 'success', message: `🏋️ 运动恢复：HP +${healAmt}` });
-        }
-      } else {
-        // 2. 溢出：先补满血，剩余转护盾/金币
-        if (missingHp > 0) heroStore.heal(missingHp);
-        const overflow = healAmt - missingHp;
-
-        // 如果护盾未满，加护盾
-        // 如果护盾已满，加金币
-        const shieldCap = maxHp; // 护盾上限=血量上限
-        const currentShield = heroStore.user.heroShield || 0;
-        const shieldSpace = shieldCap - currentShield;
-
-        if (shieldSpace > 0) {
-          // 优先填补护盾
-          const shieldGain = Math.min(overflow, shieldSpace);
-          heroStore.addShield(shieldGain);
-
-          if (!systemStore.isPureMode) {
-            systemStore.triggerHealEffect();
-            if (missingHp > 0) spawnFloatingText(`+${missingHp}`, 'HEAL');
-            setTimeout(() => spawnFloatingText(`+${shieldGain}`, 'BLOCK'), 200); // 蓝色护盾飘字
-
-            showNotify({
-              type: 'primary',
-              message: `🛡️ 状态绝佳！获得 ${shieldGain} 点护盾！`,
-              background: '#0ea5e9',
-              duration: 2500
-            });
-          }
-
-          // 如果还有剩余溢出 (护盾也满了)，则转金币
-          const remainingOverflow = overflow - shieldGain;
-          if (remainingOverflow > 0) {
-            const goldBonus = Math.floor(remainingOverflow * 0.5);
-            if (goldBonus > 0) {
-              heroStore.addGold(goldBonus);
-              setTimeout(() => spawnFloatingText(`+${goldBonus}G`, 'EXP'), 400);
-            }
-          }
-
-        } else {
-          // 护盾已满，全额转金币 (50%比例)
-          const goldBonus = Math.floor(overflow * 0.5);
-          heroStore.addGold(goldBonus);
-          if (!systemStore.isPureMode) {
-            spawnFloatingText(`+${goldBonus}G`, 'EXP');
-            showNotify({
-              type: 'warning',
-              message: `💪 巅峰状态！溢出的活力转化为 ${goldBonus} 金币！`,
-              background: '#f59e0b',
-              duration: 2500
-            });
-          }
-        }
-      }
-
-      if (systemStore.isPureMode) {
-        showToast(`运动记录成功，消耗 ${item.calories} kcal`);
-      }
+      // 将旧格式 FoodItem 转换为新格式 ExerciseLog
+      commitExercise({
+        name: item.name,
+        icon: item.icon,
+        duration: item.grams || 30,
+        caloriesBurned: item.calories || 0,
+        baseExerciseId: String(item.id),
+        tips: item.tips,
+        tags: item.tags
+      });
       return;
     }
 
     // ... (Existing tag logic) ...
-    const tags = item.tags || [];
+    const _legacyTags = item.tags || [];
     const c = Number(item.c)||0, f = Number(item.f)||0, p = Number(item.p)||0;
     const grams = Number(item.grams)||100;
     const calories = Number(item.calories)||0;
@@ -458,10 +546,13 @@ export const useBattleStore = defineStore('battle', () => {
     }
 
     // Hydration Logic
+    // [Refactor V6.0] 委托给独立方法处理，同时保持向后兼容
     if (battleItem.mealType === 'HYDRATION') {
-      const savedLog = logStore.addLog(battleItem);
-      collectionStore.checkDailyQuests(savedLog);
-      checkAchievements(false);
+      commitHydration({
+        name: battleItem.name,
+        icon: battleItem.icon,
+        amount: battleItem.grams || 250
+      });
       return;
     }
 
@@ -517,7 +608,7 @@ export const useBattleStore = defineStore('battle', () => {
       }
     }
 
-    const { newCombo, comboMultiplier, comboMsg } = calculateCombo(battleItem.tags || [], Date.now());
+    const { newCombo, comboMultiplier, comboMsg: _comboMsg } = calculateCombo(battleItem.tags || [], Date.now());
 
     if (systemStore.currentDate === getLocalDateStr()) {
       comboState.count = newCombo;
@@ -700,9 +791,13 @@ export const useBattleStore = defineStore('battle', () => {
     weeklyStats,
     dailyMonster,
     environment,
+    // 食物战斗提交 (保持向后兼容)
     battleCommit,
     deleteLog,
     checkAchievements,
-    getTacticalSuggestion
+    getTacticalSuggestion,
+    // [New V6.0] 独立方法
+    commitExercise,
+    commitHydration
   };
 });

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, computed, ref, defineAsyncComponent } from 'vue'; // [新增] 引入 defineAsyncComponent
+import { onMounted, computed, ref, defineAsyncComponent, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router'; // [New V6.0] 用于纯净模式页面跳转
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import AppHud from '@/components/AppHud.vue';
@@ -19,6 +20,8 @@ const ModalItemDetail = defineAsyncComponent(() => import('@/components/modals/M
 const ModalEquipmentSwap = defineAsyncComponent(() => import('@/components/modals/ModalEquipmentSwap.vue'));
 const ModalHistoryDetail = defineAsyncComponent(() => import('@/components/modals/ModalHistoryDetail.vue'));
 const ModalLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalLogDetail.vue'));
+const ModalExerciseLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalExerciseLogDetail.vue'));
+const ModalHydrationLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalHydrationLogDetail.vue'));
 const ModalHpHistory = defineAsyncComponent(() => import('@/components/modals/ModalHpHistory.vue'));
 const ModalQuestBoard = defineAsyncComponent(() => import('@/components/modals/ModalQuestBoard.vue'));
 const ModalSkillTree = defineAsyncComponent(() => import('@/components/modals/ModalSkillTree.vue'));
@@ -34,6 +37,8 @@ const ModalTargetConfig = defineAsyncComponent(() => import('@/components/modals
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const router = useRouter(); // [New V6.0] 纯净模式页面跳转
+const route = useRoute();  // [Fix V6.1] 用于判断是否在子页面
 
 // [New V5.6] 悬浮球位置持久化 Key
 const FAB_POS_KEY = 'health_rpg_fab_pos';
@@ -44,16 +49,41 @@ const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 const isFabExpanded = ref(false);
 
+// [Theme V2.0] 动态应用主题类
+const applyTheme = () => {
+  const root = document.documentElement;
+  // 移除旧主题类
+  root.classList.remove('theme-rpg', 'theme-pure');
+  // 添加新主题类
+  if (isPure.value) {
+    root.classList.add('theme-pure');
+  } else {
+    root.classList.add('theme-rpg');
+  }
+  // 深色模式
+  if (store.isDarkMode) {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
+};
+
+// 监听模式切换
+watch(() => systemStore.isPureMode, () => {
+  applyTheme();
+}, { immediate: false });
+
+watch(() => store.isDarkMode, () => {
+  applyTheme();
+}, { immediate: false });
+
 onMounted(() => {
   store.loadState();
   if (store.user.isInitialized) {
     store.heroStore.checkLoginStreak();
   }
-  if (store.isDarkMode) {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-  }
+  // 初始化主题
+  applyTheme();
 
   // [Fix V6.1] 强化位置恢复逻辑，防止悬浮窗消失
   const w = window.innerWidth;
@@ -90,12 +120,20 @@ onMounted(() => {
 const containerClass = computed(() => ({
   'screen-shaking': store.temp.isShaking,
   'mobile-frame': true,
-  'bg-white': true,
-  'dark:bg-slate-900': true,
+  'theme-bg-base': true,
   'transition-colors': true
 }));
 
 const isPure = computed(() => systemStore.isPureMode);
+
+// [Fix V6.1] 子页面时隐藏FAB，避免UI遮挡
+const isMainPage = computed(() => {
+  const mainRoutes = ['/', '/analysis', '/profile'];
+  return mainRoutes.includes(route.path);
+});
+
+// [Fix V6.1] FAB显示条件：已初始化 && 在主页面
+const showFab = computed(() => store.user.isInitialized && isMainPage.value);
 
 const isLeftSide = computed(() => {
   if (typeof window === 'undefined') return false;
@@ -168,13 +206,24 @@ const openSupply = () => {
   store.setModal('addFood', true);
 };
 
+// [Refactor V6.0] 纯净模式跳转页面，RPG模式打开弹窗
 const openExercise = () => {
   isFabExpanded.value = false;
-  store.setModal('addExercise', true);
+  if (isPure.value) {
+    router.push('/exercise');
+  } else {
+    store.setModal('addExercise', true);
+  }
 };
 
+// [Refactor V6.0] 纯净模式跳转页面，RPG模式打开弹窗
 const openHydration = () => {
-  systemStore.setModal('hydration', true);
+  isFabExpanded.value = false;
+  if (isPure.value) {
+    router.push('/hydration');
+  } else {
+    systemStore.setModal('hydration', true);
+  }
 };
 
 </script>
@@ -212,7 +261,7 @@ const openHydration = () => {
         </van-tabbar-item>
       </van-tabbar>
 
-      <div v-if="store.user.isInitialized"
+      <div v-if="showFab"
            class="fixed z-40 pointer-events-none"
            :style="{
              left: (fabPos.x + 8) + 'px',
@@ -229,7 +278,7 @@ const openHydration = () => {
         </div>
       </div>
 
-      <div v-if="store.user.isInitialized"
+      <div v-if="showFab"
            class="fixed z-50 flex items-center justify-center cursor-pointer"
            :class="[
              isFabExpanded
@@ -250,7 +299,7 @@ const openHydration = () => {
         </div>
       </div>
 
-      <div v-if="store.user.isInitialized"
+      <div v-if="showFab"
            class="fixed z-50 flex items-center justify-center cursor-pointer"
            :class="[
              isFabExpanded
@@ -271,7 +320,7 @@ const openHydration = () => {
         </div>
       </div>
 
-      <div v-if="store.user.isInitialized"
+      <div v-if="showFab"
            id="guide-global-supply"
            class="fixed z-[60] transition-transform active:scale-90 cursor-pointer"
            :style="{
@@ -306,6 +355,8 @@ const openHydration = () => {
       <ModalEquipmentSwap />
       <ModalHistoryDetail />
       <ModalLogDetail />
+      <ModalExerciseLogDetail />
+      <ModalHydrationLogDetail />
       <ModalHpHistory />
       <ModalQuestBoard />
       <ModalSkillTree />
@@ -331,6 +382,10 @@ const openHydration = () => {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+  transition: background-color var(--transition-base), color var(--transition-base);
 }
 
 .damage-overlay, .heal-overlay, .crit-overlay {
