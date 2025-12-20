@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore'; // Import SystemStore
+import BodyTrendRPG from '@/components/trend/BodyTrendRPG.vue';
+import BodyTrendPure from '@/components/trend/BodyTrendPure.vue';
+import { showToast } from 'vant';
 
 const store = useGameStore();
 const systemStore = useSystemStore(); // Init System
 
-const user = computed(() => store.user);
+// 体重更新
+const showWeightUpdate = ref(false);
+const newWeight = ref(0);
+
 const weeklyStats = computed(() => store.weeklyStats || []);
 const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
 const topFoods = computed(() => (store.todayLogs || []).slice(0, 8));
@@ -18,8 +24,6 @@ const activeTab = computed({
   get: () => systemStore.analysisActiveTab,
   set: (val) => systemStore.analysisActiveTab = val
 });
-
-const selectedPoint = ref<number | null>(null);
 
 const currentDateObj = computed(() => {
   const dateStr = store.analysisRefDate || new Date().toISOString().split('T')[0] || '';
@@ -108,44 +112,73 @@ const openDetail = (date: string) => {
   store.setModal('historyDetail', true);
 }
 
-const weightHistory = computed(() => {
-  return store.user.weightHistory ? [...store.user.weightHistory] : [];
+// 计算推荐体重范围（基于BMI 18.5-24）
+const recommendedWeightRange = computed(() => {
+  const user = store.user;
+  if (!user.height || user.height <= 0) return null;
+  const heightM = user.height / 100;
+  const minWeight = (18.5 * heightM * heightM).toFixed(1);
+  const maxWeight = (24 * heightM * heightM).toFixed(1);
+  const idealWeight = (21.5 * heightM * heightM).toFixed(1); // BMI 21.5 为理想值
+  return { min: minWeight, max: maxWeight, ideal: idealWeight };
 });
 
-const weightChartData = computed(() => {
-  const history = weightHistory.value;
-  if (!history || history.length === 0) return null;
+// 目标体重（纯净模式使用）
+const targetWeight = computed(() => {
+  return store.user.targetWeight || 0;
+});
 
-  const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const recent = sorted.slice(-14);
+// 距离目标体重的差距（纯净模式）
+const targetDifference = computed(() => {
+  if (!targetWeight.value) return null;
+  const diff = store.user.weight - targetWeight.value;
+  return {
+    value: Math.abs(diff),
+    needLose: diff > 0, // true表示需要减重
+    text: diff > 0 ? '需减重' : diff < 0 ? '已超标' : '已达标'
+  };
+});
 
-  const weights = recent.map(r => r.weight);
-  const minW = Math.min(...weights) - 1;
-  const maxW = Math.max(...weights) + 1;
-  const range = maxW - minW || 1;
+// 打开体重更新弹窗
+const openWeightUpdate = () => {
+  newWeight.value = store.user.weight;
+  showWeightUpdate.value = true;
+}
 
-  const width = 300;
-  const height = 150;
-  const padding = 20;
-
-  const points = recent.map((r, i) => {
-    const xStep = recent.length > 1 ? (width - 2 * padding) / (recent.length - 1) : 0;
-    const x = padding + (i * xStep);
-    const y = height - padding - ((r.weight - minW) / range) * (height - 2 * padding);
-    const dateShort = r.date.slice(5);
-    return { x, y, val: r.weight, date: dateShort };
+// 保存体重
+const saveWeight = () => {
+  if (newWeight.value <= 20 || newWeight.value > 300) {
+    showToast('请输入合理的体重 (20-300 kg)');
+    return;
+  }
+  
+  const oldWeight = store.user.weight;
+  const change = newWeight.value - oldWeight;
+  
+  store.heroStore.updateWeight(newWeight.value);
+  showWeightUpdate.value = false;
+  
+  // 显示更新提示
+  const changeText = change > 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
+  showToast({
+    message: isPure.value 
+      ? `体重已更新: ${newWeight.value}kg (${changeText}kg)` 
+      : `⚖️ 体重已记录！变化: ${changeText}kg`,
+    duration: 2000
   });
+}
 
-  const pathD = points.length > 1
-    ? `M ${points[0]?.x || 0} ${points[0]?.y || 0} ` + points.slice(1).map(p => `L ${p?.x || 0} ${p?.y || 0}`).join(' ')
-    : points.length === 1 ? `M ${padding} ${points[0]?.y || 0} L ${width-padding} ${points[0]?.y || 0}` : '';
+// 使用推荐体重（RPG模式）
+const useRecommendedWeight = () => {
+  if (!recommendedWeightRange.value) return;
+  newWeight.value = parseFloat(recommendedWeightRange.value.ideal);
+}
 
-  const areaPathD = points.length > 1
-    ? `${pathD} L ${points[points.length-1]?.x || 0} ${height} L ${points[0]?.x || 0} ${height} Z`
-    : '';
-
-  return { points, pathD, areaPathD, minW, maxW };
-});
+// 使用目标体重（纯净模式）
+const useTargetWeight = () => {
+  if (!targetWeight.value) return;
+  newWeight.value = targetWeight.value;
+}
 </script>
 
 <template>
@@ -345,7 +378,7 @@ const weightChartData = computed(() => {
 
         <div class="mb-4 bg-green-50 dark:bg-slate-800 p-3 rounded-xl border border-green-100 dark:border-slate-700 flex gap-3 shadow-sm">
           <div class="text-2xl">⚖️</div>
-          <div>
+          <div class="flex-1">
             <div class="text-xs font-bold text-green-600 dark:text-green-400 mb-0.5">
               {{ isPure ? '体重记录' : '战术情报: 塑形魔法' }}
             </div>
@@ -354,69 +387,136 @@ const weightChartData = computed(() => {
                 这是你的体重变化曲线。<br>体重的改变将直接重塑你的<span class="font-bold text-slate-700 dark:text-slate-200">基础属性 (STR/AGI/VIT)</span>。
               </span>
               <span v-else>
-                定期记录体重，监控身体变化趋势。
+                定期记录体重,监控身体变化趋势。
+              </span>
+            </div>
+          </div>
+          <button @click="openWeightUpdate" 
+                  class="px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition flex items-center gap-1.5 whitespace-nowrap"
+                  :class="isPure ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-yellow-500 text-slate-900 hover:bg-yellow-600'">
+            <i class="fas fa-weight"></i>
+            <span>更新体重</span>
+          </button>
+        </div>
+
+        <!-- RPG模式组件 -->
+        <BodyTrendRPG v-if="!isPure" id="guide-weight-chart" 
+                      :key="`rpg-${store.user.weight}-${store.user.weightHistory?.[store.user.weightHistory.length - 1]?.timestamp || 0}`" />
+        
+        <!-- 纯净模式组件 -->
+        <BodyTrendPure v-else id="guide-weight-chart" 
+                       :key="`pure-${store.user.weight}-${store.user.weightHistory?.[store.user.weightHistory.length - 1]?.timestamp || 0}`" />
+      </div>
+    </transition>
+    
+    <!-- 体重更新弹窗 -->
+    <van-dialog v-model:show="showWeightUpdate" 
+                :title="isPure ? '更新体重' : '⚖️ 记录体重'"
+                show-cancel-button 
+                @confirm="saveWeight"
+                :confirm-button-text="isPure ? '保存' : '记录'"
+                class="dark:bg-slate-800 dark:text-white">
+      <div class="p-4 space-y-4">
+        <!-- 当前体重 -->
+        <div class="bg-slate-50 dark:bg-slate-700 rounded-xl p-3 text-center">
+          <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">当前体重</div>
+          <div class="text-3xl font-bold text-slate-800 dark:text-white">
+            {{ store.user.weight }} <span class="text-lg font-normal text-slate-500">kg</span>
+          </div>
+        </div>
+        
+        <!-- 新体重输入 -->
+        <div>
+          <label class="text-xs text-slate-500 dark:text-slate-400 block mb-2 font-bold">新体重 (kg)</label>
+          <input type="number" 
+                 step="0.1"
+                 v-model.number="newWeight" 
+                 class="w-full bg-slate-100 dark:bg-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-center text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500 transition">
+        </div>
+        
+        <!-- 推荐体重范围（RPG模式） -->
+        <div v-if="!isPure && recommendedWeightRange" class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 border border-purple-200 dark:border-purple-800">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-bold text-purple-600 dark:text-purple-400">
+              <i class="fas fa-star mr-1"></i>推荐体重参考
+            </div>
+            <button @click="useRecommendedWeight" 
+                    type="button"
+                    class="text-[10px] bg-purple-500 text-white px-2 py-1 rounded-full font-bold active:scale-95 transition">
+              使用理想值
+            </button>
+          </div>
+          <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+            <div class="flex justify-between">
+              <span>健康范围:</span>
+              <span class="font-bold">{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span>
+            </div>
+            <div class="flex justify-between">
+              <span>理想体重:</span>
+              <span class="font-bold text-purple-600 dark:text-purple-400">{{ recommendedWeightRange.ideal }} kg</span>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-2">
+              *基于BMI 18.5-24的健康范围计算
+            </div>
+          </div>
+        </div>
+        
+        <!-- 目标体重信息（纯净模式） -->
+        <div v-if="isPure && targetWeight > 0" class="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 border border-green-200 dark:border-green-800">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-bold text-green-600 dark:text-green-400">
+              <i class="fas fa-bullseye mr-1"></i>目标体重
+            </div>
+            <button @click="useTargetWeight" 
+                    type="button"
+                    class="text-[10px] bg-green-500 text-white px-2 py-1 rounded-full font-bold active:scale-95 transition">
+              使用目标值
+            </button>
+          </div>
+          <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+            <div class="flex justify-between">
+              <span>你的目标:</span>
+              <span class="font-bold text-green-600 dark:text-green-400">{{ targetWeight }} kg</span>
+            </div>
+            <div v-if="targetDifference" class="flex justify-between">
+              <span>距离目标:</span>
+              <span class="font-bold" :class="targetDifference.needLose ? 'text-orange-600' : 'text-blue-600'">
+                {{ targetDifference.value.toFixed(1) }} kg ({{ targetDifference.text }})
               </span>
             </div>
           </div>
         </div>
-
-        <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm text-center" v-if="!weightChartData">
-          <div class="text-4xl mb-2 grayscale opacity-50">⚖️</div>
-          <div class="text-sm text-slate-500">暂无体重记录</div>
-          <div class="text-xs text-slate-400 mt-1">请前往「英雄档案」更新你的体重数据</div>
+        
+        <!-- 推荐体重信息（纯净模式 - 无目标时显示） -->
+        <div v-if="isPure && !targetWeight && recommendedWeightRange" class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-200 dark:border-blue-800">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-bold text-blue-600 dark:text-blue-400">
+              <i class="fas fa-info-circle mr-1"></i>健康体重参考
+            </div>
+          </div>
+          <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+            <div class="flex justify-between">
+              <span>健康范围:</span>
+              <span class="font-bold">{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span>
+            </div>
+            <div class="flex justify-between">
+              <span>理想体重:</span>
+              <span class="font-bold text-blue-600 dark:text-blue-400">{{ recommendedWeightRange.ideal }} kg</span>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-2">
+              *基于BMI 18.5-24的健康范围计算
+            </div>
+          </div>
         </div>
-
-        <div v-else id="guide-weight-chart" class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-          <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-6 flex items-center justify-between">
-            <span><i class="fas fa-weight mr-2 text-blue-500"></i> 近期体态变化</span>
-            <span class="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">最近14次</span>
-          </h3>
-
-          <div class="relative w-full aspect-[2/1] rounded-xl select-none touch-none">
-            <svg viewBox="0 0 300 150" class="w-full h-full overflow-visible">
-              <defs>
-                <linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.2" />
-                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
-                </linearGradient>
-              </defs>
-
-              <line x1="0" y1="0" x2="300" y2="0" stroke="currentColor" class="text-slate-100 dark:text-slate-700" stroke-width="1" />
-              <line x1="0" y1="75" x2="300" y2="75" stroke="currentColor" class="text-slate-100 dark:text-slate-700" stroke-width="1" stroke-dasharray="4 4" />
-              <line x1="0" y1="150" x2="300" y2="150" stroke="currentColor" class="text-slate-100 dark:text-slate-700" stroke-width="1" />
-
-              <path :d="weightChartData.areaPathD" fill="url(#areaGradient)" />
-              <path :d="weightChartData.pathD" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-sm" />
-
-              <g v-for="(p, i) in weightChartData.points" :key="'p'+i">
-                <circle :cx="p.x" :cy="p.y" r="3" fill="#3b82f6" stroke="#fff" stroke-width="1.5" />
-              </g>
-
-              <g v-for="(p, i) in weightChartData.points" :key="'hit'+i">
-                <circle :cx="p.x" :cy="p.y" r="15" fill="transparent" class="cursor-pointer" @mouseenter="selectedPoint = i" @click="selectedPoint = i" />
-              </g>
-
-              <g v-if="selectedPoint !== null && weightChartData.points[selectedPoint]" class="pointer-events-none transition-all duration-200">
-                <circle :cx="weightChartData.points[selectedPoint]?.x || 0" :cy="weightChartData.points[selectedPoint]?.y || 0" r="6" fill="#fff" stroke="#3b82f6" stroke-width="3" />
-                <g>
-                  <rect :x="(weightChartData.points[selectedPoint]?.x || 0) - 24" :y="(weightChartData.points[selectedPoint]?.y || 0) - 45" width="48" height="24" rx="6" fill="#1e293b" class="shadow-lg" />
-                  <path :d="`M ${weightChartData.points[selectedPoint]?.x || 0} ${(weightChartData.points[selectedPoint]?.y || 0) - 21} L ${(weightChartData.points[selectedPoint]?.x || 0) - 6} ${(weightChartData.points[selectedPoint]?.y || 0) - 12} L ${(weightChartData.points[selectedPoint]?.x || 0) + 6} ${(weightChartData.points[selectedPoint]?.y || 0) - 12} Z`" fill="#1e293b" />
-                  <text :x="weightChartData.points[selectedPoint]?.x || 0" :y="(weightChartData.points[selectedPoint]?.y || 0) - 29" font-size="11" text-anchor="middle" fill="#ffffff" font-weight="bold">
-                    {{ weightChartData.points[selectedPoint]?.val || 0 }}kg
-                  </text>
-                </g>
-                <line :x1="weightChartData.points[selectedPoint]?.x || 0" :y1="(weightChartData.points[selectedPoint]?.y || 0) + 6" :x2="weightChartData.points[selectedPoint]?.x || 0" y2="150" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2 2" opacity="0.5" />
-              </g>
-            </svg>
-          </div>
-
-          <div class="mt-6 flex justify-between text-xs text-slate-400 px-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg py-2">
-            <span><i class="fas fa-arrow-down text-green-500 mr-1"></i>Min: {{ weightChartData.minW.toFixed(1) }}</span>
-            <span><i class="fas fa-arrow-up text-red-500 mr-1"></i>Max: {{ weightChartData.maxW.toFixed(1) }}</span>
-          </div>
+        
+        <!-- 变化预览 -->
+        <div v-if="Math.abs(newWeight - store.user.weight) > 0.1" 
+             class="text-xs text-center p-2 rounded-lg"
+             :class="newWeight > store.user.weight ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600' : 'bg-green-50 dark:bg-green-900/20 text-green-600'">
+          变化: {{ newWeight > store.user.weight ? '+' : '' }}{{ (newWeight - store.user.weight).toFixed(1) }} kg
         </div>
       </div>
-    </transition>
+    </van-dialog>
   </div>
 </template>
 

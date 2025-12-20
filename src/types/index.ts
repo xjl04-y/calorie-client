@@ -54,9 +54,68 @@ export interface Quest {
   };
 }
 
+// 基础体重记录（两种模式共享）
 export interface WeightRecord {
-  date: string;
-  weight: number;
+  date: string;               // YYYY-MM-DD
+  weight: number;             // 体重 (kg)
+  timestamp?: string;         // 记录时间戳 ISO
+  bmi?: number;               // BMI指数（可选）
+  bodyFatRate?: number;       // 体脂率（可选，未来扩展）
+  note?: string;              // 备注（可选）
+}
+
+// RPG模式体态趋势数据
+export interface RPGTrendData extends WeightRecord {
+  // 游戏化数据
+  combatPowerChange?: number;    // 战力变化
+  attributeChanges?: {           // 属性变化
+    str: number;                 // 力量变化
+    agi: number;                 // 敏捷变化
+    vit: number;                 // 体质变化
+  };
+  achievements?: string[];       // 解锁的成就ID
+  milestones?: {                 // 里程碑事件
+    type: 'WEIGHT_LOSS' | 'WEIGHT_GAIN' | 'TARGET_REACHED' | 'BREAKTHROUGH';
+    value: number;
+    title: string;
+    icon: string;
+  }[];
+  storyNode?: string;            // 故事节点标记
+}
+
+// 纯净模式体态趋势数据
+export interface PureTrendData extends WeightRecord {
+  // 专业数据
+  bmi: number;                   // BMI指数（必需）
+  bodyFatRate?: number;          // 体脂率（未来扩展）
+  changeRate?: number;           // 变化率 (kg/周)
+  healthScore?: number;          // 健康评分 0-100
+  insights?: TrendInsight[];     // 数据洞察
+  professionalMetrics?: {        // 专业指标
+    weeklyAverage: number;       // 周平均体重
+    monthlyTrend: 'UP' | 'DOWN' | 'STABLE'; // 月度趋势
+    targetDiff: number;          // 与目标体重的差距
+    volatility: number;          // 波动性指数
+  };
+}
+
+// 数据洞察接口
+export interface TrendInsight {
+  type: 'WARNING' | 'SUCCESS' | 'INFO';
+  message: string;
+  suggestions?: string[];
+}
+
+// 联合类型
+export type BodyTrendData = WeightRecord | RPGTrendData | PureTrendData;
+
+// 类型守卫函数
+export function isRPGTrendData(data: BodyTrendData): data is RPGTrendData {
+  return 'attributeChanges' in data || 'achievements' in data || 'milestones' in data;
+}
+
+export function isPureTrendData(data: BodyTrendData): data is PureTrendData {
+  return 'healthScore' in data || 'insights' in data || 'professionalMetrics' in data;
 }
 
 export interface Race {
@@ -155,6 +214,13 @@ export interface ModalState {
   npcGuide: boolean;
   settings: boolean;
   shop: boolean;
+  
+  // [New V6.1] 记录详情弹窗
+  exerciseLogDetail: boolean;
+  hydrationLogDetail: boolean;
+  
+  // [New] 体态趋势详情
+  bodyTrendDetail: boolean;
 }
 
 export interface ShopItem {
@@ -212,6 +278,11 @@ export interface FoodLog extends FoodItem {
   skillEffect?: string;
   finalDamageValue?: number;
   fastingHours?: number;
+  
+  // [指令1] 新增精确回溯字段 - 解决“无法精确扣除已获得的奖励”问题
+  generatedGold?: number;   // 记录该条目产出了多少金币
+  generatedExp?: number;    // 记录产出了多少经验
+  wasLevelUp?: boolean;     // 标记是否触发了升级(用于高级回滚)
 }
 
 export interface Monster {

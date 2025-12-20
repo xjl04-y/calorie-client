@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'; // [工单01] Pinia持久化插件
 import { App as CapApp } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
 import App from './App.vue';
@@ -24,8 +25,10 @@ import {
 // 创建应用实例
 const app = createApp(App);
 
-// 1. 注册 Pinia (状态管理)
-app.use(createPinia());
+// 1. 注册 Pinia (状态管理) + [工单01] 添加持久化插件
+const pinia = createPinia();
+pinia.use(piniaPluginPersistedstate); // 启用持久化，自动保存所有标记persist:true的store
+app.use(pinia);
 
 // 2. 注册 Router (路由)
 app.use(router);

@@ -95,13 +95,17 @@ export const useSystemStore = defineStore('system', () => {
     dailyReport: false,
     manualAdd: false,
     fasting: false,
-    targetConfig: false
+    targetConfig: false,
+    bodyTrendDetail: false,        // [New] 体态趋势详情弹窗
+    exerciseLogDetail: false,      // [Existing] 运动记录详情
+    hydrationLogDetail: false      // [Existing] 补水记录详情
   });
 
   // --- State: 临时/动画状态 (保留你原有的逻辑) ---
   const temp = reactive<SystemTempState & {
     attackVfx: string | null;
     projectile: { show: boolean, icon: string, id: number } | null;
+    selectedBodyTrendPoint: import('@/types').RPGTrendData | import('@/types').PureTrendData | null;  // [New] 选中的体态趋势数据点
   }>({
     activeMealType: 'SNACK',
     isBuilding: false,
@@ -120,13 +124,23 @@ export const useSystemStore = defineStore('system', () => {
     isHealing: false,
     isCrit: false,
     attackVfx: null,
-    projectile: null
+    projectile: null,
+    selectedBodyTrendPoint: null  // [New] 初始化
   });
 
   // --- Actions ---
 
   function setModal(key: keyof ModalState, val: boolean) {
     modals[key] = val;
+  }
+
+  // [工单03] 切换模式方法
+  function toggleMode() {
+    isPureMode.value = !isPureMode.value;
+    // Pinia persist 会自动保存，但为了确保即时生效，我们手动触发一次
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('system-isPureMode', String(isPureMode.value));
+    }
   }
 
   /**
@@ -244,6 +258,7 @@ export const useSystemStore = defineStore('system', () => {
     streak, // Export state
     streakBonusMultiplier, // Export getter
     setModal,
+    toggleMode, // [工单03] 导出切换方法
     triggerShake,
     triggerHealEffect,
     triggerCritEffect,

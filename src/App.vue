@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed, ref, defineAsyncComponent } from 'vue'; // [新增] 引入 defineAsyncComponent
+import { onMounted, onUnmounted, computed, ref, defineAsyncComponent } from 'vue'; // [新增] 引入 defineAsyncComponent
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import AppHud from '@/components/AppHud.vue';
@@ -31,6 +31,9 @@ const ModalDailyReport = defineAsyncComponent(() => import('@/components/modals/
 const ModalManualAdd = defineAsyncComponent(() => import('@/components/modals/ModalManualAdd.vue'));
 const ModalFasting = defineAsyncComponent(() => import('@/components/modals/ModalFasting.vue'));
 const ModalTargetConfig = defineAsyncComponent(() => import('@/components/modals/ModalTargetConfig.vue'));
+const ModalExerciseLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalExerciseLogDetail.vue'));
+const ModalHydrationLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalHydrationLogDetail.vue'));
+const ModalBodyTrendDetail = defineAsyncComponent(() => import('@/components/modals/ModalBodyTrendDetail.vue'));
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -44,8 +47,34 @@ const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 const isFabExpanded = ref(false);
 
+// [指令5] 跨天时间同步优化 - 利用visibilitychange事件
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    // App从后台切回前台，强制检查日期是否一致
+    const updated = store.logStore.checkDateConsistency();
+    if (updated) {
+      console.log('[午夜修复] 日期已更新，重新加载页面');
+      // 可选：刷新页面或重新检查连胜
+      if (store.user.isInitialized) {
+        store.heroStore.checkLoginStreak();
+      }
+    }
+  }
+};
+
 onMounted(() => {
   store.loadState();
+  
+  // [日期同步初始化死角修复] 确保所有store在启动时日期对齐
+  // 虽然系统采用单一数据源(systemStore.currentDate),但为了防止跨时区/午夜边界问题,显式检查一次
+  const realToday = new Date();
+  const currentDateValue = systemStore.currentDate;
+  const todayStr = realToday.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+  if (currentDateValue !== todayStr) {
+    console.log(`[App初始化] 日期修正: ${currentDateValue} -> ${todayStr}`);
+    systemStore.currentDate = todayStr;
+  }
+  
   if (store.user.isInitialized) {
     store.heroStore.checkLoginStreak();
   }
@@ -54,6 +83,9 @@ onMounted(() => {
   } else {
     document.documentElement.classList.remove('dark');
   }
+
+  // [指令5] 注册可见性监听器 - 不仅仅依赖setInterval，切回前台时强制检查
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   // [Fix V6.1] 强化位置恢复逻辑，防止悬浮窗消失
   const w = window.innerWidth;
@@ -85,6 +117,11 @@ onMounted(() => {
     console.error('FAB load error', e);
     fabPos.value = defaultPos;
   }
+});
+
+// [技术工单03] 清理监听器
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 
 const containerClass = computed(() => ({
@@ -299,25 +336,29 @@ const openHydration = () => {
       <ModalAddFood />
       <ModalAddExercise />
       <ModalQuantity />
-      <ModalLevelUp />
+      <!-- [工单02] 纯净模式下RPG弹窗隔离 -->
+      <ModalLevelUp v-if="!isPure" />
       <ModalAchievements />
-      <ModalUnlock />
+      <ModalUnlock v-if="!isPure" />
       <ModalItemDetail />
-      <ModalEquipmentSwap />
+      <ModalEquipmentSwap v-if="!isPure" />
       <ModalHistoryDetail />
       <ModalLogDetail />
-      <ModalHpHistory />
-      <ModalQuestBoard />
-      <ModalSkillTree />
-      <ModalNpcGuide />
+      <ModalHpHistory v-if="!isPure" />
+      <ModalQuestBoard v-if="!isPure" />
+      <ModalSkillTree v-if="!isPure" />
+      <ModalNpcGuide v-if="!isPure" />
       <ModalSettings />
-      <ModalShop />
-      <ModalRebirth />
+      <ModalShop v-if="!isPure" />
+      <ModalRebirth v-if="!isPure" />
       <ModalHydration />
-      <ModalDailyReport />
+      <ModalDailyReport v-if="!isPure" />
       <ModalManualAdd />
       <ModalFasting />
       <ModalTargetConfig />
+      <ModalExerciseLogDetail />
+      <ModalHydrationLogDetail />
+      <ModalBodyTrendDetail />
 
     </div>
   </van-config-provider>

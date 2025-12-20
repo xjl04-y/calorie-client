@@ -225,6 +225,53 @@ export const useHeroStore = defineStore('hero', () => {
     user.gold += Math.floor(amount);
   }
 
+  // [指令2] 回滝XP - 实现等级与经验的智能回滚机制
+  // 目标: 解决"删除记录只扣经验不降级"导致的无限刷技能点漏洞
+  function revertXp(amount: number): void {
+    if (!amount || amount <= 0) return;
+    const safeAmount = Math.floor(amount);
+      
+    user.currentExp -= safeAmount;
+  
+    // [关键] 当经验值为负数时,进入降级循环
+    while (user.currentExp < 0 && user.level > 1) {
+      user.level -= 1; // 等级减1
+        
+      // 使用逆向公式计算上一级的 nextLevelExp
+      const prevLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
+        
+      // 将当前负的经验值加上这个上限,变成上一级剩余的经验值
+      user.currentExp += prevLevelExp;
+        
+      // [关键] 同时扣除1点 skillPoints (如果大于0)
+      if (user.skillPoints > 0) {
+        user.skillPoints -= 1;
+      }
+        
+      // 更新 nextLevelExp
+      user.nextLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
+    }
+  
+    // 边界保护: 最低只能降到1级,经验最低为0
+    if (user.level < 1) {
+      user.level = 1;
+      user.currentExp = 0;
+      user.nextLevelExp = Math.floor(100 * Math.pow(1, 2.2));
+    }
+      
+    if (user.currentExp < 0) {
+      user.currentExp = 0;
+    }
+  }
+
+  // [指令3] 回滝金币 - 允许负债(修复经济系统体验)
+  function revertGold(amount: number): void {
+    if (!amount || amount <= 0) return;
+    if (!user.gold) user.gold = 0;
+    // [关键修改] 移除Math.max(0,...)，允许金币为负数
+    user.gold -= Math.floor(amount);
+  }
+
   function buyItem(itemId: string, price: number): boolean {
     if (user.gold < price) {
       showToast('金币不足');
@@ -244,6 +291,7 @@ export const useHeroStore = defineStore('hero', () => {
     return true;
   }
 
+  // [工单04] 重生逻辑安全审计 - 确保只重置游戏数值，不误删真实健康记录
   function rebirth(newRace: RaceType): void {
     if (!consumeItem('item_rebirth_potion')) {
       showToast('缺少转生药水');
@@ -261,11 +309,20 @@ export const useHeroStore = defineStore('hero', () => {
       });
     }
 
+    // DO NOT RESET FOOD/EXERCISE LOGS HERE - 绝对不清除用户的真实健康记录
+    // 仅重置游戏进度相关数值
     user.skillPoints += totalRefundSP;
     user.learnedSkills = {};
     user.activeSkillId = null;
     user.activeSkillCd = 0;
     user.race = newRace;
+    // 重置等级和经验（可选，根据游戏设计决定）
+    // user.level = 1;
+    // user.currentExp = 0;
+    // user.nextLevelExp = 100;
+    
+    // 警告：绝对不能调用 localStorage.clear() 或清空 logs
+    // 用户的饮食/运动记录是宝贵的健康数据，转生不影响这些记录
 
     systemStore.setModal('rebirth', false);
     showNotify({
@@ -350,7 +407,7 @@ export const useHeroStore = defineStore('hero', () => {
     };
 
     if (user.weight > 0) {
-      updateWeight(user.weight, true);
+      updateWeight(user.weight);
     } else {
       recalcBMR();
     }
@@ -387,10 +444,26 @@ export const useHeroStore = defineStore('hero', () => {
     user.isInitialized = true;
   }
 
-  function updateWeight(newWeight: number, isInit = false): void {
+  /**
+   * 更新体重并记录到体重历史
+   * @param newWeight - 新体重 (kg)
+   * @param options - 可选参数
+   * @param options.bmi - BMI指数（可选，系统会自动计算）
+   * @param options.bodyFatRate - 体脂率（可选，未来扩展）
+   * @param options.note - 备注（可选）
+   */
+  function updateWeight(
+    newWeight: number, 
+    options?: {
+      bmi?: number;
+      bodyFatRate?: number;
+      note?: string;
+    }
+  ): void {
     if (newWeight <= 0) return;
     user.weight = newWeight;
 
+    // 自动模式下重新计算 BMR
     if (user.targetConfig?.mode === 'AUTO' || !user.targetConfig) {
       recalcBMR();
     }
@@ -398,27 +471,49 @@ export const useHeroStore = defineStore('hero', () => {
     if (!user.weightHistory) user.weightHistory = [];
 
     const today = getLocalDateStr();
+    const timestamp = new Date().toISOString();
     const history = [...user.weightHistory];
     const existingIdx = history.findIndex(r => r.date === today);
 
+    // 自动计算 BMI（如果没有提供）
+    const bmi = options?.bmi || (user.height > 0 
+      ? newWeight / Math.pow(user.height / 100, 2) 
+      : undefined);
+
+    const record: import('@/types').WeightRecord = {
+      date: today,
+      weight: newWeight,
+      timestamp,
+      ...(bmi && { bmi: parseFloat(bmi.toFixed(1)) }),
+      ...(options?.bodyFatRate && { bodyFatRate: options.bodyFatRate }),
+      ...(options?.note && { note: options.note })
+    };
+
     if (existingIdx !== -1) {
-      history[existingIdx]!.weight = newWeight;
+      // 更新已存在的记录
+      history[existingIdx] = record;
     } else {
-      history.push({ date: today, weight: newWeight });
+      // 添加新记录
+      history.push(record);
     }
 
+    // 保留最近365条记录
     if (history.length > 365) {
       history.shift();
     }
 
-    user.weightHistory = history;
+    // 确保触发响应式更新 - 创建新数组引用
+    user.weightHistory = [...history];
   }
 
+  // [工单05] 动态XP收益模型 - 后期等级收益自动提升
   function addExp(amount: number): void {
     if (user.level >= MAX_LEVEL) return;
 
     const safeAmount = Number.isNaN(amount) ? 0 : amount;
-    const realAmount = Math.floor(safeAmount * passiveBonuses.value.expRate);
+    // 引入等级缩放系数：每级增加5%收益，确保后期升级体验平滑
+    const levelScaler = 1 + (user.level * 0.05);
+    const realAmount = Math.floor(safeAmount * passiveBonuses.value.expRate * levelScaler);
     user.currentExp += realAmount;
 
     let leveledUp = false;
@@ -700,9 +795,11 @@ export const useHeroStore = defineStore('hero', () => {
     updateTargetConfig,
     addShield,
     realMaxHp,
-    // 新增导出
     useStamina,
-    recoverStamina
+    recoverStamina,
+    // [工单01] 新增XP/Gold回滚方法
+    revertXp,
+    revertGold
   };
 }, {
   persist: true

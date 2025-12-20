@@ -1,8 +1,15 @@
 import { RACES } from '@/constants/gameData';
+import { v4 as uuidv4 } from 'uuid'; // [技术工单02] UUID库导入
 
-// --- 工具函数：ID 生成器 ---
-export const generateId = (): number => {
-  return Date.now() + Math.floor(Math.random() * 10000);
+// [指令5] ID升级 - 直接使用UUID字符串,绝对防止ID冲突
+export const generateId = (): string => {
+  return uuidv4();
+};
+
+// [技术工单02] 移动端底层兼容性补丁 - UUID生成器
+// 使用uuid库代替crypto.randomUUID()，避免旧版Android WebView崩溃
+export const generateUUID = (): string => {
+  return uuidv4();
 };
 
 // --- 工具函数：安全震动 ---

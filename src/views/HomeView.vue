@@ -7,7 +7,7 @@ import { useHeroStore } from '@/stores/useHeroStore';
 import { useLogStore } from '@/stores/useLogStore';
 import AppHud from '@/components/AppHud.vue';
 import DateNavigator from '@/components/DateNavigator.vue';
-import { showConfirmDialog, showDialog } from 'vant';
+import { showConfirmDialog, showDialog, showNotify } from 'vant';
 import type { FoodLog, MealType } from '@/types';
 
 const router = useRouter();
@@ -207,6 +207,16 @@ const rpgMeals = [
 ];
 
 const openAddFood = (key: MealType) => {
+  // [UI欺诈修复] 在UI层面也检查HP, 不让用户点击后才发现无法战斗
+  if (!isPure.value && heroStore.user.heroCurrentHp <= 0) {
+    showNotify({
+      type: 'warning',
+      message: '⚠️ 你已经精疲力尽，请先进食或运动恢复HP！',
+      background: '#f59e0b',
+      duration: 3000
+    });
+    return;
+  }
   store.temp.activeMealType = key;
   store.setModal('addFood', true);
 }
@@ -526,7 +536,13 @@ const showStatsInfo = () => {
     </div>
 
     <div class="px-4 grid grid-cols-2 gap-3 mb-6">
-      <div v-for="m in rpgMeals" :key="m.key" @click="openAddFood(m.key as MealType)" class="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 dark:border-slate-700 active:scale-95 transition cursor-pointer hover:border-purple-300 dark:hover:border-purple-700">
+      <!-- [UI欺诈修复] 当HP为0时禁用按钮 -->
+      <div v-for="m in rpgMeals" :key="m.key" 
+           @click="openAddFood(m.key as MealType)" 
+           class="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 dark:border-slate-700 transition cursor-pointer hover:border-purple-300 dark:hover:border-purple-700"
+           :class="[
+             (!isPure && heroStore.user.heroCurrentHp <= 0) ? 'opacity-50 grayscale cursor-not-allowed' : 'active:scale-95'
+           ]">
         <div class="text-2xl bg-slate-50 dark:bg-slate-700 w-10 h-10 flex items-center justify-center rounded-lg">{{ m.icon }}</div>
         <div>
           <div class="text-sm font-bold dark:text-slate-200">{{ isPure ? m.label : m.rpgName }}</div>

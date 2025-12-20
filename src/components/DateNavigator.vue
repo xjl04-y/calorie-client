@@ -22,7 +22,9 @@ const dateText = computed(() => {
 // 直接使用 store.currentDate
 const isToday = computed(() => store.currentDate === getLocalDateStr());
 
-// 确认选择日期
+// [工单03] 确认选择日期
+// 注意：修改 store.currentDate 后，所有依赖 systemStore.currentDate 的 Store 都会自动同步
+// 包括: logStore (todayLogs), hydrationStore (todayLogs), battleStore (怪物、进度) 等
 const onConfirm = (date: Date) => {
   store.currentDate = getLocalDateStr(date);
   showCalendar.value = false;

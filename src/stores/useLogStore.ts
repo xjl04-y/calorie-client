@@ -115,6 +115,19 @@ export const useLogStore = defineStore('log', () => {
     globalStats.totalCals = Math.max(0, Math.round(globalStats.totalCals + (log.calories || 0) * sign));
   }
 
+  // [技术工单03] 跨夜时间同步机制 - 修复“午夜幽灵”问题
+  function checkDateConsistency() {
+    const realToday = getLocalDateStr();
+    const current = systemStore.currentDate;
+    
+    if (current !== realToday) {
+      console.log(`[日期修正] 检测到时间偏移: ${current} -> ${realToday}`);
+      systemStore.currentDate = realToday;
+      return true; // 返回true表示日期已更新
+    }
+    return false;
+  }
+
   // 重新计算所有历史数据 (用于读档后)
   function recalculateGlobalStats() {
     let p = 0, c = 0, f = 0, cals = 0;
@@ -133,6 +146,19 @@ export const useLogStore = defineStore('log', () => {
     globalStats.totalCals = Math.round(cals);
   }
 
+  // [指令1] 新增: 更新日志的奖励字段
+  function updateLogRewards(logId: number | string, gold: number, exp: number) {
+    const dateKey = systemStore.currentDate || getLocalDateStr();
+    const dayLogs = logs[dateKey];
+    if (!dayLogs) return;
+
+    const log = dayLogs.find(l => l.id === logId);
+    if (log) {
+      log.generatedGold = gold;
+      log.generatedExp = exp;
+    }
+  }
+
   return {
     logs,
     globalStats,
@@ -147,6 +173,8 @@ export const useLogStore = defineStore('log', () => {
     lastMealTime,
     addLog,
     removeLog,
-    recalculateGlobalStats
+    updateLogRewards, // [指令1] 导出更新奖励的方法
+    recalculateGlobalStats,
+    checkDateConsistency // [技术工单03] 导出日期检查方法
   };
 });

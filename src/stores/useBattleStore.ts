@@ -4,7 +4,7 @@ import { reactive, computed } from 'vue';
 import type { FoodLog, FoodItem, EnvironmentEffect, MealType } from '@/types';
 import { MONSTERS, RACES } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
-import { getLocalDateStr } from '@/utils/dateUtils';
+import { getLocalDateStr, isSameDay } from '@/utils/dateUtils';
 import { generateId, safeVibrate } from '@/utils/gameUtils';
 
 import { useSystemStore } from './useSystemStore';
@@ -190,12 +190,14 @@ export const useBattleStore = defineStore('battle', () => {
     });
   }
 
+  // [工单02] 获取包含装备加成的英雄属性 - 修复战斗数值“裸奔”问题
   function getHeroStatsForBattle() {
     const user = heroStore.user;
     const raceKey = user.race || 'HUMAN';
     const race = RACES[raceKey] || RACES.HUMAN;
     const { totalP, totalC } = logStore.historyTotalMacros;
 
+    // 基础属性（裸装）
     let rawStr = Math.floor(totalP / 70) + 10;
     let rawAgi = Math.floor(totalC / 180) + 10;
 
@@ -205,6 +207,7 @@ export const useBattleStore = defineStore('battle', () => {
     let blockValue = Math.floor(rawStr * 0.8);
     let dodgeChance = Math.min(rawAgi * 0.003, 0.60);
 
+    // 关键修复：计算装备加成（屠龙刀、铠甲等）
     if (user.equipped) {
       Object.values(user.equipped).forEach(itemId => {
         if (itemId) {
@@ -226,6 +229,7 @@ export const useBattleStore = defineStore('battle', () => {
       });
     }
 
+    // 返回带装备加成的最终属性
     return { blockValue, dodgeChance };
   }
 
@@ -324,13 +328,31 @@ export const useBattleStore = defineStore('battle', () => {
   function battleCommit(item: FoodItem, forcedMealType?: MealType) {
     if (!item) return;
 
+    // [工单02] "僵尸英雄"禁入战场 - HP为0时禁止战斗
+    // [UI欺诈修复] 必须给用户明确的反馈,不能静默拒绝
+    if (!systemStore.isPureMode && heroStore.user.heroCurrentHp <= 0) {
+      // 使用showNotify而不showToast, 提供更明显的视觉反馈
+      showNotify({
+        type: 'warning',
+        message: '⚠️ 你已经精疲力尽，请先休息（回血）！',
+        background: '#f59e0b',
+        duration: 3000
+      });
+      return; // 终止执行
+    }
+
+    // [工单03] 时空穿越修正 - 判断是否为今日记录
+    const isToday = isSameDay(new Date(systemStore.currentDate), new Date());
+
     // --- Special: Exercise Logic ---
     // 运动不计算伤害，而是治疗/增加Target
     if (item.isExercise || forcedMealType === 'EXERCISE') {
       const exerciseLog: FoodLog = {
         ...item,
         mealType: 'EXERCISE',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        generatedGold: 0, // [指令1] 初始化为0,后面会赋值
+        generatedExp: 0
       };
 
       const savedLog = logStore.addLog(exerciseLog);
@@ -386,6 +408,7 @@ export const useBattleStore = defineStore('battle', () => {
             const goldBonus = Math.floor(remainingOverflow * 0.5);
             if (goldBonus > 0) {
               heroStore.addGold(goldBonus);
+              exerciseLog.generatedGold = goldBonus; // [指令1] 记录运动产出的金币
               setTimeout(() => spawnFloatingText(`+${goldBonus}G`, 'EXP'), 400);
             }
           }
@@ -394,6 +417,7 @@ export const useBattleStore = defineStore('battle', () => {
           // 护盾已满，全额转金币 (50%比例)
           const goldBonus = Math.floor(overflow * 0.5);
           heroStore.addGold(goldBonus);
+          exerciseLog.generatedGold = goldBonus; // [指令1] 记录运动产出的金币
           if (!systemStore.isPureMode) {
             spawnFloatingText(`+${goldBonus}G`, 'EXP');
             showNotify({
@@ -643,55 +667,107 @@ export const useBattleStore = defineStore('battle', () => {
 
     const savedLog = logStore.addLog(battleItem);
 
-    if (systemStore.currentDate === getLocalDateStr()) {
-      comboState.lastLogTime = Date.now();
-      comboState.lastLogId = savedLog.id;
+    // [指令1] 记录产出的奖励 - 用于精确回滚
+    let generatedGold = 0;
+    let generatedExp = 0;
+
+    // [工单03] 仅在今日记录时更新 combo 和给予奖励
+    if (isToday) {
+      if (systemStore.currentDate === getLocalDateStr()) {
+        comboState.lastLogTime = Date.now();
+        comboState.lastLogId = savedLog.id;
+      }
+
+      // 今日记录：正常给予 XP 和 Gold
+      // [指令4] 纯净模式的数据隔离 - 防止用户在纯净模式下后台偷偷升级
+      if (!systemStore.isPureMode) {
+        generatedExp = xp; // [指令1] 记录产出的经验
+        heroStore.addExp(xp);
+      }
+
+      if (!systemStore.isPureMode) {
+        let goldDrop = Math.floor(calories / 20);
+        if (goldDrop < 1) goldDrop = 1;
+
+        if (newCombo > 1) goldDrop = Math.floor(goldDrop * (1 + newCombo * 0.1));
+        if (multiplier > 1.2) goldDrop = Math.floor(goldDrop * 1.5);
+
+        generatedGold = goldDrop; // [指令1] 记录产出的金币
+        heroStore.addGold(goldDrop);
+        if (Math.random() > 0.5) setTimeout(() => spawnFloatingText(`+${goldDrop}G`, 'EXP'), 700);
+      }
+
+      collectionStore.checkDailyQuests(savedLog);
+      checkAchievements(false);
+
+      const quests = collectionStore.quests.filter(q => q.status === 'ACCEPTED');
+      const completedCount = quests.filter(q => q.current >= q.target).length;
+      if (completedCount === quests.length && quests.length > 0) {
+        setTimeout(() => {
+          showNotify({ type: 'success', message: '🎉 今日任务全部完成！', background: '#f59e0b' });
+          safeVibrate(200);
+        }, 500);
+      }
+    } else {
+      // 历史补录：仅保存数据，不触发战斗结算
+      // 可选：给予少量安慰奖励
+      const retroactiveXp = Math.floor(xp * 0.2); // 20%的经验作为补录奖励
+      if (retroactiveXp > 0 && !systemStore.isPureMode) {
+        generatedExp = retroactiveXp; // [指令1] 记录历史补录的经验
+        heroStore.addExp(retroactiveXp);
+      }
+      
+      if (!systemStore.isPureMode) {
+        showToast(`历史记录已保存 (+${retroactiveXp} XP 补录奖励)`);
+      }
     }
 
-    heroStore.addExp(xp);
-
-    if (!systemStore.isPureMode) {
-      let goldDrop = Math.floor(calories / 20);
-      if (goldDrop < 1) goldDrop = 1;
-
-      if (newCombo > 1) goldDrop = Math.floor(goldDrop * (1 + newCombo * 0.1));
-      if (multiplier > 1.2) goldDrop = Math.floor(goldDrop * 1.5);
-
-      heroStore.addGold(goldDrop);
-      if (Math.random() > 0.5) setTimeout(() => spawnFloatingText(`+${goldDrop}G`, 'EXP'), 700);
-    }
-
-    collectionStore.checkDailyQuests(savedLog);
-    checkAchievements(false);
-
-    const quests = collectionStore.quests.filter(q => q.status === 'ACCEPTED');
-    const completedCount = quests.filter(q => q.current >= q.target).length;
-    if (completedCount === quests.length && quests.length > 0) {
-      setTimeout(() => {
-        showNotify({ type: 'success', message: '🎉 今日任务全部完成！', background: '#f59e0b' });
-        safeVibrate(200);
-      }, 500);
+    // [指令1] 更新已保存的日志，补充generated字段
+    if (savedLog && (generatedGold > 0 || generatedExp > 0)) {
+      logStore.updateLogRewards(savedLog.id, generatedGold, generatedExp);
     }
   }
 
+  // [指令3] 删除记录处理 - 修复经济系统的"零元购"与"运动刷钱"漏洞
   function deleteLog(log: FoodLog) {
+    // [移除熔断] 不再检查余额,允许用户负债删除(体验更好)
+    
+    // [读取账本] 直接读取log中保存的generatedGold和generatedExp
+    const goldToRevert = log.generatedGold || 0;
+    const expToRevert = log.generatedExp || 0;
+
+    // 执行删除操作
     const removed = logStore.removeLog(log.id);
     if (removed) {
-      if (removed.gainedExp) heroStore.addExp(-removed.gainedExp);
-      // 如果是运动，扣除治疗量
+      // 回滚 XP (使用新的智能降级机制)
+      if (expToRevert > 0) {
+        heroStore.revertXp(expToRevert);
+      }
+      
+      // 回滚 Gold (允许负债)
+      if (goldToRevert > 0) {
+        heroStore.revertGold(goldToRevert);
+      }
+      
+      // [运动修正] 对于运动,除了扣血,必须增加扣除generatedGold的步骤
       if (removed.mealType === 'EXERCISE') {
         const healAmt = 50 + Math.floor((removed.calories || 0) / 10);
         heroStore.damage(healAmt);
+        // 注意: generatedGold已经在上面执行了,不需要重复扣除
       } else {
+        // 如果是饮食且有反伤,回血
         if (removed.damageTaken) heroStore.heal(removed.damageTaken);
       }
 
+      // 回滚 combo
       if (systemStore.currentDate === getLocalDateStr()) {
         comboState.count = Math.max(0, comboState.count - 1);
       }
 
       showToast('记录已撤销');
+      return true;
     }
+    return false;
   }
 
   return {

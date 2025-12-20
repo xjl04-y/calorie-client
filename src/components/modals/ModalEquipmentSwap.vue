@@ -38,12 +38,31 @@ const equip = (item: Achievement) => {
     showToast(`已装备: ${item.reward}\nBoss血量已调整`);
   }
 };
+
+// [工单04] 装备面板的实时响应 - 使用 computed 指向 store 的实时属性
+const currentStats = computed(() => store.heroStats);
 </script>
 
 <template>
-  <van-popup v-model:show="show" round position="bottom" :style="{ height: '50%' }" class="dark:bg-slate-800">
+  <van-popup v-model:show="show" round position="bottom" :style="{ height: '60%' }" class="dark:bg-slate-800">
     <div class="p-4 h-full flex flex-col">
-      <h3 class="font-bold text-center mb-4 dark:text-white">更换装备: {{ slotName }}</h3>
+      <h3 class="font-bold text-center mb-3 dark:text-white">更换装备: {{ slotName }}</h3>
+
+      <!-- [工单04] 实时属性展示区域 - 使用 computed 确保响应式更新 -->
+      <div class="grid grid-cols-3 gap-2 mb-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl">
+        <div class="text-center">
+          <div class="text-xs text-slate-500 dark:text-slate-400">战力</div>
+          <div class="font-bold text-yellow-600 dark:text-yellow-400">{{ currentStats.combatPower }}</div>
+        </div>
+        <div class="text-center">
+          <div class="text-xs text-slate-500 dark:text-slate-400">格挡</div>
+          <div class="font-bold text-blue-600 dark:text-blue-400">{{ currentStats.blockValue }}</div>
+        </div>
+        <div class="text-center">
+          <div class="text-xs text-slate-500 dark:text-slate-400">闪避</div>
+          <div class="font-bold text-green-600 dark:text-green-400">{{ (currentStats.dodgeChance * 100).toFixed(1) }}%</div>
+        </div>
+      </div>
 
       <div class="flex-1 overflow-y-auto space-y-3">
         <div v-if="availableItems.length === 0" class="text-center text-slate-400 py-10">

@@ -163,6 +163,7 @@ export const useHydrationStore = defineStore('hydration', () => {
 
   /**
    * 提交补水记录 (核心方法)
+   * [工单01补充] 防御性编程: 拒绝负数补水量,防止通过负数绕过熔断机制
    */
   function commitHydration(options?: {
     name?: string;
@@ -180,6 +181,23 @@ export const useHydrationStore = defineStore('hydration', () => {
     const cupSize = options?.cupSize ?? formState.cupSize;
     const type = options?.type ?? formState.type;
     const temperature = options?.temperature ?? formState.temperature;
+
+    // [工单01补充] 关键防御: 拒绝负数或零补水量
+    if (amount <= 0) {
+      showToast('补水量必须大于0');
+      return { log: null as any }; // 返回空结果,阻止后续逻辑
+    }
+
+    // [浮点数陷阱修复] RPG模式下发放金币奖励
+    let goldReward = 0;
+    if (!systemStore.isPureMode && amount > 0) {
+      // [统一算法] 每250ml奖励5金币, 向下取整 (与removeHydration保持一致)
+      goldReward = Math.floor(amount / 250) * 5;
+      // 注意: 如果小于250ml, goldReward为0, 这是正常行为
+      if (goldReward > 0) {
+        heroStore.addGold(goldReward);
+      }
+    }
 
     // RPG 模式效果
     let healAmount = 0;
@@ -278,10 +296,41 @@ export const useHydrationStore = defineStore('hydration', () => {
   }
 
   /**
-   * 删除补水记录
+   * [工单01] 删除补水记录 - 防白嫖熔断机制
+   * 目标：防止用户利用"喝水赚金币 -> 商店花金币 -> 删记录"的流程实现零元购
    */
   function removeHydration(logId: number | string): HydrationLog | null {
-    return logStore.removeHydrationLog(logId);
+    // 步骤1: 先获取要删除的记录,计算需要扣除的金币
+    const targetLog = logStore.allTodayHydration.find(log => log.id === logId);
+    if (!targetLog) {
+      showToast('记录不存在');
+      return null;
+    }
+
+    // 步骤2: [关键修复] 计算需要回退的金币 - 必须与commitHydration的算法完全一致
+    let goldToRevert = 0;
+    if (!systemStore.isPureMode && targetLog.amount) {
+      // [统一算法] 每250ml奖励5金币, 向下取整
+      const baseGold = Math.floor(targetLog.amount / 250) * 5;
+      // [关键] 如果计算结果为0,也不能强制我1, 必须与增加时一致
+      goldToRevert = baseGold; // 删除时只退回实际获得的金币
+    }
+
+    // 步骤3: 核心熔断检查 - 余额不足时禁止删除
+    const currentGold = heroStore.user.gold || 0;
+    if (goldToRevert > 0 && currentGold < goldToRevert) {
+      showToast(`金币不足，无法撤销此记录（需要 ${goldToRevert} 金币，当前 ${currentGold}）`);
+      return null; // 熔断！终止执行
+    }
+
+    // 步骤4: 余额充足，执行删除操作
+    const removed = logStore.removeHydrationLog(logId);
+    if (removed && goldToRevert > 0) {
+      // 扣除金币
+      heroStore.revertGold(goldToRevert);
+    }
+
+    return removed;
   }
 
   /**
