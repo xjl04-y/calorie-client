@@ -30,11 +30,31 @@ const shieldPercent = computed(() => {
 });
 
 const hasShield = computed(() => (user.value.heroShield || 0) > 0);
+
+// [经验条] 计算经验百分比
+const expPercent = computed(() => {
+  const current = user.value.currentExp || 0;
+  const next = user.value.nextLevelExp || 100;
+  return Math.min((current / next) * 100, 100);
+});
+
+// [点击事件] 金币区域 - 打开流水弹窗并切换到GOLD Tab
+const openGoldHistory = () => {
+  systemStore.temp.transactionTab = 'GOLD';
+  systemStore.setModal('transactionHistory', true);
+};
+
+// [点击事件] 经验区域 - 打开流水弹窗并切换到EXP Tab
+const openExpHistory = () => {
+  systemStore.temp.transactionTab = 'EXP';
+  systemStore.setModal('transactionHistory', true);
+};
 </script>
 
 <template>
-  <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg sticky top-0 z-50 border-b border-slate-200/50 dark:border-slate-800/50 safe-area-top transition-colors duration-300 shadow-sm">
-    <div class="px-4 py-3">
+  <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg sticky top-0 z-50 border-b border-slate-200/50 dark:border-slate-800/50 transition-colors duration-300 shadow-sm">
+    <!-- [优先级五] 安全区域适配：为内容添加顶部间距 -->
+    <div class="px-4 py-3" style="padding-top: max(12px, env(safe-area-inset-top));">
       <!-- 上半部分：身份与操作 -->
       <div class="flex items-center justify-between mb-2">
         <!-- 左侧：头像与基础信息 -->
@@ -134,6 +154,60 @@ const hasShield = computed(() => (user.value.heroShield || 0) > 0);
             </div>
           </div>
 
+        </div>
+      </div>
+
+      <!-- [交易记录入口] 金币、经验和背包显示区域 -->
+      <div v-if="!isPure && user.isInitialized" class="flex gap-2 mt-3">
+        <!-- 金币 -->
+        <div 
+          class="flex-1 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 dark:from-yellow-500/20 dark:to-orange-500/20 rounded-lg px-3 py-2 border border-yellow-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+          @click.stop="openGoldHistory"
+        >
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <i class="fas fa-coins text-yellow-500 text-sm"></i>
+              <span class="text-[9px] text-yellow-600 dark:text-yellow-400 font-bold">GOLD</span>
+            </div>
+            <span class="text-sm font-black text-yellow-600 dark:text-yellow-400 font-mono">{{ user.gold || 0 }}</span>
+          </div>
+        </div>
+
+        <!-- 经验 -->
+        <div 
+          class="flex-1 bg-gradient-to-r from-purple-500/10 to-blue-500/10 dark:from-purple-500/20 dark:to-blue-500/20 rounded-lg px-3 py-2 border border-purple-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+          @click.stop="openExpHistory"
+        >
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <i class="fas fa-star text-purple-500 text-sm"></i>
+                <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold">EXP</span>
+              </div>
+              <span class="text-[10px] font-mono font-bold text-purple-500 dark:text-purple-400">{{ Math.floor(user.currentExp) }}/{{ user.nextLevelExp }}</span>
+            </div>
+            <!-- 经验进度条 -->
+            <div class="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div 
+                class="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 ease-out"
+                :style="{ width: expPercent + '%' }"
+              >
+                <!-- 微弱的内部高光 -->
+                <div class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- [背包功能] 背包按钮 -->
+        <div 
+          class="bg-gradient-to-r from-green-500/10 to-emerald-500/10 dark:from-green-500/20 dark:to-emerald-500/20 rounded-lg px-3 py-2 border border-green-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
+          @click.stop="systemStore.setModal('inventory', true)"
+        >
+          <div class="flex flex-col items-center gap-0.5">
+            <i class="fas fa-bag-shopping text-green-500 text-sm"></i>
+            <span class="text-[9px] text-green-600 dark:text-green-400 font-bold">背包</span>
+          </div>
         </div>
       </div>
     </div>

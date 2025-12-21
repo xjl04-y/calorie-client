@@ -1,4 +1,4 @@
-// 核心数据接口定义 - V5.2 Updated (Quest Types)
+1// 核心数据接口定义 - V5.2 Updated (Quest Types)
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'HYDRATION' | 'EXERCISE';
@@ -172,6 +172,14 @@ export interface UserState {
   lastLoginDate: string;
   gold: number;
   inventory: Record<string, number>;
+
+  // [修复工单01] 交易历史记录
+  transactionHistory?: TransactionRecord[];
+
+  // [体力系统] 新增体力字段
+  stamina?: number;
+  maxStamina?: number;
+
   hydration: {
     dailyTargetCups: number;
     cupSizeMl: number;
@@ -214,13 +222,17 @@ export interface ModalState {
   npcGuide: boolean;
   settings: boolean;
   shop: boolean;
-  
+  inventory: boolean;  // [背包功能] 新增背包弹窗
+
   // [New V6.1] 记录详情弹窗
   exerciseLogDetail: boolean;
   hydrationLogDetail: boolean;
-  
+
   // [New] 体态趋势详情
   bodyTrendDetail: boolean;
+
+  // [交易记录弹窗] 金币和经验流水账本
+  transactionHistory: boolean;
 }
 
 export interface ShopItem {
@@ -278,11 +290,52 @@ export interface FoodLog extends FoodItem {
   skillEffect?: string;
   finalDamageValue?: number;
   fastingHours?: number;
-  
-  // [指令1] 新增精确回溯字段 - 解决“无法精确扣除已获得的奖励”问题
+
+  // [指令1] 新增精确回溯字段 - 解决"无法精确扣除已获得的奖励"问题
   generatedGold?: number;   // 记录该条目产出了多少金币
   generatedExp?: number;    // 记录产出了多少经验
   wasLevelUp?: boolean;     // 标记是否触发了升级(用于高级回滚)
+}
+
+// 运动记录类型
+export interface ExerciseLog {
+  id: number | string;
+  logType: 'EXERCISE';
+  name: string;
+  icon: string;
+  duration: number;           // 运动时长（分钟）
+  caloriesBurned: number;     // 消耗的卡路里
+  intensity?: 'LOW' | 'MEDIUM' | 'HIGH'; // 运动强度
+  baseExerciseId?: string;    // 基础运动ID
+  userWeight?: number;        // 记录时的体重
+  tags?: string[];            // 标签
+  tips?: string;              // 备注
+  timestamp: string;          // 记录时间
+  
+  // RPG 效果字段
+  healAmount?: number;        // 治疗量
+  shieldGained?: number;      // 获得的护盾
+  goldGained?: number;        // 获得的金币
+  generatedExp?: number;      // 获得的经验
+}
+
+// 补水记录类型
+export interface HydrationLog {
+  id: number | string;
+  logType: 'HYDRATION';
+  name: string;
+  icon: string;
+  amount: number;             // 饮水量（ml）
+  type?: 'WATER' | 'TEA' | 'COFFEE' | 'OTHER'; // 饮品类型
+  temperature?: 'COLD' | 'WARM' | 'HOT'; // 水温
+  tags?: string[];            // 标签
+  timestamp: string;          // 记录时间
+  
+  // RPG 效果字段
+  healAmount?: number;        // 治疗量
+  buffEffect?: string;        // Buff 效果描述
+  generatedGold?: number;     // 获得的金币
+  generatedExp?: number;      // 获得的经验
 }
 
 export interface Monster {
@@ -332,6 +385,8 @@ export interface SystemTempState {
   selectedItem: FoodItem | null;
   unlockedAchievement: Achievement | null;
   selectedLog: FoodLog | null;
+  selectedExerciseLog: ExerciseLog | null;  // 选中的运动记录
+  selectedHydrationLog: HydrationLog | null; // 选中的补水记录
   pendingItem?: FoodItem;
   floatingTexts: FloatingText[];
   reportData: DailyReportData | null;
@@ -385,4 +440,35 @@ export interface DailyStreak {
   currentStreak: number;
   lastLoginDate: string; // ISO Date String YYYY-MM-DD
   maxStreak: number;
+}
+
+// === [阶段一] 资产闭环 - 交易类型与流水定义 ===
+
+// 交易类型：覆盖所有资产流转场景
+export type TransactionType = 
+  // 基础货币交易
+  | 'BATTLE_REWARD'      // 战斗胜利奖励
+  | 'QUEST_REWARD'       // 任务完成奖励
+  | 'SHOP_PURCHASE'      // 商店消费
+  | 'SYSTEM_GRANT'       // 系统发放
+  | 'LEVEL_UP'           // 升级奖励
+  // 物品相关交易
+  | 'ITEM_BUY'           // 商店购买道具（金币→道具）
+  | 'ITEM_USE'           // 使用道具（消耗库存）
+  | 'ITEM_OBTAIN'        // 战斗/任务/宝箱掉落获得道具
+  // 特殊奖励
+  | 'ACHIEVEMENT_REWARD' // 成就解锁奖励
+  | 'CHECKIN_BONUS'      // 每日签到/连胜奖励
+  | 'SYSTEM_ROLLBACK';   // 系统回滚
+
+// 交易记录接口：支持金币、经验、物品三种资产
+export interface TransactionRecord {
+  timestamp: string;           // 交易时间戳（ISO格式）
+  type: TransactionType;       // 交易类型（可溯源）
+  currency: 'GOLD' | 'EXP' | 'ITEM'; // 资产类型
+  amount: number;              // 变动数量（正数=收入，负数=支出）
+  balanceAfter?: number;       // 交易后余额（用于核对）
+  itemId?: string;             // 物品ID（当currency为ITEM时必填）
+  itemName?: string;           // 物品名称（用于显示）
+  source: string;              // 来源描述（用户可读）
 }

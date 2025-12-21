@@ -17,17 +17,9 @@ const gold = computed(() => store.user.gold || 0);
 const inventory = computed(() => store.user.inventory || {});
 
 const handleBuy = (item: typeof SHOP_ITEMS[0]) => {
-  if (store.heroStore.buyItem(item.id, item.price)) {
-    if (item.effect === 'HEAL' && item.value) {
-      store.heroStore.heal(item.value);
-      store.heroStore.consumeItem(item.id);
-      showToast('购买并饮用：HP 恢复');
-    } else if (item.effect === 'EXP' && item.value) {
-      store.heroStore.addExp(item.value);
-      store.heroStore.consumeItem(item.id);
-      showToast('获得经验卷轴之力！');
-    }
-    // 转生药水和连击护盾不自动消耗，保留在背包
+  // [背包功能] 所有道具购买后直接存入背包，不自动使用
+  if (store.heroStore.buyItem(item.id, item.price, item.name)) {
+    showToast(`${item.name} 已放入背包！`);
   }
 };
 </script>

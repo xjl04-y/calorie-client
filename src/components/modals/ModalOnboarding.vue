@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { RACES } from '@/constants/gameData';
@@ -13,6 +13,34 @@ const systemStore = useSystemStore();
 const show = computed(() => store.modals.onboarding);
 const step = ref(1);
 
+// [Fix] 监听弹窗打开，如果已有昵称且未选种族，直接跳到步骤2
+watch(show, (val) => {
+  if (val) {
+    // 弹窗打开时，检查是否需要跳过步骤
+    const isFromPureToRpg = store.user.isInitialized && 
+                            store.user.nickname && 
+                            (!store.user.race || store.user.race === 'HUMAN') && 
+                            !systemStore.isPureMode; // 只有在 RPG 模式下才跳转
+    
+    if (isFromPureToRpg) {
+      // 已有用户信息但未选种族（从纯净模式切换过来）
+      formData.nickname = store.user.nickname;
+      formData.gender = store.user.gender;
+      formData.height = store.user.height;
+      formData.weight = store.user.weight;
+      formData.age = store.user.age;
+      // 跳过模式和档案填写，直接到种族选择
+      step.value = 2;
+    } else {
+      // 否则从头开始
+      step.value = 1;
+    }
+  } else {
+    // 关闭时重置
+    step.value = 1;
+  }
+});
+
 // [Fix Type Safety] 显式声明类型
 const formData = reactive<InitUserForm>({
   race: 'HUMAN',
@@ -25,7 +53,9 @@ const formData = reactive<InitUserForm>({
 
 const selectMode = (isPure: boolean) => {
   systemStore.isPureMode = isPure;
-  step.value = 2; // 进入下一步
+  // 如果选择纯净模式，跳过种族选择，直接到档案填写
+  // 如果选择 RPG 模式，进入种族选择
+  step.value = 2;
 };
 
 const validate = () => {
@@ -45,12 +75,51 @@ const validate = () => {
 };
 
 const finish = () => {
-  if (validate()) {
-    // [Fix Type Safety] 移除 @ts-ignore，类型已匹配
+  // [Fix] 区分两种情况：完整初始化 vs 只是补充种族选择
+  const isOnlySelectingRace = store.user.isInitialized && store.user.nickname && formData.nickname;
+  
+  if (isOnlySelectingRace) {
+    // 情况1：用户已有账号，只是补充选择种族（从纯净模式切换过来）
+    // [Fix] 允许选择任意种族，包括 HUMAN
+    // 直接更新种族
+    store.user.race = formData.race;
+    store.saveState();
+    // 确保处于 RPG 模式
+    systemStore.isPureMode = false;
+    // 关闭弹窗（不打开NPC引导，因为用户已经熟悉了）
+    store.setModal('onboarding', false);
+    showToast({ type: 'success', message: `✨ 欢迎加入 ${RACES[formData.race]?.name} 种族！` });
+  } else {
+    // 情况2：完整的新用户初始化流程
+    if (!validate()) return;
+    
     store.initUser(formData);
-    // [New] 完成初始化后，自动开启新手引导
-    store.setModal('npcGuide', true);
+    
+    // 确保模式正确设置
+    // systemStore.isPureMode 在 selectMode 时已经设置了，这里不需要再改
+    
+    // [Fix] 只有 RPG 模式才打开新手引导
+    if (!systemStore.isPureMode) {
+      store.setModal('npcGuide', true);
+    } else {
+      // 纯净模式直接关闭引导弹窗
+      store.setModal('onboarding', false);
+      showToast({ type: 'success', message: '✅ 账号创建成功！' });
+    }
   }
+};
+
+// [Fix] 从纯净模式切换到 RPG 时，跳过昵称步骤，保留已有昵称
+const startRaceSelection = () => {
+  // 保留用户当前昵称和其他基础信息
+  formData.nickname = store.user.nickname || formData.nickname;
+  formData.gender = store.user.gender || formData.gender;
+  formData.height = store.user.height || formData.height;
+  formData.weight = store.user.weight || formData.weight;
+  formData.age = store.user.age || formData.age;
+  
+  // 直接跳到种族选择（step 2）
+  step.value = 2;
 };
 
 const currentRace = computed(() => RACES[formData.race] || RACES.HUMAN);
@@ -111,9 +180,10 @@ const currentRace = computed(() => RACES[formData.race] || RACES.HUMAN);
         </div>
       </transition>
 
-      <!-- Step 2: 种族选择 (卡片式) - 仅 RPG 模式显示 -->
+      <!-- Step 2: 种族选择 (卡片式) - 仅 RPG 模式显示或从纯净切换过来 -->
       <transition name="fade-slide">
         <div v-if="step === 2 && !systemStore.isPureMode" class="space-y-6">
+          <p v-if="formData.nickname" class="text-slate-400 text-xs mb-2">欢迎，{{ formData.nickname }}！</p>
           <p class="text-slate-300 text-sm">选择你的出身种族，这决定了你的基础属性倾向。</p>
 
           <div class="grid grid-cols-2 gap-3">
@@ -219,10 +289,15 @@ const currentRace = computed(() => RACES[formData.race] || RACES.HUMAN);
           返回
         </button>
         <!-- 下一步 / 完成 -->
-        <button v-if="(step === 2 && !systemStore.isPureMode)"
+        <button v-if="(step === 2 && !systemStore.isPureMode && !formData.nickname)"
                 @click="step = 3"
                 class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-purple-900/50 hover:scale-[1.02] active:scale-95 transition-all text-lg">
           下一步
+        </button>
+        <button v-else-if="(step === 2 && !systemStore.isPureMode && formData.nickname)"
+                @click="finish"
+                class="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-900/50 hover:scale-[1.02] active:scale-95 transition-all text-lg">
+          开启冒险 !
         </button>
         <button v-else
                 @click="finish"

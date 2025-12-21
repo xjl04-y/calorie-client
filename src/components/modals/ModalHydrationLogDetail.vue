@@ -63,12 +63,12 @@ const tempLabels = {
         <div class="grid grid-cols-2 gap-3">
           <div class="text-center">
             <div class="text-2xl mb-1">💧</div>
-            <div class="text-lg font-bold text-blue-400">+{{ log.amount }}</div>
+            <div class="text-lg font-bold text-blue-400">+{{ log.grams || 250 }}</div>
             <div class="text-[10px] text-slate-400">ml 水分</div>
           </div>
           <div class="text-center">
             <div class="text-2xl mb-1">✨</div>
-            <div class="text-lg font-bold text-cyan-400">{{ Math.round((log.amount / 2000) * 100) }}%</div>
+            <div class="text-lg font-bold text-cyan-400">{{ Math.round(((log.grams || 250) / 2000) * 100) }}%</div>
             <div class="text-[10px] text-slate-400">目标进度</div>
           </div>
         </div>
@@ -78,18 +78,18 @@ const tempLabels = {
       <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 mb-4 space-y-3">
         <div class="flex justify-between items-center">
           <span class="text-xs text-slate-400">💧 饮水量</span>
-          <span class="font-bold text-blue-500">{{ log.amount }} ml</span>
+          <span class="font-bold text-blue-500">{{ log.grams || 250 }} ml</span>
         </div>
-        <div class="flex justify-between items-center" v-if="log.type">
+        <div class="flex justify-between items-center" v-if="log.tags && log.tags.length > 0">
           <span class="text-xs text-slate-400">🥤 饮品类型</span>
-          <span class="font-bold" :class="typeLabels[log.type]?.color">
-            {{ typeLabels[log.type]?.label }}
+          <span class="font-bold" :class="typeLabels[log.tags.includes('茶') ? 'TEA' : log.tags.includes('咖啡') ? 'COFFEE' : 'WATER']?.color">
+            {{ typeLabels[log.tags.includes('茶') ? 'TEA' : log.tags.includes('咖啡') ? 'COFFEE' : 'WATER']?.label }}
           </span>
         </div>
-        <div class="flex justify-between items-center" v-if="log.temperature">
+        <div class="flex justify-between items-center" v-if="log.tags && log.tags.some(t => ['冰镇', '温热', '滚烫'].includes(t))">
           <span class="text-xs text-slate-400">🌡️ 水温</span>
           <span class="font-bold text-slate-600 dark:text-slate-300">
-            {{ tempLabels[log.temperature]?.icon }} {{ tempLabels[log.temperature]?.label }}
+            {{ tempLabels[log.tags.includes('冰镇') ? 'COLD' : log.tags.includes('滚烫') ? 'HOT' : 'WARM']?.icon }} {{ tempLabels[log.tags.includes('冰镇') ? 'COLD' : log.tags.includes('滚烫') ? 'HOT' : 'WARM']?.label }}
           </span>
         </div>
         <div class="flex justify-between items-center">
@@ -106,15 +106,34 @@ const tempLabels = {
         <div class="space-y-2 text-left">
           <div class="flex justify-between text-xs">
             <span class="text-slate-400">🧬 促进代谢</span>
-            <span class="font-bold text-blue-400">{{ log.amount >= 500 ? '显著' : log.amount >= 250 ? '良好' : '轻微' }}</span>
+            <span class="font-bold text-blue-400">{{ (log.grams || 250) >= 500 ? '显著' : (log.grams || 250) >= 250 ? '良好' : '轻微' }}</span>
           </div>
           <div class="flex justify-between text-xs">
             <span class="text-slate-400">☕ 标准杯数</span>
-            <span class="font-bold text-purple-400">{{ (log.amount / 250).toFixed(1) }} 杯</span>
+            <span class="font-bold text-purple-400">{{ ((log.grams || 250) / 250).toFixed(1) }} 杯</span>
           </div>
           <div class="flex justify-between text-xs">
             <span class="text-slate-400">💉 体液补充</span>
-            <span class="font-bold text-pink-400">{{ (log.amount / 50).toFixed(0) }}ml 血液</span>
+            <span class="font-bold text-pink-400">{{ ((log.grams || 250) / 50).toFixed(0) }}ml 血液</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- [新增] RPG 收益 - 仅RPG模式显示（补水通常不产生金币/经验，但预留字段） -->
+      <div v-if="!systemStore.isPureMode && (log.generatedGold || log.generatedExp)" class="bg-gradient-to-br from-blue-900/20 to-cyan-900/20 dark:from-blue-900/30 dark:to-cyan-900/30 rounded-xl p-4 mb-4 border border-blue-500/30">
+        <div class="text-xs text-blue-400 font-bold mb-3 uppercase tracking-wider">💰 奖励获取</div>
+        <div class="space-y-2">
+          <div v-if="log.generatedExp" class="flex items-center justify-between">
+            <span class="text-slate-300 flex items-center gap-2">
+              <span class="text-lg">⭐</span> 经验值
+            </span>
+            <span class="font-black text-xl text-blue-400">+{{ log.generatedExp }} EXP</span>
+          </div>
+          <div v-if="log.generatedGold" class="flex items-center justify-between">
+            <span class="text-slate-300 flex items-center gap-2">
+              <span class="text-lg">💎</span> 金币
+            </span>
+            <span class="font-black text-xl text-cyan-400">+{{ log.generatedGold }} G</span>
           </div>
         </div>
       </div>
@@ -123,10 +142,10 @@ const tempLabels = {
       <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 mb-4 text-left border border-amber-200 dark:border-amber-800/30">
         <div class="text-xs text-amber-600 dark:text-amber-400 font-bold mb-1">💡 健康提示</div>
         <div class="text-xs text-slate-600 dark:text-slate-300">
-          {{ log.type === 'WATER' ? '纯净水是最佳选择，不含糖分和热量' : 
-             log.type === 'TEA' ? '茶含有抗氧化物质，有益健康' : 
-             log.type === 'COFFEE' ? '适量咖啡可提神，但不宜过量' : 
-             '注意控制饮料中的糖分摄入' }}
+          {{ log.tags?.includes('茶') ? '茶含有抗氧化物质，有益健康' : 
+             log.tags?.includes('咖啡') ? '适量咖啡可提神，但不宜过量' : 
+             log.tags?.includes('饮料') ? '注意控制饮料中的糖分摄入' :
+             '纯净水是最佳选择，不含糖分和热量' }}
         </div>
       </div>
 

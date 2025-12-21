@@ -407,7 +407,7 @@ export const useBattleStore = defineStore('battle', () => {
           if (remainingOverflow > 0) {
             const goldBonus = Math.floor(remainingOverflow * 0.5);
             if (goldBonus > 0) {
-              heroStore.addGold(goldBonus);
+              heroStore.addGold(goldBonus, '运动转化', 'BATTLE_REWARD');
               exerciseLog.generatedGold = goldBonus; // [指令1] 记录运动产出的金币
               setTimeout(() => spawnFloatingText(`+${goldBonus}G`, 'EXP'), 400);
             }
@@ -416,7 +416,7 @@ export const useBattleStore = defineStore('battle', () => {
         } else {
           // 护盾已满，全额转金币 (50%比例)
           const goldBonus = Math.floor(overflow * 0.5);
-          heroStore.addGold(goldBonus);
+          heroStore.addGold(goldBonus, '运动转化', 'BATTLE_REWARD');
           exerciseLog.generatedGold = goldBonus; // [指令1] 记录运动产出的金币
           if (!systemStore.isPureMode) {
             spawnFloatingText(`+${goldBonus}G`, 'EXP');
@@ -682,7 +682,7 @@ export const useBattleStore = defineStore('battle', () => {
       // [指令4] 纯净模式的数据隔离 - 防止用户在纯净模式下后台偷偷升级
       if (!systemStore.isPureMode) {
         generatedExp = xp; // [指令1] 记录产出的经验
-        heroStore.addExp(xp);
+        heroStore.addExp(xp, battleItem.name || '战斗结算', 'BATTLE_REWARD');
       }
 
       if (!systemStore.isPureMode) {
@@ -693,7 +693,7 @@ export const useBattleStore = defineStore('battle', () => {
         if (multiplier > 1.2) goldDrop = Math.floor(goldDrop * 1.5);
 
         generatedGold = goldDrop; // [指令1] 记录产出的金币
-        heroStore.addGold(goldDrop);
+        heroStore.addGold(goldDrop, '战斗奖励', 'BATTLE_REWARD');
         if (Math.random() > 0.5) setTimeout(() => spawnFloatingText(`+${goldDrop}G`, 'EXP'), 700);
       }
 
@@ -714,7 +714,7 @@ export const useBattleStore = defineStore('battle', () => {
       const retroactiveXp = Math.floor(xp * 0.2); // 20%的经验作为补录奖励
       if (retroactiveXp > 0 && !systemStore.isPureMode) {
         generatedExp = retroactiveXp; // [指令1] 记录历史补录的经验
-        heroStore.addExp(retroactiveXp);
+        heroStore.addExp(retroactiveXp, '历史补录', 'BATTLE_REWARD');
       }
       
       if (!systemStore.isPureMode) {
@@ -739,14 +739,14 @@ export const useBattleStore = defineStore('battle', () => {
     // 执行删除操作
     const removed = logStore.removeLog(log.id);
     if (removed) {
-      // 回滚 XP (使用新的智能降级机制)
+      // [指令1修复] 回滚 XP 时传入 source 参数
       if (expToRevert > 0) {
-        heroStore.revertXp(expToRevert);
+        heroStore.revertXp(expToRevert, '撤销操作');
       }
       
-      // 回滚 Gold (允许负债)
+      // [指令1修复] 回滚 Gold 时传入 source 参数
       if (goldToRevert > 0) {
-        heroStore.revertGold(goldToRevert);
+        heroStore.revertGold(goldToRevert, '撤销操作');
       }
       
       // [运动修正] 对于运动,除了扣血,必须增加扣除generatedGold的步骤

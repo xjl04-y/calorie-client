@@ -123,6 +123,27 @@ const deleteLog = () => {
           </div>
         </div>
 
+        <!-- [新增] RPG 收益 - 仅RPG模式显示 -->
+        <div v-if="!systemStore.isPureMode && (currentLog.generatedGold || currentLog.generatedExp)" class="bg-gradient-to-br from-purple-50 to-yellow-50 dark:from-purple-900/20 dark:to-yellow-900/20 rounded-2xl p-6 mb-6 shadow-sm border border-purple-200 dark:border-purple-700/50">
+          <h4 class="font-bold text-lg mb-4 text-purple-800 dark:text-purple-300 flex items-center gap-2">
+            <span>💰</span> 冒险收益
+          </h4>
+          <div class="space-y-3">
+            <div v-if="currentLog.generatedExp" class="flex items-center justify-between">
+              <span class="text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                <span class="text-lg">⭐</span> 经验值
+              </span>
+              <span class="font-black text-xl text-purple-600 dark:text-purple-400">+{{ currentLog.generatedExp }} EXP</span>
+            </div>
+            <div v-if="currentLog.generatedGold" class="flex items-center justify-between">
+              <span class="text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                <span class="text-lg">💎</span> 金币
+              </span>
+              <span class="font-black text-xl text-yellow-600 dark:text-yellow-400">+{{ currentLog.generatedGold }} G</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 删除按钮 -->
         <div class="pt-4">
           <button @click="deleteLog" class="w-full py-3 bg-red-500 text-white font-bold rounded-xl active:scale-95 transition flex items-center justify-center gap-2">

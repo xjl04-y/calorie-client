@@ -98,7 +98,7 @@ onMounted(() => {
     const loginResult = systemStore.checkDailyLogin();
     if (loginResult.isNewDay) {
       // 发放奖励
-      heroStore.addGold(loginResult.streakBonus);
+      heroStore.addGold(loginResult.streakBonus, '签到奖励', 'CHECKIN_BONUS');
       dailyBonusMessage.value = `${loginResult.message}\n额外获得金币: ${loginResult.streakBonus}`;
 
       // 延迟 1秒 显示，避免和页面加载动画冲突
@@ -222,11 +222,31 @@ const openAddFood = (key: MealType) => {
 }
 
 const openLogDetail = (log: FoodLog) => {
-  store.temp.selectedLog = log;
-  if (isPure.value) {
-    router.push('/food-detail');
+  // 根据日志类型选择不同的详情展示方式
+  if (log.mealType === 'EXERCISE') {
+    // 运动记录
+    systemStore.temp.selectedExerciseLog = log as any;
+    if (isPure.value) {
+      router.push('/exercise-log-detail');
+    } else {
+      store.setModal('exerciseLogDetail', true);
+    }
+  } else if (log.mealType === 'HYDRATION') {
+    // 补水记录
+    systemStore.temp.selectedHydrationLog = log as any;
+    if (isPure.value) {
+      router.push('/hydration-log-detail');
+    } else {
+      store.setModal('hydrationLogDetail', true);
+    }
   } else {
-    store.setModal('logDetail', true);
+    // 食物记录
+    store.temp.selectedLog = log;
+    if (isPure.value) {
+      router.push('/food-detail');
+    } else {
+      store.setModal('logDetail', true);
+    }
   }
 }
 

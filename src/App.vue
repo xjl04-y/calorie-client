@@ -34,6 +34,8 @@ const ModalTargetConfig = defineAsyncComponent(() => import('@/components/modals
 const ModalExerciseLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalExerciseLogDetail.vue'));
 const ModalHydrationLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalHydrationLogDetail.vue'));
 const ModalBodyTrendDetail = defineAsyncComponent(() => import('@/components/modals/ModalBodyTrendDetail.vue'));
+const ModalTransactionHistory = defineAsyncComponent(() => import('@/components/modals/ModalTransactionHistory.vue'));
+const ModalInventory = defineAsyncComponent(() => import('@/components/modals/ModalInventory.vue')); // [背包功能]
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -338,9 +340,9 @@ const openHydration = () => {
       <ModalQuantity />
       <!-- [工单02] 纯净模式下RPG弹窗隔离 -->
       <ModalLevelUp v-if="!isPure" />
-      <ModalAchievements />
+      <ModalAchievements v-if="!isPure" />
       <ModalUnlock v-if="!isPure" />
-      <ModalItemDetail />
+      <ModalItemDetail v-if="!isPure" />
       <ModalEquipmentSwap v-if="!isPure" />
       <ModalHistoryDetail />
       <ModalLogDetail />
@@ -359,6 +361,8 @@ const openHydration = () => {
       <ModalExerciseLogDetail />
       <ModalHydrationLogDetail />
       <ModalBodyTrendDetail />
+      <ModalTransactionHistory v-if="!isPure" />
+      <ModalInventory v-if="!isPure" /> <!-- [背包功能] -->
 
     </div>
   </van-config-provider>

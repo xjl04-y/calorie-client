@@ -117,31 +117,23 @@ const saveEdit = () => {
           <div class="grid grid-cols-3 gap-4 mb-6">
             <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-xl text-center">
               <div class="text-xs text-orange-600 dark:text-orange-400 font-bold mb-1">时长</div>
-              <div class="text-xl font-black text-orange-600 dark:text-orange-300">{{ currentLog.duration }}<span class="text-sm font-normal">分钟</span></div>
+              <div class="text-xl font-black text-orange-600 dark:text-orange-300">{{ currentLog.grams || 30 }}<span class="text-sm font-normal">分钟</span></div>
             </div>
             <div class="bg-red-50 dark:bg-red-900/20 p-3 rounded-xl text-center">
               <div class="text-xs text-red-600 dark:text-red-400 font-bold mb-1">消耗</div>
-              <div class="text-xl font-black text-red-600 dark:text-red-300">{{ currentLog.caloriesBurned }}<span class="text-sm font-normal">kcal</span></div>
+              <div class="text-xl font-black text-red-600 dark:text-red-300">{{ currentLog.calories || 0 }}<span class="text-sm font-normal">kcal</span></div>
             </div>
-            <div v-if="'intensity' in currentLog && currentLog.intensity" class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl text-center">
+            <div v-if="currentLog.tags && (currentLog.tags.includes('高强度') || currentLog.tags.includes('低强度') || currentLog.tags.includes('中强度'))" class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl text-center">
               <div class="text-xs text-purple-600 dark:text-purple-400 font-bold mb-1">强度</div>
-              <div class="text-xl font-black text-purple-600 dark:text-purple-300">{{ intensityLabels[currentLog.intensity]?.label || currentLog.intensity }}</div>
+              <div class="text-xl font-black text-purple-600 dark:text-purple-300">{{ currentLog.tags.includes('高强度') ? intensityLabels.HIGH.label : currentLog.tags.includes('低强度') ? intensityLabels.LOW.label : intensityLabels.MEDIUM.label }}</div>
             </div>
           </div>
 
           <!-- 扩展信息 -->
           <div class="space-y-3">
-            <div v-if="'baseExerciseId' in currentLog && currentLog.baseExerciseId" class="flex justify-between">
-              <span class="text-slate-500 dark:text-slate-400">基础运动</span>
-              <span class="font-medium text-slate-700 dark:text-slate-200">{{ currentLog.baseExerciseId }}</span>
-            </div>
-            <div v-if="'userWeight' in currentLog && currentLog.userWeight" class="flex justify-between">
-              <span class="text-slate-500 dark:text-slate-400">记录时体重</span>
-              <span class="font-medium text-slate-700 dark:text-slate-200">{{ currentLog.userWeight }} kg</span>
-            </div>
-            <div v-if="'tips' in currentLog && currentLog.tips" class="pt-2 border-t border-slate-100 dark:border-slate-700">
-              <div class="text-slate-500 dark:text-slate-400 mb-1">备注</div>
-              <div class="text-slate-700 dark:text-slate-300">{{ currentLog.tips }}</div>
+            <div v-if="currentLog.p || currentLog.c || currentLog.f" class="flex justify-between">
+              <span class="text-slate-500 dark:text-slate-400">营养信息</span>
+              <span class="font-medium text-slate-700 dark:text-slate-200">P:{{ currentLog.p || 0 }}g C:{{ currentLog.c || 0 }}g F:{{ currentLog.f || 0 }}g</span>
             </div>
             <div v-if="'tags' in currentLog && currentLog.tags && currentLog.tags.length" class="pt-2 border-t border-slate-100 dark:border-slate-700">
               <div class="text-slate-500 dark:text-slate-400 mb-1">标签</div>
@@ -179,6 +171,30 @@ const saveEdit = () => {
           </div>
         </div>
 
+        <!-- 奖励收益 - 显示金币和经验 -->
+        <div v-if="!systemStore.isPureMode && ('goldGained' in currentLog || 'generatedExp' in currentLog) && (currentLog.goldGained || currentLog.generatedExp)" class="bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-2xl p-6 shadow-sm border border-amber-100 dark:border-amber-800">
+          <h4 class="font-bold text-lg mb-4 text-slate-800 dark:text-white flex items-center">
+            <span class="text-2xl mr-2">🎁</span>
+            运动奖励
+          </h4>
+          <div class="space-y-3">
+            <div v-if="currentLog.goldGained" class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">💰</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">获得金币</span>
+              </div>
+              <span class="font-bold text-yellow-500 text-lg">+{{ currentLog.goldGained }}</span>
+            </div>
+            <div v-if="currentLog.generatedExp" class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">⭐</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">获得经验</span>
+              </div>
+              <span class="font-bold text-purple-500 text-lg">+{{ currentLog.generatedExp }} EXP</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 健康收益卡片 - 仅RPG模式显示 -->
         <div v-if="!systemStore.isPureMode" class="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl p-6 shadow-sm border border-green-100 dark:border-green-800">
           <h4 class="font-bold text-lg mb-4 text-slate-800 dark:text-white flex items-center">
@@ -191,21 +207,21 @@ const saveEdit = () => {
                 <span class="text-xl">🔥</span>
                 <span class="text-sm text-slate-600 dark:text-slate-300">燃烧脂肪</span>
               </div>
-              <span class="font-bold text-orange-500">~{{ Math.round(currentLog.caloriesBurned / 7.7) }}g</span>
+              <span class="font-bold text-orange-500">~{{ Math.round((currentLog.calories || 0) / 7.7) }}g</span>
             </div>
             <div class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3">
               <div class="flex items-center gap-2">
                 <span class="text-xl">💓</span>
                 <span class="text-sm text-slate-600 dark:text-slate-300">心血管强化</span>
               </div>
-              <span class="font-bold text-red-500">{{ currentLog.intensity === 'HIGH' ? '极佳' : currentLog.intensity === 'MEDIUM' ? '良好' : '一般' }}</span>
+              <span class="font-bold text-red-500">{{ currentLog.tags?.includes('高强度') ? '极佳' : currentLog.tags?.includes('低强度') ? '一般' : '良好' }}</span>
             </div>
             <div class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3">
               <div class="flex items-center gap-2">
                 <span class="text-xl">😊</span>
                 <span class="text-sm text-slate-600 dark:text-slate-300">多巴胺分泌</span>
               </div>
-              <span class="font-bold text-purple-500">+{{ Math.round(currentLog.duration / 10) }}%</span>
+              <span class="font-bold text-purple-500">+{{ Math.round((currentLog.grams || 30) / 10) }}%</span>
             </div>
           </div>
         </div>
@@ -219,15 +235,15 @@ const saveEdit = () => {
           <div class="space-y-3">
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">相当于走路</span>
-              <span class="font-bold text-slate-700 dark:text-slate-200">~{{ Math.round(currentLog.caloriesBurned / 4) }} 分钟</span>
+              <span class="font-bold text-slate-700 dark:text-slate-200">~{{ Math.round((currentLog.calories || 0) / 4) }} 分钟</span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">相当于爬楼</span>
-              <span class="font-bold text-slate-700 dark:text-slate-200">~{{ Math.round(currentLog.caloriesBurned / 0.15) }} 层</span>
+              <span class="font-bold text-slate-700 dark:text-slate-200">~{{ Math.round((currentLog.calories || 0) / 0.15) }} 层</span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">抵消食物</span>
-              <span class="font-bold text-slate-700 dark:text-slate-200">1 碗米饭 ({{ Math.round((currentLog.caloriesBurned / 200) * 100) }}%)</span>
+              <span class="font-bold text-slate-700 dark:text-slate-200">1 碗米饭 ({{ Math.round(((currentLog.calories || 0) / 200) * 100) }}%)</span>
             </div>
           </div>
         </div>

@@ -243,12 +243,12 @@ export const useExerciseStore = defineStore('exercise', () => {
         if (remainingOverflow > 0) {
           goldGained = Math.floor(remainingOverflow * 0.5);
           if (goldGained > 0) {
-            heroStore.addGold(goldGained);
+            heroStore.addGold(goldGained, '运动转化', 'BATTLE_REWARD');
           }
         }
       } else {
         goldGained = Math.floor(overflow * 0.5);
-        heroStore.addGold(goldGained);
+        heroStore.addGold(goldGained, '运动转化', 'BATTLE_REWARD');
       }
     }
 

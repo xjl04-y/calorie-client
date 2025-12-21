@@ -45,7 +45,8 @@ const handleAccept = (qId: string) => store.acceptQuest(qId);
 const handleClaim = (qId: string) => {
   const exp = store.claimQuest(qId);
   if (exp > 0) {
-    store.heroStore.addExp(exp);
+    // [阶段二] 标记为任务奖励
+    store.heroStore.addExp(exp, '任务奖励', 'QUEST_REWARD');
     showToast(`领取成功！经验 +${exp}`);
   }
 };

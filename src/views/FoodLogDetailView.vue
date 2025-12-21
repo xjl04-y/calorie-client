@@ -30,6 +30,20 @@ if (!currentLog.value) {
   router.back();
 }
 
+// 计算营养成分占比
+const macroRatios = computed(() => {
+  if (!currentLog.value) return { p: 0, c: 0, f: 0 };
+  
+  const totalCals = (currentLog.value.p || 0) * 4 + (currentLog.value.c || 0) * 4 + (currentLog.value.f || 0) * 9;
+  if (totalCals === 0) return { p: 0, c: 0, f: 0 };
+  
+  return {
+    p: Math.round(((currentLog.value.p || 0) * 4 / totalCals) * 100),
+    c: Math.round(((currentLog.value.c || 0) * 4 / totalCals) * 100),
+    f: Math.round(((currentLog.value.f || 0) * 9 / totalCals) * 100)
+  };
+});
+
 // 表单状态（用于编辑模式）
 const isEditing = ref(false);
 const editForm = ref({
@@ -127,6 +141,36 @@ const saveEdit = () => {
             </div>
           </div>
 
+          <!-- 营养占比可视化 -->
+          <div class="mb-6">
+            <div class="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">营养成分占比（按热量）</div>
+            <div class="flex gap-1 h-3 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-700">
+              <div 
+                v-if="macroRatios.p > 0"
+                class="bg-red-500 transition-all" 
+                :style="{ width: macroRatios.p + '%' }"
+                :title="`蛋白质 ${macroRatios.p}%`"
+              ></div>
+              <div 
+                v-if="macroRatios.c > 0"
+                class="bg-blue-500 transition-all" 
+                :style="{ width: macroRatios.c + '%' }"
+                :title="`碳水 ${macroRatios.c}%`"
+              ></div>
+              <div 
+                v-if="macroRatios.f > 0"
+                class="bg-yellow-500 transition-all" 
+                :style="{ width: macroRatios.f + '%' }"
+                :title="`脂肪 ${macroRatios.f}%`"
+              ></div>
+            </div>
+            <div class="flex justify-between mt-2 text-xs">
+              <span class="text-red-500 dark:text-red-400 font-medium">蛋白 {{ macroRatios.p }}%</span>
+              <span class="text-blue-500 dark:text-blue-400 font-medium">碳水 {{ macroRatios.c }}%</span>
+              <span class="text-yellow-500 dark:text-yellow-400 font-medium">脂肪 {{ macroRatios.f }}%</span>
+            </div>
+          </div>
+
           <!-- 扩展信息 -->
           <div class="space-y-3">
             <div class="flex justify-between">
@@ -167,6 +211,30 @@ const saveEdit = () => {
             <div v-if="currentLog.blocked" class="flex items-center justify-between">
               <span class="text-slate-600 dark:text-slate-300">护盾抵消</span>
               <span class="font-bold text-blue-500">-{{ currentLog.blocked }} HP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 奖励收益 - 显示金币和经验 -->
+        <div v-if="!systemStore.isPureMode && ('generatedGold' in currentLog || 'generatedExp' in currentLog) && (currentLog.generatedGold || currentLog.generatedExp)" class="bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-2xl p-6 shadow-sm border border-amber-100 dark:border-amber-800">
+          <h4 class="font-bold text-lg mb-4 text-slate-800 dark:text-white flex items-center">
+            <span class="text-2xl mr-2">🎁</span>
+            饮食奖励
+          </h4>
+          <div class="space-y-3">
+            <div v-if="currentLog.generatedGold" class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">💰</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">获得金币</span>
+              </div>
+              <span class="font-bold text-yellow-500 text-lg">+{{ currentLog.generatedGold }}</span>
+            </div>
+            <div v-if="currentLog.generatedExp" class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">⭐</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">获得经验</span>
+              </div>
+              <span class="font-bold text-purple-500 text-lg">+{{ currentLog.generatedExp }} EXP</span>
             </div>
           </div>
         </div>

@@ -41,6 +41,26 @@ const routes = [
       keepAlive: false
     }
   },
+  // [New] 纯净模式专属 - 运动记录详情页
+  {
+    path: '/exercise-log-detail',
+    name: 'ExerciseLogDetail',
+    component: () => import('@/views/ExerciseLogDetailView.vue'),
+    meta: {
+      title: '运动详情',
+      keepAlive: false
+    }
+  },
+  // [New] 纯净模式专属 - 补水记录详情页
+  {
+    path: '/hydration-log-detail',
+    name: 'HydrationLogDetail',
+    component: () => import('@/views/HydrationLogDetailView.vue'),
+    meta: {
+      title: '补水详情',
+      keepAlive: false
+    }
+  },
 
   // --- [PM Add] 纯净模式专属路由 End ---
 ];

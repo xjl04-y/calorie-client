@@ -2,6 +2,7 @@
 import { computed, reactive, watch, ref } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useHeroStore } from '@/stores/useHeroStore'; // [Fix] 导入 HeroStore 用于检查角色初始化
 import { showToast, Dialog } from 'vant';
 // [Fix] 修正导入路径：getLocalDateStr 位于 dateUtils
 import { downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
@@ -10,6 +11,7 @@ import type { Gender } from '@/types';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const heroStore = useHeroStore(); // [Fix] 初始化 HeroStore
 
 const show = computed({
   get: () => systemStore.modals.settings,
@@ -50,6 +52,32 @@ const handleSave = () => {
   const modeChanged = systemStore.isPureMode !== localState.isPureMode;
 
   systemStore.isDarkMode = localState.isDarkMode;
+  
+  // [Fix] 模式切换守卫：从 Pure 切到 RPG 需要检查角色初始化
+  if (modeChanged && localState.isPureMode === false && systemStore.isPureMode === true) {
+    // 想要切换到 RPG 模式
+    const hasChosenRace = heroStore.user.race && heroStore.user.race !== 'HUMAN';
+    const hasInitialized = heroStore.user.isInitialized;
+
+    if (!hasInitialized) {
+      // 完全未初始化 -> 打开完整引导流程
+      show.value = false;
+      systemStore.setModal('onboarding', true);
+      showToast('请先完成角色创建');
+      return;
+    } else if (!hasChosenRace) {
+      // 已有基础信息但未选择种族（从纯净模式切换过来）-> 打开种族选择
+      show.value = false;
+      // 先切换到 RPG 模式，再打开 Onboarding
+      systemStore.isPureMode = false;
+      systemStore.setModal('onboarding', true);
+      // watch 会自动检测并跳到种族选择步骤
+      showToast('请选择您的种族');
+      return;
+    }
+  }
+  
+  // 应用模式切换
   systemStore.isPureMode = localState.isPureMode;
   // [Removed] 移除了 apiKey 保存逻辑
 

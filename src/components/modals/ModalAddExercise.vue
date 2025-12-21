@@ -177,8 +177,8 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
       </div>
 
       <!-- 右上角快捷入口 -->
-      <div class="w-16 text-right">
-        <span v-if="mode === 'LIST'" @click="mode = 'MANUAL'" class="text-xs text-green-600 font-bold bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded cursor-pointer active:scale-95">
+      <div class="flex-shrink-0">
+        <span v-if="mode === 'LIST'" @click="mode = 'MANUAL'" class="text-xs text-green-600 font-bold bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded cursor-pointer active:scale-95 whitespace-nowrap inline-flex items-center">
             <i class="fas fa-plus mr-1"></i>自定义
         </span>
       </div>
@@ -235,8 +235,10 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
 
           <!-- 手动模式下的名字输入 -->
           <div v-if="mode === 'MANUAL'">
-            <label class="text-sm font-bold text-slate-500 mb-2 block">运动名称</label>
-            <input v-model="manualName" type="text" :placeholder="isPure ? '例如：打篮球' : '例如：剑术训练'" class="w-full bg-slate-100 dark:bg-slate-700 p-3 rounded-xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 ring-green-500/50" />
+            <div class="flex items-center gap-3">
+              <label class="text-sm font-bold text-slate-500 whitespace-nowrap flex-shrink-0">运动名称</label>
+              <input v-model="manualName" type="text" :placeholder="isPure ? '例如：打篮球' : '例如：剑术训练'" class="flex-1 min-w-0 bg-slate-100 dark:bg-slate-700 p-3 rounded-xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 ring-green-500/50" />
+            </div>
           </div>
 
           <!-- 时长滑块 -->

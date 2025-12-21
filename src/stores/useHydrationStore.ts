@@ -195,7 +195,7 @@ export const useHydrationStore = defineStore('hydration', () => {
       goldReward = Math.floor(amount / 250) * 5;
       // 注意: 如果小于250ml, goldReward为0, 这是正常行为
       if (goldReward > 0) {
-        heroStore.addGold(goldReward);
+        heroStore.addGold(goldReward, '补水奖励', 'BATTLE_REWARD');
       }
     }
 

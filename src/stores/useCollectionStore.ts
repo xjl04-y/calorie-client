@@ -3,6 +3,7 @@ import { ref, toRaw } from 'vue';
 import type { Achievement, Quest, FoodItem, FoodLog } from '@/types'; // Import FoodLog
 import { RACE_DEFAULT_FOODS, QUEST_POOL } from '@/constants/gameData';
 import { useSystemStore } from './useSystemStore';
+import { useHeroStore } from './useHeroStore';
 import { showToast } from 'vant';
 
 // ... (Existing DEFAULT_ACHIEVEMENTS code) ...
@@ -284,10 +285,38 @@ export const useCollectionStore = defineStore('collection', () => {
     return 0;
   }
 
+  // [优先级三] 预防性措施：出售物品前检查是否已装备
+  function sellItem(itemId: string, price: number): boolean {
+    const heroStore = useHeroStore();
+    
+    // 检查物品是否正在被装备
+    const isEquipped = Object.values(heroStore.user.equipped).includes(itemId as any);
+    if (isEquipped) {
+      showToast('请先卸下装备再出售');
+      return false;
+    }
+    
+    // 检查库存
+    if (!heroStore.user.inventory || !heroStore.user.inventory[itemId] || heroStore.user.inventory[itemId] <= 0) {
+      showToast('物品不存在或数量不足');
+      return false;
+    }
+    
+    // 执行出售
+    heroStore.user.inventory[itemId] -= 1;
+    if (heroStore.user.inventory[itemId] <= 0) {
+      delete heroStore.user.inventory[itemId];
+    }
+    heroStore.addGold(price, `出售${itemId}`, 'SHOP_PURCHASE');
+    showToast(`出售成功，获得 ${price} 金币`);
+    return true;
+  }
+
   return {
     achievements, foodDb, quests, availableQuests, questPoolDay,
     initFoodDb, saveToFoodDb, unlockAch,
     refreshQuestHall, acceptQuest, checkDailyQuests, claimQuest,
-    addCustomQuest, abandonQuest
+    addCustomQuest, abandonQuest,
+    sellItem // [优先级三] 导出出售方法
   };
 });

@@ -90,6 +90,7 @@ export const useSystemStore = defineStore('system', () => {
     npcGuide: false,
     settings: false,
     shop: false,
+    inventory: false,              // [背包功能] 新增背包弹窗
     rebirth: false,
     hydration: false,
     dailyReport: false,
@@ -98,7 +99,8 @@ export const useSystemStore = defineStore('system', () => {
     targetConfig: false,
     bodyTrendDetail: false,        // [New] 体态趋势详情弹窗
     exerciseLogDetail: false,      // [Existing] 运动记录详情
-    hydrationLogDetail: false      // [Existing] 补水记录详情
+    hydrationLogDetail: false,     // [Existing] 补水记录详情
+    transactionHistory: false      // [交易记录] 金币和经验流水账本
   });
 
   // --- State: 临时/动画状态 (保留你原有的逻辑) ---
@@ -106,6 +108,7 @@ export const useSystemStore = defineStore('system', () => {
     attackVfx: string | null;
     projectile: { show: boolean, icon: string, id: number } | null;
     selectedBodyTrendPoint: import('@/types').RPGTrendData | import('@/types').PureTrendData | null;  // [New] 选中的体态趋势数据点
+    transactionTab: 'GOLD' | 'EXP' | 'ITEM'; // [阶段三] 交易记录弹窗当前Tab页（支持物资）
   }>({
     activeMealType: 'SNACK',
     isBuilding: false,
@@ -118,6 +121,8 @@ export const useSystemStore = defineStore('system', () => {
     selectedItem: null,
     unlockedAchievement: null,
     selectedLog: null,
+    selectedExerciseLog: null,  // 初始化运动记录
+    selectedHydrationLog: null, // 初始化补水记录
     pendingItem: undefined,
     floatingTexts: [],
     reportData: null,
@@ -125,7 +130,8 @@ export const useSystemStore = defineStore('system', () => {
     isCrit: false,
     attackVfx: null,
     projectile: null,
-    selectedBodyTrendPoint: null  // [New] 初始化
+    selectedBodyTrendPoint: null,  // [New] 初始化
+    transactionTab: 'GOLD' // [交易记录] 默认显示GOLD
   });
 
   // --- Actions ---

@@ -56,12 +56,12 @@ const intensityLabels = {
         <div class="grid grid-cols-2 gap-3">
           <div class="text-center">
             <div class="text-2xl mb-1">❤️</div>
-            <div class="text-lg font-bold text-red-400">+{{ log.healAmount || (50 + Math.floor((log.caloriesBurned || 0) / 10)) }}</div>
+            <div class="text-lg font-bold text-red-400">+{{ log.healAmount || (50 + Math.floor((log.calories || 0) / 10)) }}</div>
             <div class="text-[10px] text-slate-400">HP恢复</div>
           </div>
           <div class="text-center">
             <div class="text-2xl mb-1">🔥</div>
-            <div class="text-lg font-bold text-orange-400">{{ log.caloriesBurned }}</div>
+            <div class="text-lg font-bold text-orange-400">{{ log.calories || 0 }}</div>
             <div class="text-[10px] text-slate-400">能量消耗</div>
           </div>
         </div>
@@ -71,12 +71,12 @@ const intensityLabels = {
       <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 mb-4 space-y-3">
         <div class="flex justify-between items-center">
           <span class="text-xs text-slate-400">⏱️ 持续时间</span>
-          <span class="font-bold text-slate-700 dark:text-white">{{ log.duration }} 分钟</span>
+          <span class="font-bold text-slate-700 dark:text-white">{{ log.grams || 30 }} 分钟</span>
         </div>
         <div class="flex justify-between items-center">
           <span class="text-xs text-slate-400">💪 运动强度</span>
-          <span class="font-bold" :class="intensityLabels[log.intensity || 'MEDIUM']?.color">
-            {{ intensityLabels[log.intensity || 'MEDIUM']?.label }}
+          <span class="font-bold" :class="intensityLabels[log.tags?.includes('高强度') ? 'HIGH' : log.tags?.includes('低强度') ? 'LOW' : 'MEDIUM']?.color">
+            {{ intensityLabels[log.tags?.includes('高强度') ? 'HIGH' : log.tags?.includes('低强度') ? 'LOW' : 'MEDIUM']?.label }}
           </span>
         </div>
         <div class="flex justify-between items-center">
@@ -93,17 +93,29 @@ const intensityLabels = {
         <div class="space-y-2 text-left">
           <div class="flex justify-between text-xs">
             <span class="text-slate-400">🔥 燃烧脂肪</span>
-            <span class="font-bold text-orange-400">~{{ Math.round(log.caloriesBurned / 7.7) }}g</span>
+            <span class="font-bold text-orange-400">~{{ Math.round((log.calories || 0) / 7.7) }}g</span>
           </div>
           <div class="flex justify-between text-xs">
             <span class="text-slate-400">🚶 相当于走路</span>
-            <span class="font-bold text-blue-400">~{{ Math.round(log.caloriesBurned / 4) }} 分钟</span>
+            <span class="font-bold text-blue-400">~{{ Math.round((log.calories || 0) / 4) }} 分钟</span>
           </div>
           <div class="flex justify-between text-xs">
             <span class="text-slate-400">🍚 抵消食物</span>
-            <span class="font-bold text-green-400">{{ Math.round((log.caloriesBurned / 200) * 100) }}% 米饭</span>
+            <span class="font-bold text-green-400">{{ Math.round(((log.calories || 0) / 200) * 100) }}% 米饭</span>
           </div>
         </div>
+      </div>
+      
+      <!-- [新增] RPG 收益 - 仅RPG模式显示 -->
+      <div v-if="!systemStore.isPureMode && log.generatedGold" class="bg-gradient-to-br from-yellow-900/20 to-orange-900/20 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-xl p-4 mb-4 border border-yellow-500/30">
+        <div class="text-xs text-yellow-400 font-bold mb-3 uppercase tracking-wider">💰 金币获取</div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300 flex items-center gap-2">
+            <span class="text-xl">💎</span> 运动奖励
+          </span>
+          <span class="font-black text-2xl text-yellow-400">+{{ log.generatedGold }} G</span>
+        </div>
+        <div class="text-[10px] text-slate-400 mt-2 text-center">运动产生的治疗溢出转化为金币</div>
       </div>
 
       <!-- 备注 -->

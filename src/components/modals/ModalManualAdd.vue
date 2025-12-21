@@ -15,6 +15,7 @@ const show = computed({
 });
 
 const activeTab = ref<'QUICK' | 'PRECISE'>('QUICK');
+const showIconGrid = ref(false); // 控制图标选择器显示
 
 // [PM Fix] 定义明确的表单接口，避免类型推断错误
 interface ManualAddForm {
@@ -41,8 +42,11 @@ const form = reactive<ManualAddForm>({
   tags: []
 });
 
-// 图标库
-const ICONS = ['🥘', '🍱', '🍔', '🥩', '🥗', '🍞', '🍜', '🍚', '🍗', '🍟', '🍎', '🍰', '🥤', '☕', '🍺', '🥛', '🍷'];
+// 图标库 (扩展了更多图标)
+const ICONS = [
+  '🥘', '🍱', '🍔', '🥩', '🥗', '🍞', '🍜', '🍚', '🍗', '🍟', '🍎', '🍰', '🥤', '☕', '🍺', '🥛', '🍷',
+  '🥪', '🌮', '🌯', '🍕', '🍖', '🥓', '🍤', '🦐', '🦀', '🍣', '🥟', '🍲', '🥘', '🍛', '🍝', '🥫'
+];
 
 // 标签选择
 const availableTags = ['高碳', '高蛋白', '高油', '高糖', '纯净', '均衡'];
@@ -250,16 +254,13 @@ watch(show, (val) => {
         <!-- 1. 名字与图标 (共用) -->
         <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
           <div class="flex gap-4">
-            <!-- Icon Picker -->
+            <!-- Icon Picker (点击展开网格选择) -->
             <div class="shrink-0 relative group">
               <div class="text-[10px] text-slate-400 mb-1 ml-1 text-center">图标</div>
-              <div class="w-14 h-14 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center text-3xl border border-slate-200 dark:border-slate-600 cursor-pointer overflow-hidden relative">
+              <div @click="showIconGrid = !showIconGrid" class="w-14 h-14 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center text-3xl border border-slate-200 dark:border-slate-600 cursor-pointer overflow-hidden relative hover:ring-2 ring-purple-500 transition-all">
                 {{ form.icon }}
-                <select v-model="form.icon" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
-                  <option v-for="ic in ICONS" :key="ic" :value="ic">{{ ic }}</option>
-                </select>
               </div>
-              <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[8px] px-1.5 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">更换</div>
+              <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[8px] px-1.5 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">点击更换</div>
             </div>
 
             <div class="flex-1">
@@ -269,6 +270,24 @@ watch(show, (val) => {
             </div>
           </div>
         </div>
+
+        <!-- 图标选择器 (弹出网格) -->
+        <transition name="van-fade">
+          <div v-if="showIconGrid" class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-purple-200 dark:border-purple-600">
+            <div class="flex justify-between items-center mb-3">
+              <span class="text-xs font-bold text-slate-500">选择图标</span>
+              <button @click="showIconGrid = false" class="text-xs text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+              <div v-for="ic in ICONS" :key="ic"
+                   @click="form.icon = ic; showIconGrid = false"
+                   class="w-12 h-12 bg-slate-50 dark:bg-slate-700 rounded-lg flex items-center justify-center text-2xl cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors border border-transparent hover:border-purple-500 active:scale-95"
+                   :class="{ 'bg-purple-100 dark:bg-purple-900/30 border-purple-500': form.icon === ic }">
+                {{ ic }}
+              </div>
+            </div>
+          </div>
+        </transition>
 
         <!-- Mode 1: 快速估算 -->
         <div v-if="activeTab === 'QUICK'" class="space-y-6 animate-fade-in">

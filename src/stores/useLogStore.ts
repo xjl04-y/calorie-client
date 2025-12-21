@@ -2,8 +2,9 @@ import { defineStore } from 'pinia';
 import { reactive, computed, toRaw } from 'vue';
 import { getLocalDateStr } from '@/utils/dateUtils';
 import { generateId } from '@/utils/gameUtils';
-import type { FoodLog } from '@/types';
+import type { FoodLog, ExerciseLog, HydrationLog } from '@/types';
 import { useSystemStore } from './useSystemStore';
+import { useHeroStore } from './useHeroStore';
 
 // 将日志相关的基础统计逻辑剥离到这里
 export const useLogStore = defineStore('log', () => {
@@ -159,6 +160,112 @@ export const useLogStore = defineStore('log', () => {
     }
   }
 
+  // [New] 运动记录管理
+  function addExerciseLog(exercise: Omit<ExerciseLog, 'id' | 'logType' | 'timestamp'>): ExerciseLog {
+    const dateKey = systemStore.currentDate || getLocalDateStr();
+    if (!logs[dateKey]) logs[dateKey] = [];
+
+    const newLog: ExerciseLog = {
+      ...exercise,
+      id: generateId(),
+      logType: 'EXERCISE',
+      timestamp: new Date().toISOString()
+    };
+
+    // 将运动记录添加到 logs 中（注意：这里将 ExerciseLog 存为 FoodLog 的特殊类型）
+    logs[dateKey].unshift(newLog as any);
+    return newLog;
+  }
+
+  function removeExerciseLog(logId: number | string): ExerciseLog | null {
+    const heroStore = useHeroStore();
+    const dateKey = systemStore.currentDate || '';
+    const dayLogs = logs[dateKey];
+    if (!dayLogs) return null;
+
+    const idx = dayLogs.findIndex(l => l.id === logId);
+    if (idx !== -1) {
+      const removed = dayLogs[idx] as any as ExerciseLog;
+      
+      // [优先级二修复] 回滚运动奖励
+      // 扣除金币
+      if (removed.goldGained && removed.goldGained > 0) {
+        heroStore.revertGold(removed.goldGained, '撤销运动记录');
+      }
+      // 扣除经验
+      if (removed.generatedExp && removed.generatedExp > 0) {
+        heroStore.revertXp(removed.generatedExp, '撤销运动记录');
+      }
+      // 回滚治疗/护盾效果：扣血
+      if (removed.healAmount && removed.healAmount > 0) {
+        heroStore.damage(removed.healAmount);
+      }
+      if (removed.shieldGained && removed.shieldGained > 0) {
+        // 扣除护盾
+        const currentShield = heroStore.user.heroShield || 0;
+        heroStore.user.heroShield = Math.max(0, currentShield - removed.shieldGained);
+      }
+      
+      dayLogs.splice(idx, 1);
+      return removed;
+    }
+    return null;
+  }
+
+  // [New] 补水记录管理
+  function addHydrationLog(hydration: Omit<HydrationLog, 'id' | 'logType' | 'timestamp'>): HydrationLog {
+    const dateKey = systemStore.currentDate || getLocalDateStr();
+    if (!logs[dateKey]) logs[dateKey] = [];
+
+    const newLog: HydrationLog = {
+      ...hydration,
+      id: generateId(),
+      logType: 'HYDRATION',
+      timestamp: new Date().toISOString()
+    };
+
+    logs[dateKey].unshift(newLog as any);
+    return newLog;
+  }
+
+  function removeHydrationLog(logId: number | string): HydrationLog | null {
+    const dateKey = systemStore.currentDate || '';
+    const dayLogs = logs[dateKey];
+    if (!dayLogs) return null;
+
+    const idx = dayLogs.findIndex(l => l.id === logId);
+    if (idx !== -1) {
+      const removed = dayLogs[idx] as any as HydrationLog;
+      dayLogs.splice(idx, 1);
+      return removed;
+    }
+    return null;
+  }
+
+  // [New] Computed - 获取今日所有运动记录
+  const allTodayExercise = computed(() => {
+    const dateKey = systemStore.currentDate || getLocalDateStr();
+    const dayLogs = logs[dateKey] || [];
+    return dayLogs.filter(l => (l as any).logType === 'EXERCISE') as any as ExerciseLog[];
+  });
+
+  // [New] Computed - 获取今日所有补水记录
+  const allTodayHydration = computed(() => {
+    const dateKey = systemStore.currentDate || getLocalDateStr();
+    const dayLogs = logs[dateKey] || [];
+    return dayLogs.filter(l => (l as any).logType === 'HYDRATION') as any as HydrationLog[];
+  });
+
+  // [New] Computed - 今日补水量统计
+  const todayHydrationAmount = computed(() => {
+    return allTodayHydration.value.reduce((sum, log) => sum + (log.amount || 0), 0);
+  });
+
+  // [New] Computed - 今日补水杯数
+  const todayHydrationCups = computed(() => {
+    return allTodayHydration.value.length;
+  });
+
   return {
     logs,
     globalStats,
@@ -173,8 +280,17 @@ export const useLogStore = defineStore('log', () => {
     lastMealTime,
     addLog,
     removeLog,
-    updateLogRewards, // [指令1] 导出更新奖励的方法
+    updateLogRewards,
     recalculateGlobalStats,
-    checkDateConsistency // [技术工单03] 导出日期检查方法
+    checkDateConsistency,
+    // [优先级二] 新增运动和补水记录管理方法
+    addExerciseLog,
+    removeExerciseLog,
+    addHydrationLog,
+    removeHydrationLog,
+    allTodayExercise,
+    allTodayHydration,
+    todayHydrationAmount,
+    todayHydrationCups
   };
 });

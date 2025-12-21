@@ -50,6 +50,7 @@ export const useHeroStore = defineStore('hero', () => {
     lastLoginDate: getLocalDateStr(),
     gold: 0,
     inventory: { 'item_rebirth_potion': 1 },
+    transactionHistory: [], // [修复工单01] 初始化交易历史
     hydration: {
       dailyTargetCups: 8,
       cupSizeMl: 250,
@@ -219,19 +220,70 @@ export const useHeroStore = defineStore('hero', () => {
     user.stamina = Math.min(max, user.stamina + amount);
   }
 
-  function addGold(amount: number): void {
+  // === [阶段二] 流水记录核心方法 ===
+  // 升级版 logTransaction：支持金币、经验、物品三种资产，确保账实相符
+  function logTransaction(
+    type: import('@/types').TransactionType,
+    currency: 'GOLD' | 'EXP' | 'ITEM',
+    amount: number,
+    source: string,
+    itemId?: string,
+    itemName?: string,
+    balanceAfter?: number  // [修复] 允许外部传入交易后余额
+  ): void {
+    if (!user.transactionHistory) user.transactionHistory = [];
+    
+    // 如果没有传入balanceAfter，自动计算当前余额
+    if (balanceAfter === undefined) {
+      if (currency === 'GOLD') {
+        balanceAfter = user.gold;
+      } else if (currency === 'EXP') {
+        balanceAfter = user.currentExp;
+      } else if (currency === 'ITEM' && itemId) {
+        balanceAfter = user.inventory[itemId] || 0;
+      }
+    }
+    
+    const record: import('@/types').TransactionRecord = {
+      timestamp: new Date().toISOString(),
+      type,
+      currency,
+      amount,
+      balanceAfter,
+      source
+    };
+    
+    // 如果是物品交易，记录物品信息
+    if (currency === 'ITEM') {
+      record.itemId = itemId;
+      record.itemName = itemName || itemId;
+    }
+    
+    user.transactionHistory.push(record);
+  }
+
+  // [阶段二改造] 支持传入type参数，区分收入来源
+  function addGold(amount: number, source: string = '系统奖励', type: import('@/types').TransactionType = 'SYSTEM_GRANT'): void {
     if (!amount || amount <= 0) return;
     if (!user.gold) user.gold = 0;
-    user.gold += Math.floor(amount);
+    const safeAmount = Math.floor(amount);
+    user.gold += safeAmount;
+    
+    // 记录交易流水（带类型标记）
+    logTransaction(type, 'GOLD', safeAmount, source);
   }
 
   // [指令2] 回滝XP - 实现等级与经验的智能回滚机制
   // 目标: 解决"删除记录只扣经验不降级"导致的无限刷技能点漏洞
-  function revertXp(amount: number): void {
+  // [指令1修复] 添加 source 参数并记录流水
+  function revertXp(amount: number, source: string = '系统回滚'): void {
     if (!amount || amount <= 0) return;
     const safeAmount = Math.floor(amount);
       
     user.currentExp -= safeAmount;
+  
+    // 记录交易流水（负值）
+    logTransaction('SYSTEM_ROLLBACK', 'EXP', -safeAmount, source);
   
     // [关键] 当经验值为负数时,进入降级循环
     while (user.currentExp < 0 && user.level > 1) {
@@ -265,35 +317,71 @@ export const useHeroStore = defineStore('hero', () => {
   }
 
   // [指令3] 回滝金币 - 允许负债(修复经济系统体验)
-  function revertGold(amount: number): void {
+  // [指令1修复] 添加 source 参数并记录流水
+  function revertGold(amount: number, source: string = '系统回滚'): void {
     if (!amount || amount <= 0) return;
     if (!user.gold) user.gold = 0;
+    const safeAmount = Math.floor(amount);
     // [关键修改] 移除Math.max(0,...)，允许金币为负数
-    user.gold -= Math.floor(amount);
+    user.gold -= safeAmount;
+    
+    // 记录交易流水（负值）
+    logTransaction('SYSTEM_ROLLBACK', 'GOLD', -safeAmount, source);
   }
 
-  function buyItem(itemId: string, price: number): boolean {
+  // [阶段二改造] 购买道具时记录「金币支出」和「物品入库」两条流水
+  function buyItem(itemId: string, price: number, itemName?: string): boolean {
     if (user.gold < price) {
       showToast('金币不足');
       return false;
     }
+    
+    // 1. 扣除金币并记录
     user.gold -= price;
+    logTransaction('ITEM_BUY', 'GOLD', -price, `购买${itemName || itemId}`, undefined, undefined, user.gold);
+    
+    // 2. 物品入库并记录
     if (!user.inventory) user.inventory = {};
-    user.inventory[itemId] = (user.inventory[itemId] || 0) + 1;
+    const newCount = (user.inventory[itemId] || 0) + 1;
+    user.inventory[itemId] = newCount;
+    logTransaction('ITEM_BUY', 'ITEM', 1, `商店购买`, itemId, itemName, newCount);
+    
     showToast('购买成功');
     return true;
   }
 
-  function consumeItem(itemId: string, count = 1): boolean {
+  // [阶段二改造] 消耗道具时记录流水，区分不同道具的特殊效果
+  function consumeItem(itemId: string, count = 1, itemName?: string): boolean {
     if (!user.inventory || !user.inventory[itemId] || user.inventory[itemId] < count) return false;
+    
+    // 扣除库存并记录
     user.inventory[itemId] -= count;
-    if (user.inventory[itemId] <= 0) delete user.inventory[itemId];
+    const newCount = user.inventory[itemId];
+    if (newCount <= 0) delete user.inventory[itemId];
+    
+    // 记录物品消耗流水（传入消耗后的余额）
+    logTransaction('ITEM_USE', 'ITEM', -count, `使用道具`, itemId, itemName, newCount > 0 ? newCount : 0);
+    
+    // [阶段二] 特殊逻辑：经验药水等道具的额外效果记录
+    // 查找道具配置（从gameData获取）
+    const SHOP_ITEMS = [
+      { id: 'item_exp_potion', name: '经验药水', effect: 'EXP', value: 100 },
+      { id: 'item_heal_potion', name: '治疗药水', effect: 'HEAL' },
+      { id: 'item_rebirth_potion', name: '转生药水', effect: 'REBIRTH' }
+    ];
+    
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (item?.effect === 'EXP' && item.value) {
+      // 经验药水：记录获得的经验
+      logTransaction('ITEM_USE', 'EXP', item.value, `${item.name}效果`);
+    }
+    
     return true;
   }
 
   // [工单04] 重生逻辑安全审计 - 确保只重置游戏数值，不误删真实健康记录
   function rebirth(newRace: RaceType): void {
-    if (!consumeItem('item_rebirth_potion')) {
+    if (!consumeItem('item_rebirth_potion', 1, '转生药水')) {
       showToast('缺少转生药水');
       return;
     }
@@ -507,7 +595,8 @@ export const useHeroStore = defineStore('hero', () => {
   }
 
   // [工单05] 动态XP收益模型 - 后期等级收益自动提升
-  function addExp(amount: number): void {
+  // [阶段二改造] 支持传入type参数，区分经验来源
+  function addExp(amount: number, source: string = '战斗经验', type: import('@/types').TransactionType = 'BATTLE_REWARD'): void {
     if (user.level >= MAX_LEVEL) return;
 
     const safeAmount = Number.isNaN(amount) ? 0 : amount;
@@ -515,6 +604,9 @@ export const useHeroStore = defineStore('hero', () => {
     const levelScaler = 1 + (user.level * 0.05);
     const realAmount = Math.floor(safeAmount * passiveBonuses.value.expRate * levelScaler);
     user.currentExp += realAmount;
+
+    // 记录交易流水（带类型标记）
+    logTransaction(type, 'EXP', realAmount, source);
 
     let leveledUp = false;
     let safetyCounter = 0;
@@ -721,8 +813,8 @@ export const useHeroStore = defineStore('hero', () => {
     const seed = yesterdayStr.split('').reduce((a, b, i) => a + (b.charCodeAt(0) * (i + 1)), 0);
     const monster = MONSTERS[seed % MONSTERS.length] || MONSTERS[0];
 
-    addExp(expGained);
-    addGold(goldGained);
+    addExp(expGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
+    addGold(goldGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
     // 每日结算恢复体力
     recoverStamina(100);
 
@@ -799,7 +891,8 @@ export const useHeroStore = defineStore('hero', () => {
     recoverStamina,
     // [工单01] 新增XP/Gold回滚方法
     revertXp,
-    revertGold
+    revertGold,
+    logTransaction
   };
 }, {
   persist: true
