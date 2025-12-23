@@ -92,10 +92,14 @@ const confirm = () => {
     return;
   }
 
-  store.battleCommit(finalLog);
-
+  // 先关闭所有弹窗，回到首页
   store.setModal('quantity', false);
   store.setModal('addFood', false);
+  
+  // 延迟300ms后再执行战斗逻辑，确保用户已回到首页看到动画
+  setTimeout(() => {
+    store.battleCommit(finalLog);
+  }, 300);
 };
 </script>
 

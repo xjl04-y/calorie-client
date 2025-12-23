@@ -113,39 +113,14 @@ export const useGameStore = defineStore('game', () => {
         const data = JSON.parse(saved) as SaveData;
 
         if (data && typeof data === 'object') {
-          if (data.user) {
-            Object.assign(hero.user, data.user);
-            if (!hero.user.skillPoints) hero.user.skillPoints = 0;
-            if (!hero.user.learnedSkills) hero.user.learnedSkills = {};
-
-            if (hero.user.gold === undefined) hero.user.gold = 0;
-            if (!hero.user.inventory) hero.user.inventory = { 'item_rebirth_potion': 1 };
-
-            if (!hero.user.hydration) {
-              hero.user.hydration = {
-                dailyTargetCups: 8,
-                cupSizeMl: 250,
-                reminderInterval: 60,
-                enableNotifications: false
-              };
-            }
-
-            if (!hero.user.fasting) {
-              hero.user.fasting = {
-                isFasting: false,
-                startTime: 0,
-                targetHours: 16
-              };
-            }
-
-            if (!hero.user.targetConfig) {
-              hero.user.targetConfig = {
-                mode: 'AUTO',
-                goal: 'MAINTAIN',
-                activityLevel: 1.2
-              };
-            }
-          }
+          // [技能点修复] 废除旧数据管辖权 - 不再从这里加载 hero.user
+          // hero.user 现在由 useHeroStore 内部的 loadHeroData() 自动管理
+          // 该函数会从独立的 rpg_hero_data_v2 Key 读取最新数据
+          // if (data.user) {
+          //   Object.assign(hero.user, data.user);
+          //   ...
+          // }
+          // 注意：hero.user 的加载已经在 useHeroStore 初始化时自动完成
 
           if (data.logs) Object.assign(logStore.logs, data.logs);
           logStore.recalculateGlobalStats();

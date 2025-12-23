@@ -189,11 +189,17 @@ const submit = () => {
   if (systemStore.temp.isBuilding) {
     systemStore.temp.basket.push({ ...newItem, isComposite: false });
     showNotify({ type: 'success', message: `已添加: ${newItem.name}` });
+    show.value = false;
   } else {
-    store.battleCommit(newItem);
+    // 关闭弹窗先回到首页
+    show.value = false;
+    store.setModal('addFood', false);
+    
+    // 延迟执行战斗逻辑
+    setTimeout(() => {
+      store.battleCommit(newItem);
+    }, 300);
   }
-
-  show.value = false;
 };
 
 // 初始化

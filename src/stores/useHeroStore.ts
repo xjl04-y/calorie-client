@@ -9,6 +9,7 @@ import { RACES, RACE_SKILL_TREES, MONSTERS } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
 
 const MAX_LEVEL = 100;
+const STORAGE_KEY = 'rpg_hero_data_v2'; // 独立存储key，隔离旧版本数据
 
 export const useHeroStore = defineStore('hero', () => {
   const systemStore = useSystemStore();
@@ -400,14 +401,14 @@ export const useHeroStore = defineStore('hero', () => {
     // DO NOT RESET FOOD/EXERCISE LOGS HERE - 绝对不清除用户的真实健康记录
     // 仅重置游戏进度相关数值
     user.skillPoints += totalRefundSP;
-    user.learnedSkills = {};
+    user.learnedSkills = {}; // 清空已学技能
     user.activeSkillId = null;
     user.activeSkillCd = 0;
-    user.race = newRace;
-    // 重置等级和经验（可选，根据游戏设计决定）
-    // user.level = 1;
-    // user.currentExp = 0;
-    // user.nextLevelExp = 100;
+    user.race = newRace; // 切换种族
+    
+    // [修复转生逻辑] 技能清空后，被动加成会自动归零（通过 computed 重算）
+    // realMaxHp 会通过 watch 自动更新，无需手动干预
+    // 警告：不要重置 baseBMR、level、exp，这些是玩家成长的核心数据
     
     // 警告：绝对不能调用 localStorage.clear() 或清空 logs
     // 用户的饮食/运动记录是宝贵的健康数据，转生不影响这些记录
@@ -665,9 +666,19 @@ export const useHeroStore = defineStore('hero', () => {
       return;
     }
 
+    // [修复核心断层] 扣除技能点并记录
     user.skillPoints -= node.cost;
-    user.learnedSkills[node.id] = currentLv + 1;
-    showToast(`技能 ${node.name} 升级成功！`);
+    // [修复持久化] 创建新对象引用，确保 pinia 能检测到变化
+    const newLearnedSkills = { ...user.learnedSkills };
+    newLearnedSkills[node.id] = currentLv + 1;
+    user.learnedSkills = newLearnedSkills;
+    
+    // [关键修复] 技能升级后，立即触发被动加成的重新计算
+    // passiveBonuses 是 computed，会自动重算
+    // 但某些属性（如 maxHp）需要通过 watch 触发更新
+    // 这里不需要手动操作，因为 passiveBonuses 的变化会触发 realMaxHp 的 watch
+    
+    showToast(`✨ ${node.name} 升级成功！(Lv.${currentLv + 1})`);
   }
 
   function activateSkill(): void {
@@ -858,6 +869,79 @@ export const useHeroStore = defineStore('hero', () => {
     user.fasting.startTime = time;
   }
 
+  // === [第一步] 实时保存机制 ===
+  // 深度监听 user 对象的所有变化，立即保存到 localStorage
+  watch(
+    () => user,
+    (newUser) => {
+      try {
+        const dataToSave = JSON.stringify(newUser);
+        localStorage.setItem(STORAGE_KEY, dataToSave);
+      } catch (error) {
+        console.error('[Hero Store] 实时保存失败:', error);
+      }
+    },
+    { deep: true }
+  );
+
+  // === [第二步] 数据加载优先级重构 ===
+  // 强制优先使用本地数据，防止回档
+  function loadHeroData(externalData?: Partial<UserState>): void {
+    try {
+      // 优先级1：从独立 Key 读取本地数据
+      const localData = localStorage.getItem(STORAGE_KEY);
+      
+      if (localData) {
+        // 本地有数据，强制使用本地数据（忽略外部传入参数）
+        const parsed = JSON.parse(localData);
+        Object.assign(user, parsed);
+        console.log('[Hero Store] 已加载本地数据，技能点:', user.skillPoints, '已学技能:', user.learnedSkills);
+      } else {
+        // 优先级2：新用户，使用外部传入数据或默认值
+        if (externalData) {
+          Object.assign(user, externalData);
+        }
+        console.log('[Hero Store] 新用户初始化');
+      }
+
+      // === [第三步] 修复点数补发逻辑 ===
+      // 仅当 skillPoints 完全不存在时才补发
+      if (user.skillPoints === undefined) {
+        // 计算已花费的技能点
+        let spentPoints = 0;
+        if (user.learnedSkills) {
+          const currentTree = RACE_SKILL_TREES[user.race] || RACE_SKILL_TREES['HUMAN'];
+          currentTree.forEach(node => {
+            const level = user.learnedSkills[node.id] || 0;
+            if (level > 0) {
+              spentPoints += level * node.cost;
+            }
+          });
+        }
+
+        // 修正公式：剩余技能点 = (当前等级 - 1) - 已花费点数
+        const totalEarned = (user.level || 1) - 1;
+        user.skillPoints = Math.max(0, totalEarned - spentPoints);
+        console.log('[Hero Store] 补发技能点，总获得:', totalEarned, '已花费:', spentPoints, '剩余:', user.skillPoints);
+      }
+
+      // 确保必要字段存在
+      if (!user.learnedSkills) user.learnedSkills = {};
+      if (!user.transactionHistory) user.transactionHistory = [];
+      if (!user.inventory) user.inventory = { 'item_rebirth_potion': 1 };
+      
+    } catch (error) {
+      console.error('[Hero Store] 数据加载失败:', error);
+      // 加载失败时使用默认值
+      if (externalData) {
+        Object.assign(user, externalData);
+      }
+    }
+  }
+
+  // Store 初始化时立即加载数据
+  loadHeroData();
+
   return {
     user,
     skillTree,
@@ -892,8 +976,11 @@ export const useHeroStore = defineStore('hero', () => {
     // [工单01] 新增XP/Gold回滚方法
     revertXp,
     revertGold,
-    logTransaction
+    logTransaction,
+    // [技能点修复] 新增数据加载方法
+    loadHeroData
   };
 }, {
-  persist: true
+  // [技能点修复] 禁用 Pinia 自动持久化，使用自定义的实时保存机制
+  persist: false
 });

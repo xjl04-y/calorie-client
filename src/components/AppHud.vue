@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore';
+// 1. 引入新组件
+import ShieldBarCanvas from '@/components/ShieldBarCanvas.vue';
+
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -49,6 +52,134 @@ const openExpHistory = () => {
   systemStore.temp.transactionTab = 'EXP';
   systemStore.setModal('transactionHistory', true);
 };
+
+// === RPG 浮动文字消息队列系统 ===
+
+// 1. 状态缓冲区 (State Buffer)
+interface FloatingTextItem {
+  id: number;
+  text: string;
+  type: 'exp' | 'gold' | 'hp' | 'level';
+  icon: string;
+}
+
+const textQueue = ref<FloatingTextItem[]>([]); // 等待队列
+const activeTexts = ref<FloatingTextItem[]>([]); // 活跃队列（正在显示的）
+let textIdCounter = 0;
+let processingTimer: number | null = null;
+
+// 2. 监听数据源（生产者）
+
+// 监听经验变化
+watch(() => user.value.currentExp, (newVal, oldVal) => {
+  if (!user.value.isInitialized) return;
+  const diff = newVal - oldVal;
+  if (diff > 0) {
+    enqueueText(`+${Math.floor(diff)} EXP`, 'exp', '⭐');
+  } else if (diff < 0) {
+    enqueueText(`${Math.floor(diff)} EXP`, 'exp', '💫');
+  }
+});
+
+// 监听金币变化
+watch(() => user.value.gold, (newVal, oldVal) => {
+  if (!user.value.isInitialized) return;
+  const diff = newVal - oldVal;
+  if (diff > 0) {
+    enqueueText(`+${Math.floor(diff)} 金币`, 'gold', '💰');
+  } else if (diff < 0) {
+    enqueueText(`${Math.floor(diff)} 金币`, 'gold', '🪙');
+  }
+});
+
+// 监听血量变化
+watch(() => user.value.heroCurrentHp, (newVal, oldVal) => {
+  if (!user.value.isInitialized) return;
+  const diff = newVal - oldVal;
+  if (diff > 0) {
+    enqueueText(`+${Math.floor(diff)} HP`, 'hp', '❤️');
+  } else if (diff < 0) {
+  enqueueText(`${Math.floor(diff)} HP`, 'hp', '💔');
+  }
+});
+
+// 注意：护盾动画现在由 ShieldBarCanvas 组件内部处理
+
+// 监听等级变化（高优先级 - 插队）
+watch(() => user.value.level, (newVal, oldVal) => {
+  if (!user.value.isInitialized) return;
+  const diff = newVal - oldVal;
+  if (diff > 0) {
+    // 等级提升使用 unshift 插队到队列最前端
+    const item: FloatingTextItem = {
+      id: ++textIdCounter,
+      text: `🎉 等级提升！Lv.${newVal}`,
+      type: 'level',
+      icon: '✨'
+    };
+    textQueue.value.unshift(item);
+  }
+});
+
+// 3. 入队函数
+function enqueueText(text: string, type: FloatingTextItem['type'], icon: string) {
+  const item: FloatingTextItem = {
+    id: ++textIdCounter,
+    text,
+    type,
+    icon
+  };
+  textQueue.value.push(item);
+}
+
+// 4. 消费引擎 (Consumption Engine)
+function processQueue() {
+  // 检查队列是否有数据
+  if (textQueue.value.length === 0) return;
+
+  // 出队逻辑：取出第一条
+  const item = textQueue.value.shift();
+  if (item) {
+    // 放入活跃队列触发 UI 渲染
+    activeTexts.value.push(item);
+
+    // 2 秒后从活跃队列移除（配合 CSS 动画时长）
+    setTimeout(() => {
+      const index = activeTexts.value.findIndex(t => t.id === item.id);
+      if (index !== -1) {
+        activeTexts.value.splice(index, 1);
+      }
+    }, 2000);
+  }
+
+  // 动态速率调整（Smart Pace）
+  let nextInterval = 400; // 默认间隔
+  if (textQueue.value.length > 5) {
+    // 积压超过 5 条，加速处理
+    nextInterval = 150;
+  } else if (textQueue.value.length > 2) {
+    // 积压 2-5 条，中速处理
+    nextInterval = 250;
+  }
+
+  // 重新调度下一次执行
+  if (processingTimer !== null) {
+    clearTimeout(processingTimer);
+  }
+  processingTimer = window.setTimeout(processQueue, nextInterval);
+}
+
+// 启动消费引擎
+onMounted(() => {
+  processQueue();
+});
+
+// 清理定时器
+onUnmounted(() => {
+  if (processingTimer !== null) {
+    clearTimeout(processingTimer);
+  }
+});
 </script>
 
 <template>
@@ -96,71 +227,20 @@ const openExpHistory = () => {
         </div>
       </div>
 
-      <!-- 下半部分：状态条区域 (HP + Shield) -->
-      <div v-if="!isPure && user.isInitialized" class="relative w-full mt-2" @click.stop="store.setModal('hpHistory', true)">
-
-        <!-- 数值展示行 -->
-        <div class="flex justify-between items-end mb-1 px-0.5">
-          <div class="flex items-center gap-2 h-4">
-            <span class="text-rose-500 text-[9px] font-black flex items-center gap-1"><i class="fas fa-heart"></i> HP</span>
-
-            <!-- 护盾数值 (全息胶囊风格 - 带呼吸动画) -->
-            <transition name="shield-pop">
-               <span v-if="hasShield" class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold text-cyan-500 bg-cyan-950/5 dark:bg-cyan-400/10 border border-cyan-200 dark:border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)] animate-pulse-slow">
-                 <i class="fas fa-shield-alt animate-spin-slow-reverse"></i> {{ Math.floor(user.heroShield) }}
-               </span>
-            </transition>
-          </div>
-          <span class="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500">
-            {{ Math.floor(user.heroCurrentHp) }} <span class="text-slate-300">/</span> {{ Math.floor(currentMaxHp) }}
-          </span>
-        </div>
-
-        <!-- 复合能量条容器 -->
-        <div class="relative flex flex-col">
-
-          <!-- 1. 全息护盾条 (Holographic Energy Shield) -->
-          <!-- 悬浮在血条上方 -->
-          <div class="relative w-full transition-all duration-500 ease-spring"
-               :class="hasShield ? 'h-2 mb-1 opacity-100' : 'h-0 mb-0 opacity-0'">
-
-            <!-- 轨道槽 -->
-            <div class="absolute inset-0 bg-slate-200/50 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner"></div>
-
-            <!-- 能量填充 - 增加 overflow-hidden 确保内部特效不溢出 -->
-            <div class="h-full rounded-full relative overflow-hidden transition-all duration-300 shadow-[0_0_12px_rgba(34,211,238,0.5)] bg-cyan-500/20"
-                 :style="{ width: shieldPercent + '%' }">
-
-              <!-- 动态底层能量流 (Energy Flow) -->
-              <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-cyan-400 via-blue-400 to-cyan-400 animate-gradient-flow opacity-90"></div>
-
-              <!-- 动态粒子/扫描线 (Active Scanline) -->
-              <div class="absolute inset-0 w-full h-full bg-[repeating-linear-gradient(120deg,transparent,transparent_6px,rgba(255,255,255,0.4)_8px,transparent_10px)] animate-scanline opacity-60"></div>
-
-              <!-- 快速高光扫过 (Fast Sheen) -->
-              <div class="absolute top-0 bottom-0 -left-[100%] w-[80%] bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-20deg] animate-sheen-fast mix-blend-overlay"></div>
-
-              <!-- 顶部高光边缘 (Top Edge Highlight) -->
-              <div class="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/90 to-transparent opacity-80"></div>
-            </div>
-          </div>
-
-          <!-- 2. 主血条 (Main HP) -->
-          <div class="relative h-2 bg-slate-100 dark:bg-slate-800/80 rounded-full border border-slate-200 dark:border-slate-700/50 shadow-inner overflow-hidden">
-            <div class="absolute top-0 left-0 h-full bg-gradient-to-r from-rose-500 to-red-600 transition-all duration-500 ease-out"
-                 :style="{ width: Math.min((user.heroCurrentHp / (currentMaxHp || 1) * 100), 100) + '%' }">
-              <!-- 微弱的内部高光 -->
-              <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent"></div>
-            </div>
-          </div>
-
-        </div>
+      <!-- 下半部分：Canvas 血条护盾组件 -->
+      <div v-if="!isPure && user.isInitialized" class="status-bar-container relative w-full mt-2" @click.stop="store.setModal('hpHistory', true)">
+        <ShieldBarCanvas
+          :current-hp="user.heroCurrentHp"
+          :max-hp="currentMaxHp"
+          :current-shield="user.heroShield || 0"
+          :max-shield="currentMaxHp"
+        />
       </div>
 
       <!-- [交易记录入口] 金币、经验和背包显示区域 -->
       <div v-if="!isPure && user.isInitialized" class="flex gap-2 mt-3">
         <!-- 金币 -->
-        <div 
+        <div
           class="flex-1 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 dark:from-yellow-500/20 dark:to-orange-500/20 rounded-lg px-3 py-2 border border-yellow-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
           @click.stop="openGoldHistory"
         >
@@ -174,7 +254,7 @@ const openExpHistory = () => {
         </div>
 
         <!-- 经验 -->
-        <div 
+        <div
           class="flex-1 bg-gradient-to-r from-purple-500/10 to-blue-500/10 dark:from-purple-500/20 dark:to-blue-500/20 rounded-lg px-3 py-2 border border-purple-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
           @click.stop="openExpHistory"
         >
@@ -188,7 +268,7 @@ const openExpHistory = () => {
             </div>
             <!-- 经验进度条 -->
             <div class="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div 
+              <div
                 class="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 ease-out"
                 :style="{ width: expPercent + '%' }"
               >
@@ -200,7 +280,7 @@ const openExpHistory = () => {
         </div>
 
         <!-- [背包功能] 背包按钮 -->
-        <div 
+        <div
           class="bg-gradient-to-r from-green-500/10 to-emerald-500/10 dark:from-green-500/20 dark:to-emerald-500/20 rounded-lg px-3 py-2 border border-green-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
           @click.stop="systemStore.setModal('inventory', true)"
         >
@@ -212,70 +292,150 @@ const openExpHistory = () => {
       </div>
     </div>
   </div>
+
+  <!-- 浮动文字层 (Floating Text Layer) -->
+  <div class="floating-text-layer">
+    <transition-group name="float-up" tag="div" class="floating-text-container">
+      <div
+        v-for="item in activeTexts"
+        :key="item.id"
+        class="floating-text"
+        :class="`floating-text-${item.type}`"
+      >
+        <span class="text-icon">{{ item.icon }}</span>
+        <span class="text-content">{{ item.text }}</span>
+      </div>
+    </transition-group>
+  </div>
 </template>
 
 <style scoped>
-/* 能量流动动画 */
-@keyframes gradient-flow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+/* Canvas 血条容器样式 */
+.status-bar-container {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  height: 110px; /* 与 Canvas 配置的高度一致 */
+  position: relative;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
-.animate-gradient-flow {
-  background-size: 200% 200%;
-  animation: gradient-flow 3s ease infinite;
+/* === 浮动文字系统样式 === */
+
+/* 浮动文字层容器 */
+.floating-text-layer {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999; /* 高于普通页面但低于模态框 */
+  pointer-events: none; /* 不阻挡点击 */
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
-/* 扫描线动画 */
-@keyframes scanline-move {
-  0% { background-position: 0 0; }
-  100% { background-position: 30px 0; }
+.floating-text-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
-.animate-scanline {
-  background-size: 30px 100%;
-  animation: scanline-move 1s linear infinite;
+/* 浮动文字项 */
+.floating-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  transition: all 0.3s ease;
 }
 
-/* 快速流光动画 */
-@keyframes sheen-move-fast {
-  0% { left: -100%; }
-  100% { left: 200%; }
+/* 类型样式 */
+.floating-text-exp {
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.95), rgba(168, 85, 247, 0.95));
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-.animate-sheen-fast {
-  animation: sheen-move-fast 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.floating-text-gold {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(251, 191, 36, 0.95));
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-/* 慢速反向旋转 (用于图标) */
-@keyframes spin-slow-reverse {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(-360deg); }
+.floating-text-hp {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(248, 113, 113, 0.95));
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-.animate-spin-slow-reverse {
-  animation: spin-slow-reverse 6s linear infinite;
+.floating-text-level {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(74, 222, 128, 0.95));
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  font-size: 18px;
+  padding: 12px 24px;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
 }
 
-.animate-pulse-slow {
-  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.text-icon {
+  font-size: 20px;
+  display: inline-block;
+  animation: icon-bounce 0.6s ease-in-out;
 }
 
-/* 弹簧过渡效果 */
-.ease-spring {
-  transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+.text-content {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* 护盾数值弹出动画 */
-.shield-pop-enter-active,
-.shield-pop-leave-active {
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* 图标弹跳动画 */
+@keyframes icon-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
 }
 
-.shield-pop-enter-from,
-.shield-pop-leave-to {
-  opacity: 0;
-  transform: translateX(-10px) scale(0.8);
+/* Vue Transition - 浮动上升 */
+.float-up-enter-active {
+  animation: float-up-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.float-up-leave-active {
+  animation: float-up-out 0.5s ease-out;
+}
+
+@keyframes float-up-in {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes float-up-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.9);
+  }
 }
 </style>

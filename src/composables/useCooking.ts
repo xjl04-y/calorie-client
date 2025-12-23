@@ -104,14 +104,16 @@ export function useCooking(closeModal: () => void) {
       tags: Array.from(aggregatedTags)
     };
 
-    // 5. 提交
-    battleStore.battleCommit(compositeLog);
-
-    // 6. 清理
+    // 5. 先关闭弹窗，清理篮子
     resetBasket();
     closeModal();
-    const successMsg = systemStore.isPureMode ? '🍱 套餐已记录' : '🍱 套餐制作完成！已存入食谱。';
-    showNotify({ type: 'success', message: successMsg });
+    
+    // 6. 延迟提交，确保回到首页后再播放动画
+    setTimeout(() => {
+      battleStore.battleCommit(compositeLog);
+      const successMsg = systemStore.isPureMode ? '🍱 套餐已记录' : '🍱 套餐制作完成！已存入食谱。';
+      showNotify({ type: 'success', message: successMsg });
+    }, 300);
   };
 
   return {
