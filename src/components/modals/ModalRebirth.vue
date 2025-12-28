@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
-import { RACES } from '@/constants/gameData';
 import { showConfirmDialog, showToast } from 'vant';
-import type { RaceType } from '@/types';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -14,28 +12,38 @@ const show = computed({
   set: (val) => systemStore.setModal('rebirth', val)
 });
 
-const selectedRace = ref<RaceType>('HUMAN');
 const hasPotion = computed(() => (store.user.inventory?.['item_rebirth_potion'] || 0) > 0);
 
+// [Fix] 转生流程改进：先打开种族选择，选完后再执行转生
 const handleRebirth = () => {
   if (!hasPotion.value) {
     showToast('缺少道具，请先去商店购买转生药水');
     return;
   }
 
-  if (selectedRace.value === store.user.race) {
-    showToast('这也是你现在的种族，无需转生');
-    return;
-  }
-
-  // [PM Note] 在这里明确告知用户：历史记录名称不变，只有新的冒险才会改变
   showConfirmDialog({
     title: '⚠️ 签订转生契约',
-    message: `确定要消耗一瓶转生药水，将种族变更为「${RACES[selectedRace.value].name}」吗？\n\n1. 重置所有技能点和已学技能\n2. 历史饮食记录将保留原貌\n3. 新的冒险将以新身份书写`,
+    message: `确定要消耗一瓶转生药水，进行灵魂洗煈吗？
+
+1. 重置所有技能点和已学技能
+2. 保留等级、经验、金币和背包
+3. 保留所有历史饮食记录
+4. 转生后可重新选择种族
+
+点击确认后将进入种族选择页面`,
     confirmButtonText: '确认转生',
     confirmButtonColor: '#7c3aed'
   }).then(() => {
-    store.heroStore.rebirth(selectedRace.value);
+    // 关闭转生弹窗
+    show.value = false;
+    // 设置标记，表示是从转生流程来的
+    systemStore.temp.isFromRebirth = true;
+    systemStore.temp.isFromSettings = false;
+    // 临时将种族设为HUMAN，触发种族选择逻辑
+    store.user.race = 'HUMAN';
+    // 打开种族选择弹窗
+    store.setModal('onboarding', true);
+    showToast({ type: 'success', message: '请选择新的种族' });
   }).catch(() => {});
 };
 
@@ -68,30 +76,18 @@ const goToShop = () => {
         </button>
       </div>
 
-      <div class="mb-4">
-        <div class="text-xs font-bold text-slate-400 mb-2 uppercase">选择新种族</div>
-        <div class="grid grid-cols-2 gap-3">
-          <div v-for="(race, key) in RACES" :key="key"
-               @click="selectedRace = key as RaceType"
-               class="p-3 rounded-xl border-2 cursor-pointer transition-all relative overflow-hidden"
-               :class="selectedRace === key
-                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 ring-1 ring-purple-500'
-                 : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100'">
-
-            <div class="text-3xl mb-2">{{ race.icon }}</div>
-            <div class="font-bold text-sm dark:text-white">{{ race.name }}</div>
-            <div class="text-[10px] text-slate-500 mt-1 leading-tight">{{ race.desc }}</div>
-
-            <!-- 属性倾向 -->
-            <div class="flex gap-1 mt-2">
-              <span v-if="race.growth.str > 1.1" class="text-[8px] bg-red-100 text-red-600 px-1 rounded">力</span>
-              <span v-if="race.growth.agi > 1.1" class="text-[8px] bg-green-100 text-green-600 px-1 rounded">敏</span>
-              <span v-if="race.growth.vit > 1.1" class="text-[8px] bg-orange-100 text-orange-600 px-1 rounded">体</span>
-            </div>
-
-            <div v-if="selectedRace === key" class="absolute top-2 right-2 text-purple-500">
-              <i class="fas fa-check-circle"></i>
-            </div>
+      <!-- [Fix Bug2] 删除种族选择部分，转生后会自动打开选择种族弹窗 -->
+      <div class="mb-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div class="flex items-start gap-2">
+          <i class="fas fa-info-circle text-blue-500 mt-1"></i>
+          <div class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p class="font-bold mb-1">转生效果：</p>
+            <ul class="space-y-1 ml-3">
+              <li>• 清空所有已学技能，返还技能点</li>
+              <li>• 保留等级、经验、金币和背包</li>
+              <li>• 保留所有历史饮食记录</li>
+              <li>• <strong>转生后可重新选择种族</strong></li>
+            </ul>
           </div>
         </div>
       </div>

@@ -177,10 +177,12 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function initUser(formData: any) {
+    console.log('🔍 [GameStore] initUser 开始', { formData, currentHasEnteredRPG: system.hasEnteredRPGMode });
     hero.initUser(formData);
     collection.initFoodDb(hero.user.race || 'HUMAN', true);
     system.setModal('onboarding', false);
     forceSave();
+    console.log('🔍 [GameStore] initUser 结束', { hasEnteredRPG: system.hasEnteredRPGMode });
   }
 
   return {

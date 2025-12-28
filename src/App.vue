@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, defineAsyncComponent } from 'vue'; // [新增] 引入 defineAsyncComponent
+import { onMounted, onUnmounted, computed, ref, defineAsyncComponent } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import AppHud from '@/components/AppHud.vue';
+import SplashScreen from '@/components/SplashScreen.vue'; // [开屏动画] 引入组件
 
 // --- 全局模态框引入 (Modals) - 改为异步加载 ---
 // [优化] 之前是同步引入，会导致首屏加载所有弹窗代码。
@@ -40,6 +41,9 @@ const ModalInventory = defineAsyncComponent(() => import('@/components/modals/Mo
 const store = useGameStore();
 const systemStore = useSystemStore();
 
+// [开屏动画] 控制开屏动画显示
+const showSplash = ref(false);
+
 // [New V5.6] 悬浮球位置持久化 Key
 const FAB_POS_KEY = 'health_rpg_fab_pos';
 
@@ -65,6 +69,11 @@ const handleVisibilityChange = () => {
 };
 
 onMounted(() => {
+  // [开屏动画] 根据全局设置决定是否显示开屏动画
+  if (systemStore.enableSplashAnimation) {
+    showSplash.value = true;
+  }
+  
   store.loadState();
   
   // [日期同步初始化死角修复] 确保所有store在启动时日期对齐
@@ -216,10 +225,18 @@ const openHydration = () => {
   systemStore.setModal('hydration', true);
 };
 
+// [开屏动画] 动画完成回调
+const handleSplashComplete = () => {
+  showSplash.value = false;
+};
+
 </script>
 
 <template>
   <van-config-provider :theme="store.isDarkMode ? 'dark' : 'light'" theme-vars-scope="global">
+    <!-- [开屏动画] 开屏动画组件 -->
+    <SplashScreen v-if="showSplash" @animation-complete="handleSplashComplete" />
+    
     <div :class="containerClass">
 
       <div class="damage-overlay" :class="{'damage-active': store.temp.isDamaged}"></div>

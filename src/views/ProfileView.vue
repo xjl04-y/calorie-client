@@ -11,6 +11,7 @@ import { showToast, Dialog } from 'vant';
 import { getCombatRank } from '@/utils/gameUtils';
 import type { Achievement } from '@/types';
 import type { UploaderFileListItem } from 'vant';
+import HeroBackground from '@/components/HeroBackground.vue';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -160,6 +161,9 @@ const openTargetConfig = () => {
     <!-- Header -->
     <div class="relative transition-all duration-500"
          :class="isPure ? 'h-72 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700' : 'h-72 bg-gradient-to-b from-purple-900 to-slate-900'">
+
+      <!-- [New] 背景动画层 (仅RPG模式) -->
+      <HeroBackground v-if="!isPure" />
 
       <div v-if="!isPure" class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 

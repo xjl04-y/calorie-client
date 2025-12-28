@@ -389,12 +389,12 @@ class ShieldSystem {
     // 2. 护盾逻辑
     if (this.state !== 'EMPTY') {
       const safeMaxShield = this.maxShield || 100;
-      let shieldW = (this.shield / safeMaxShield) * CONFIG.barWidth;
+      const shieldW = (this.shield / safeMaxShield) * CONFIG.barWidth;
       const isHit = this.shakeTimer > 0;
 
       this.sweepTimer += CONFIG.sweepSpeed;
       const cycle = CONFIG.barWidth + CONFIG.sweepInterval;
-      let sweepPos = (this.sweepTimer % cycle) - CONFIG.barWidth / 2;
+      const sweepPos = (this.sweepTimer % cycle) - CONFIG.barWidth / 2;
 
       ctx.save();
       if (this.state !== 'SHATTERING') {

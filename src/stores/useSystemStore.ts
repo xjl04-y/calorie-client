@@ -8,6 +8,8 @@ export const useSystemStore = defineStore('system', () => {
   // --- State: 基础设置 ---
   const isDarkMode = ref(true);
   const isPureMode = ref(false);
+  const enableSplashAnimation = ref(true); // [开屏动画] 全局开关
+  const hasEnteredRPGMode = ref(false); // [Fix] 标记用户是否进入过RPG模式
   const currentDate = ref(getLocalDateStr());
   const analysisRefDate = ref(getLocalDateStr());
 
@@ -109,6 +111,8 @@ export const useSystemStore = defineStore('system', () => {
     projectile: { show: boolean, icon: string, id: number } | null;
     selectedBodyTrendPoint: import('@/types').RPGTrendData | import('@/types').PureTrendData | null;  // [New] 选中的体态趋势数据点
     transactionTab: 'GOLD' | 'EXP' | 'ITEM'; // [阶段三] 交易记录弹窗当前Tab页（支持物资）
+    isFromSettings: boolean; // [Fix] 标记是否从设置页面打开种族选择
+    isFromRebirth: boolean; // [Fix] 标记是否从转生流程打开种族选择
   }>({
     activeMealType: 'SNACK',
     isBuilding: false,
@@ -131,7 +135,9 @@ export const useSystemStore = defineStore('system', () => {
     attackVfx: null,
     projectile: null,
     selectedBodyTrendPoint: null,  // [New] 初始化
-    transactionTab: 'GOLD' // [交易记录] 默认显示GOLD
+    transactionTab: 'GOLD', // [交易记录] 默认显示GOLD
+    isFromSettings: false, // [Fix] 初始化
+    isFromRebirth: false // [Fix] 初始化
   });
 
   // --- Actions ---
@@ -254,6 +260,8 @@ export const useSystemStore = defineStore('system', () => {
   return {
     isDarkMode,
     isPureMode,
+    enableSplashAnimation, // [开屏动画] 导出开关
+    hasEnteredRPGMode, // [Fix] 导出RPG模式标记
     currentDate,
     analysisRefDate,
     analysisActiveTab,

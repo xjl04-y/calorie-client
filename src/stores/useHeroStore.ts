@@ -79,7 +79,7 @@ export const useHeroStore = defineStore('hero', () => {
   // 计算被动加成 (Complex Logic Preserved)
   const passiveBonuses = computed(() => {
     let bmrBonus = 0;
-    let statMult = { str: 0, agi: 0, vit: 0 };
+    const statMult = { str: 0, agi: 0, vit: 0 };
     let expRate = 1.0;
 
     // 连胜经验加成：每多一天 +1%，最高 10%
@@ -381,12 +381,14 @@ export const useHeroStore = defineStore('hero', () => {
   }
 
   // [工单04] 重生逻辑安全审计 - 确保只重置游戏数值，不误删真实健康记录
+  // [Fix] 转生流程改进：先打开选种族弹窗，选完后再执行转生，可以取消
   function rebirth(newRace: RaceType): void {
     if (!consumeItem('item_rebirth_potion', 1, '转生药水')) {
       showToast('缺少转生药水');
       return;
     }
 
+    // 计算需要返还的技能点
     let totalRefundSP = 0;
     const currentTree = RACE_SKILL_TREES[user.race];
     if (currentTree) {
@@ -404,7 +406,8 @@ export const useHeroStore = defineStore('hero', () => {
     user.learnedSkills = {}; // 清空已学技能
     user.activeSkillId = null;
     user.activeSkillCd = 0;
-    user.race = newRace; // 切换种族
+    // 切换种族
+    user.race = newRace;
     
     // [修复转生逻辑] 技能清空后，被动加成会自动归零（通过 computed 重算）
     // realMaxHp 会通过 watch 自动更新，无需手动干预
@@ -413,10 +416,9 @@ export const useHeroStore = defineStore('hero', () => {
     // 警告：绝对不能调用 localStorage.clear() 或清空 logs
     // 用户的饮食/运动记录是宝贵的健康数据，转生不影响这些记录
 
-    systemStore.setModal('rebirth', false);
     showNotify({
       type: 'success',
-      message: `✨ 转生成功！化身为${RACES[newRace].name}！\n返还 ${totalRefundSP} 点技能点。`,
+      message: `✨ 转生成功！化身为 ${RACES[newRace].name}！\n返还 ${totalRefundSP} 点技能点。`,
       duration: 3000,
       background: '#7c3aed'
     });
@@ -437,7 +439,7 @@ export const useHeroStore = defineStore('hero', () => {
     if (goal === 'LOSE') adjustment = -400;
     if (goal === 'GAIN') adjustment = 300;
 
-    let final = Math.round(tdee + adjustment);
+    const final = Math.round(tdee + adjustment);
     if (isNaN(final)) return 2000;
     return Math.max(1200, final);
   }

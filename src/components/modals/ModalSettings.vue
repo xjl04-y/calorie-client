@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch, ref } from 'vue';
+import { computed, reactive, watch, ref, nextTick } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore'; // [Fix] 导入 HeroStore 用于检查角色初始化
@@ -52,31 +52,68 @@ const handleSave = () => {
   const modeChanged = systemStore.isPureMode !== localState.isPureMode;
 
   systemStore.isDarkMode = localState.isDarkMode;
-  
+
   // [Fix] 模式切换守卫：从 Pure 切到 RPG 需要检查角色初始化
+  console.log('🔍 [Settings] handleSave 开始', {
+    modeChanged,
+    localStatePureMode: localState.isPureMode,
+    systemStorePureMode: systemStore.isPureMode
+  });
+
   if (modeChanged && localState.isPureMode === false && systemStore.isPureMode === true) {
     // 想要切换到 RPG 模式
-    const hasChosenRace = heroStore.user.race && heroStore.user.race !== 'HUMAN';
     const hasInitialized = heroStore.user.isInitialized;
+    const hasEnteredRPG = systemStore.hasEnteredRPGMode; // [Fix] 检查是否已经进入过RPG模式
+    const currentRace = heroStore.user.race;
+
+    console.log('🔍 [Settings] 进入模式切换守卫', {
+      hasInitialized,
+      hasEnteredRPG,
+      userRace: currentRace
+    });
 
     if (!hasInitialized) {
       // 完全未初始化 -> 打开完整引导流程
+      console.log('🔍 [Settings] 分支1: 未初始化');
       show.value = false;
       systemStore.setModal('onboarding', true);
       showToast('请先完成角色创建');
       return;
-    } else if (!hasChosenRace) {
-      // 已有基础信息但未选择种族（从纯净模式切换过来）-> 打开种族选择
-      show.value = false;
-      // 先切换到 RPG 模式，再打开 Onboarding
-      systemStore.isPureMode = false;
-      systemStore.setModal('onboarding', true);
-      // watch 会自动检测并跳到种族选择步骤
-      showToast('请选择您的种族');
-      return;
     }
+      // [Fix] 核心逻辑修改：
+      // 只有在 "从未进入过RPG模式" (!hasEnteredRPG) 且 "种族是默认人类" (race === 'HUMAN') 时，才触发选择。
+      // 如果 hasEnteredRPG 为 true，说明用户之前在 RPG 模式下明确选择了人类，不应重选。
+    // 如果 race 不是 HUMAN (比如是 ELF)，说明肯定是选过的（或者是旧存档），也不重选。
+    else if (!hasEnteredRPG && (currentRace === 'HUMAN' || !currentRace)) {
+      console.log('🔍 [Settings] 分支2: 触发种族选择:', {
+        reason: '未进入过RPG模式且种族为默认值',
+        hasEnteredRPG,
+        currentRace
+      });
+
+      systemStore.isPureMode = false;
+      // [Fix] 也要更新localState，保持一致
+      localState.isPureMode = false;
+      show.value = false;
+      // 设置标记，表示是从设置页面打开的
+      systemStore.temp.isFromSettings = true;
+      console.log('🔍 [Settings] 打开 Onboarding，isFromSettings =', systemStore.temp.isFromSettings);
+
+      // [Critical Fix] 使用 nextTick 确保 isPureMode 更新完成后再打开弹窗
+      nextTick(() => {
+        console.log('🔍 [Settings] nextTick 后 isPureMode =', systemStore.isPureMode);
+        systemStore.setModal('onboarding', true);
+        // watch 会自动检测并跳到种族选择步骤
+        showToast('请选择您的种族');
+      });
+      return;
+    } else {
+      console.log('🔍 [Settings] 分支3: 已选择种族或已进入RPG，直接切换');
+    }
+  } else {
+    console.log('🔍 [Settings] 未进入模式切换守卫');
   }
-  
+
   // 应用模式切换
   systemStore.isPureMode = localState.isPureMode;
   // [Removed] 移除了 apiKey 保存逻辑
