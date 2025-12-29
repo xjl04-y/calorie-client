@@ -5,6 +5,7 @@ import { generateId } from '@/utils/gameUtils';
 import type { FoodLog, ExerciseLog, HydrationLog } from '@/types';
 import { useSystemStore } from './useSystemStore';
 import { useHeroStore } from './useHeroStore';
+import { sqliteLogService } from '@/utils/sqliteLogService';
 
 // 将日志相关的基础统计逻辑剥离到这里
 export const useLogStore = defineStore('log', () => {
@@ -77,18 +78,33 @@ export const useLogStore = defineStore('log', () => {
     const dateKey = systemStore.currentDate || getLocalDateStr();
     if (!logs[dateKey]) logs[dateKey] = [];
 
+    // [Critical Fix] 彻底移除了 ID 重复检查逻辑
+    // 无论 logItem.id 是什么，这里都会通过 generateId() 生成全新的 ID
+    // 从而允许无限添加相同的食物
+
     // 确保数据纯净
     const newLog: FoodLog = {
       ...JSON.parse(JSON.stringify(toRaw(logItem))),
-      id: logItem.id || generateId(), // 确保有 ID
+      id: generateId(), // 强制生成唯一ID
       timestamp: logItem.timestamp || new Date().toISOString()
     };
 
+    // [Reverted] 移除了之前的自动重命名逻辑
+    // 用户的UI层已经实现了连击计数显示，这里不再修改 newLog.name
+
+    console.log(`[LogStore] 添加日志成功: ${newLog.id} - ${newLog.name}`);
     logs[dateKey].unshift(newLog);
+
     // 只有饮食才计入全局统计 (用于属性成长)
     if (newLog.mealType !== 'EXERCISE') {
       _updateGlobalStats(newLog, 1);
     }
+
+    // 保存到数据库
+    _saveLogToDb(newLog, dateKey).catch(err => {
+      console.error('[LogStore] 保存日志到数据库失败:', err);
+    });
+
     return newLog;
   }
 
@@ -104,6 +120,12 @@ export const useLogStore = defineStore('log', () => {
       if (removed && removed.mealType !== 'EXERCISE') {
         _updateGlobalStats(removed, -1);
       }
+
+      // 从数据库删除
+      sqliteLogService.deleteLog(String(logId)).catch(err => {
+        console.error('[LogStore] 从数据库删除日志失败:', err);
+      });
+
       return removed;
     }
     return null;
@@ -120,7 +142,7 @@ export const useLogStore = defineStore('log', () => {
   function checkDateConsistency() {
     const realToday = getLocalDateStr();
     const current = systemStore.currentDate;
-    
+
     if (current !== realToday) {
       console.log(`[日期修正] 检测到时间偏移: ${current} -> ${realToday}`);
       systemStore.currentDate = realToday;
@@ -174,6 +196,12 @@ export const useLogStore = defineStore('log', () => {
 
     // 将运动记录添加到 logs 中（注意：这里将 ExerciseLog 存为 FoodLog 的特殊类型）
     logs[dateKey].unshift(newLog as any);
+
+    // 保存到数据库
+    _saveLogToDb(newLog as any, dateKey).catch(err => {
+      console.error('[LogStore] 保存运动记录到数据库失败:', err);
+    });
+
     return newLog;
   }
 
@@ -186,7 +214,7 @@ export const useLogStore = defineStore('log', () => {
     const idx = dayLogs.findIndex(l => l.id === logId);
     if (idx !== -1) {
       const removed = dayLogs[idx] as any as ExerciseLog;
-      
+
       // [优先级二修复] 回滚运动奖励
       // 扣除金币
       if (removed.goldGained && removed.goldGained > 0) {
@@ -205,8 +233,14 @@ export const useLogStore = defineStore('log', () => {
         const currentShield = heroStore.user.heroShield || 0;
         heroStore.user.heroShield = Math.max(0, currentShield - removed.shieldGained);
       }
-      
+
       dayLogs.splice(idx, 1);
+
+      // 从数据库删除
+      sqliteLogService.deleteLog(String(logId)).catch(err => {
+        console.error('[LogStore] 从数据库删除运动记录失败:', err);
+      });
+
       return removed;
     }
     return null;
@@ -225,6 +259,12 @@ export const useLogStore = defineStore('log', () => {
     };
 
     logs[dateKey].unshift(newLog as any);
+
+    // 保存到数据库
+    _saveLogToDb(newLog as any, dateKey).catch(err => {
+      console.error('[LogStore] 保存补水记录到数据库失败:', err);
+    });
+
     return newLog;
   }
 
@@ -237,6 +277,12 @@ export const useLogStore = defineStore('log', () => {
     if (idx !== -1) {
       const removed = dayLogs[idx] as any as HydrationLog;
       dayLogs.splice(idx, 1);
+
+      // 从数据库删除
+      sqliteLogService.deleteLog(String(logId)).catch(err => {
+        console.error('[LogStore] 从数据库删除补水记录失败:', err);
+      });
+
       return removed;
     }
     return null;
@@ -266,6 +312,89 @@ export const useLogStore = defineStore('log', () => {
     return allTodayHydration.value.length;
   });
 
+  // --- 数据库辅助方法 ---
+
+  // 保存日志到数据库
+  async function _saveLogToDb(log: FoodLog | ExerciseLog | HydrationLog, dateKey: string) {
+    try {
+      const logType = (log as any).logType || 'FOOD';
+      await sqliteLogService.saveLog({
+        id: String(log.id),
+        type: logType,
+        date: dateKey,
+        timestamp: new Date(log.timestamp).getTime(),
+        data: log // 注意：这里把 log 对象存到了 data 字段
+      });
+      console.log(`[LogStore] 日志已保存到数据库: ${log.id}`);
+    } catch (error) {
+      console.error('[LogStore] 保存日志失败:', error);
+      throw error;
+    }
+  }
+
+  // 从数据库加载所有日志
+  async function loadLogsFromDb() {
+    try {
+      console.log('[LogStore] 开始从数据库加载日志...');
+      const dbLogs = await sqliteLogService.getAllLogs();
+      console.log(`[LogStore] 从数据库加载了 ${dbLogs.length} 条日志`);
+
+      // 清空当前内存中的日志
+      Object.keys(logs).forEach(key => delete logs[key]);
+
+      // 按日期重新组织日志（按时间戳降序排列）
+      dbLogs.forEach((row: any) => {
+        const dateKey = row.date || getLocalDateStr();
+        if (!logs[dateKey]) logs[dateKey] = [];
+
+        // [修复核心Bug] 从数据库记录中解包 data 字段
+        // 数据库返回的 row 结构通常是 { id, date, timestamp, data: '...'|obj }
+        // 我们需要的是 data 里面的内容
+        let logItem = null;
+
+        if (row.data) {
+          try {
+            // 如果 data 是字符串(JSON)，则解析；如果是对象则直接用
+            logItem = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+
+            // 确保 id 和 timestamp 存在 (以数据库外层字段为准，覆盖内部可能过时的数据)
+            if (logItem) {
+              if (row.id && !logItem.id) logItem.id = row.id;
+              // 某些情况下 logItem.timestamp 可能是旧的，这里不强制覆盖，但可以保留 row.timestamp 作为参考
+            }
+          } catch (e) {
+            console.error('[LogStore] 解析日志数据失败:', e, row);
+            // 降级：如果解析失败，尝试直接使用 row.data 或 row 本身
+            logItem = row.data || row;
+          }
+        } else {
+          // 兼容旧数据或异常数据
+          logItem = row;
+        }
+
+        if (logItem) {
+          logs[dateKey].push(logItem);
+        }
+      });
+
+      // 每个日期的日志按时间戳降序排序
+      Object.keys(logs).forEach(dateKey => {
+        logs[dateKey].sort((a, b) => {
+          const timeA = new Date(a.timestamp).getTime();
+          const timeB = new Date(b.timestamp).getTime();
+          return timeB - timeA; // 降序排列，最新的在前面
+        });
+      });
+
+      // 重新计算全局统计
+      recalculateGlobalStats();
+
+      console.log('[LogStore] 日志加载完成');
+    } catch (error) {
+      console.error('[LogStore] 加载日志失败:', error);
+    }
+  }
+
   return {
     logs,
     globalStats,
@@ -283,6 +412,7 @@ export const useLogStore = defineStore('log', () => {
     updateLogRewards,
     recalculateGlobalStats,
     checkDateConsistency,
+    loadLogsFromDb, // 导出数据库加载方法
     // [优先级二] 新增运动和补水记录管理方法
     addExerciseLog,
     removeExerciseLog,

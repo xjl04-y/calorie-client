@@ -2,11 +2,14 @@
 import { ref, computed, reactive, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useHeroStore } from '@/stores/useHeroStore';
+import { formatRpgFoodName } from '@/utils/gameUtils';
 import { showToast, showNotify } from 'vant';
 import type { FoodItem } from '@/types';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const heroStore = useHeroStore();
 const isPure = computed(() => systemStore.isPureMode);
 
 const show = computed({
@@ -160,10 +163,21 @@ watch(selectedPortionIdx, () => {
 });
 
 const submit = () => {
-  if (!form.name.trim()) {
+  const trimmedName = form.name.trim();
+  
+  // 校验名称
+  if (!trimmedName) {
     showToast('请给食物起个名字');
     return;
   }
+  
+  // 校验不能只是数字
+  if (/^\d+$/.test(trimmedName)) {
+    showToast('食物名称不能只是数字，请输入有意义的名称');
+    return;
+  }
+  
+  // 校验热量
   const cals = Number(form.calories);
   if (isNaN(cals) || cals <= 0) {
     showToast('热量数值无效');
@@ -172,7 +186,7 @@ const submit = () => {
 
   const newItem: FoodItem = {
     id: Date.now(),
-    name: form.name,
+    name: trimmedName,
     icon: form.icon,
     calories: cals,
     p: Number(form.p) || 0,
@@ -182,9 +196,15 @@ const submit = () => {
     unit: form.unit || '份',
     category: 'CUSTOM',
     tags: [...form.tags],
-    originalName: form.name,
+    originalName: trimmedName, // 保存原始名称
     tips: activeTab.value === 'QUICK' ? '基于经验估值' : '手动精确录入'
   };
+  
+  // 如果是RPG模式，为自定义食物应用RPG名称格式
+  if (!isPure.value) {
+    const rpgFormatted = formatRpgFoodName(trimmedName, heroStore.user.race, trimmedName);
+    newItem.name = rpgFormatted;
+  }
 
   if (systemStore.temp.isBuilding) {
     systemStore.temp.basket.push({ ...newItem, isComposite: false });

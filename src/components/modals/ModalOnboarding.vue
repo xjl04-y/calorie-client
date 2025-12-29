@@ -68,24 +68,26 @@ watch(show, (val) => {
     // 或者是从设置页面切换模式并且从未进入过RPG模式
     const isFromRebirth = systemStore.temp.isFromRebirth;
     const isFromSettings = systemStore.temp.isFromSettings;
-    const hasNeverChosenRace = !store.user.race || store.user.race === 'HUMAN';
-    const neverEnteredRPG = !systemStore.hasEnteredRPGMode;
+
+    // [Logic Update] 核心逻辑修改：使用 hasEnteredRPGMode 判定
+    // 只有明确为 false 时才视为从未进入过 (防止 undefined)
+    const neverEnteredRPG = systemStore.hasEnteredRPGMode === false;
 
     console.log('🔍 [Onboarding] watch show=true, 状态检查:', {
       isFromRebirth,
       isFromSettings,
-      hasNeverChosenRace,
       neverEnteredRPG,
       isPureMode: systemStore.isPureMode,
       isInitialized: store.user.isInitialized,
-      nickname: store.user.nickname
+      nickname: store.user.nickname,
+      hasEnteredRPGMode: systemStore.hasEnteredRPGMode
     });
 
+    // 场景：从纯净模式切换到 RPG，且是第一次（从未真正进入过 RPG）
     const isFromPureToRpg = store.user.isInitialized &&
       store.user.nickname &&
-      hasNeverChosenRace &&
-      neverEnteredRPG &&
-      isFromSettings && // [Fix] 必须是从设置页面来的
+      neverEnteredRPG && // 关键条件：从未进入过 RPG
+      isFromSettings && // 必须是从设置页面来的
       !systemStore.isPureMode; // 只有在 RPG 模式下才跳转
 
     console.log('🔍 [Onboarding] isFromPureToRpg =', isFromPureToRpg);
@@ -221,7 +223,6 @@ const finish = () => {
     systemStore.isPureMode = false;
 
     // [Fix Bug] 无论选什么种族（包括 HUMAN），只要通过了这个流程，就代表正式进入 RPG 模式
-    // 之前因为判断了 race !== 'HUMAN' 导致选人类的玩家无法设置该标记，造成死循环
     systemStore.hasEnteredRPGMode = true;
     console.log('✅ [Onboarding] 设置 hasEnteredRPGMode = true (Case 2)');
 
@@ -240,16 +241,20 @@ const finish = () => {
       systemStore.hasEnteredRPGMode = true;
       console.log('✅ [Onboarding] 设置 hasEnteredRPGMode = true (新用户RPG)');
     } else {
-      console.log('❌ [Onboarding] 未设置 hasEnteredRPGMode，isPure=', systemStore.isPureMode);
+      // 纯净模式直接关闭引导弹窗
+      store.setModal('onboarding', false);
+      showToast({ type: 'success', message: '✅ 账号创建成功！' });
+
+      // [Fix] 如果是纯净模式初始化，强制将 RPG 标记设为 false
+      // 这是为了解决 "首次选纯净 -> 后续切 RPG 不触发种族选择" 的 Bug
+      // 因为如果这里不重置，hasEnteredRPGMode 可能因为缓存或默认值而为 true
+      systemStore.hasEnteredRPGMode = false;
+      console.log('✅ [Onboarding] 纯净模式初始化，重置 hasEnteredRPGMode = false');
     }
 
     // [Fix] 只有 RPG 模式才打开新手引导
     if (!systemStore.isPureMode) {
       store.setModal('npcGuide', true);
-    } else {
-      // 纯净模式直接关闭引导弹窗
-      store.setModal('onboarding', false);
-      showToast({ type: 'success', message: '✅ 账号创建成功！' });
     }
   }
 };
@@ -552,7 +557,6 @@ const detailRace = computed(() => {
   return RACES[selectedRaceForDetail.value];
 });
 </script>
-
 <template>
   <div v-if="show" class="fixed inset-0 z-[999] bg-[#0f172a] text-white flex flex-col overflow-hidden font-sans">
     <!-- 背景氛围 - 极简纯色 -->

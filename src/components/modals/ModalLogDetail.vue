@@ -16,6 +16,19 @@ const show = computed({
 const log = computed(() => store.temp.selectedLog);
 const isPure = computed(() => systemStore.isPureMode);
 
+// [Fix] 添加 HYDRATION 映射
+const MEAL_LABELS: Record<string, string> = {
+  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
+};
+
+// [Fix] 新增判断：是否为饮食记录
+// 只要 mealType 在定义的映射中（早餐、午餐、晚餐、零食、补水），就强制视为食物日志
+// 这样可以避免“零食”因为偶尔带有 damageTaken 属性而被错误渲染成怪物攻击
+const isFoodLog = computed(() => {
+  if (!log.value) return false;
+  return !!MEAL_LABELS[log.value.mealType];
+});
+
 const handleDelete = () => {
   if (log.value) {
     showConfirmDialog({
@@ -30,11 +43,6 @@ const handleDelete = () => {
       }
     }).catch(() => {});
   }
-};
-
-// [Fix] 添加 HYDRATION 映射
-const MEAL_LABELS: Record<string, string> = {
-  BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
 };
 
 const getTagDesc = (tag: string) => {
@@ -62,14 +70,16 @@ const getTagDesc = (tag: string) => {
       <h3 class="font-bold text-xl dark:text-white mb-2">{{ log.name }}</h3>
 
       <!-- 标签展示区 -->
-      <div class="flex flex-wrap justify-center gap-1 mb-4" v-if="log.damageTaken === undefined">
+      <!-- [Fix] 使用 isFoodLog 代替 damageTaken === undefined，确保零食也能显示标签 -->
+      <div class="flex flex-wrap justify-center gap-1 mb-4" v-if="isFoodLog">
         <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1 rounded">
             {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
         </span>
       </div>
 
       <!-- 标签情报 -->
-      <div v-if="log.tags && log.tags.length > 0 && log.damageTaken === undefined" class="mb-4 bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg text-left">
+      <!-- [Fix] 使用 isFoodLog -->
+      <div v-if="log.tags && log.tags.length > 0 && isFoodLog" class="mb-4 bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg text-left">
         <div v-for="tag in log.tags" :key="tag" class="text-[10px] text-slate-500 dark:text-slate-400 mb-1 last:mb-0 flex items-start">
           <i class="fas fa-info-circle mr-1 mt-0.5 text-blue-400"></i>
           <span><strong :class="'text-'+tag">{{ tag }}</strong>: {{ getTagDesc(tag) }}</span>
@@ -78,11 +88,13 @@ const getTagDesc = (tag: string) => {
 
       <!-- 数据网格 -->
       <div class="bg-slate-50 dark:bg-slate-700 rounded-xl p-4 mb-4 grid grid-cols-2 gap-4">
-        <div class="text-left" v-if="log.damageTaken === undefined">
+        <!-- [Fix] 只要是 FoodLog，就显示重量 -->
+        <div class="text-left" v-if="isFoodLog">
           <div class="text-xs text-slate-400">总重量</div>
           <div class="font-bold dark:text-white">{{ log.grams }}g</div>
         </div>
-        <div class="text-left" v-if="log.damageTaken === undefined">
+        <!-- [Fix] 只要是 FoodLog，就显示热量 -->
+        <div class="text-left" v-if="isFoodLog">
           <div class="text-xs text-slate-400">总热量</div>
           <div class="font-bold dark:text-white">{{ log.calories }} kcal</div>
         </div>
@@ -95,8 +107,9 @@ const getTagDesc = (tag: string) => {
           </div>
         </div>
 
-        <!-- RPG 模式 -->
-        <div class="text-left col-span-2" v-else-if="log.damageTaken !== undefined || log.dodged">
+        <!-- RPG 模式 - 真正的怪物攻击 (非食物 且 有伤害/闪避) -->
+        <!-- [Fix] 增加 !isFoodLog 判断，防止零食误入此分支 -->
+        <div class="text-left col-span-2" v-else-if="!isFoodLog && (log.damageTaken !== undefined || log.dodged)">
           <div v-if="log.dodged" class="text-green-500 font-bold text-lg">⚡ 完美闪避!</div>
           <div v-else>
             <div class="text-xs text-red-400 font-bold">实际受损 HP</div>
@@ -107,6 +120,7 @@ const getTagDesc = (tag: string) => {
           </div>
         </div>
 
+        <!-- RPG 模式 - 食物攻击 (是食物，或者其他情况) -->
         <div class="text-left" v-else>
           <div class="text-xs text-slate-400">实际伤害</div>
           <div class="font-bold font-rpg text-lg" :class="(log.multiplier || 1) < 1 ? 'text-red-400 opacity-60 line-through' : 'text-red-500'">
@@ -129,10 +143,32 @@ const getTagDesc = (tag: string) => {
       </div>
 
       <!-- 营养成分 -->
-      <div class="space-y-2 mb-4" v-if="log.damageTaken === undefined">
+      <!-- [Fix] 使用 isFoodLog -->
+      <div class="space-y-2 mb-4" v-if="isFoodLog">
         <div class="flex justify-between text-xs"><span class="text-slate-500">蛋白质</span><span class="font-bold text-blue-500">{{ log.p }}g</span></div>
         <div class="flex justify-between text-xs"><span class="text-slate-500">碳水</span><span class="font-bold text-green-500">{{ log.c }}g</span></div>
         <div class="flex justify-between text-xs"><span class="text-slate-500">脂肪</span><span class="font-bold text-orange-500">{{ log.f }}g</span></div>
+      </div>
+
+      <!-- RPG 收益 - 仅RPG模式显示 -->
+      <div v-if="!isPure && (log.generatedGold || log.generatedExp)" class="bg-gradient-to-br from-purple-50 to-yellow-50 dark:from-purple-900/20 dark:to-yellow-900/20 rounded-xl p-4 mb-4 border border-purple-200 dark:border-purple-700/50">
+        <div class="text-xs text-purple-600 dark:text-purple-300 font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
+          <span>💰</span> 冒险收益
+        </div>
+        <div class="space-y-2">
+          <div v-if="log.generatedExp" class="flex items-center justify-between">
+            <span class="text-slate-600 dark:text-slate-300 flex items-center gap-2 text-xs">
+              <span class="text-lg">⭐</span> 经验值
+            </span>
+            <span class="font-black text-lg text-purple-600 dark:text-purple-400">+{{ log.generatedExp }} EXP</span>
+          </div>
+          <div v-if="log.generatedGold" class="flex items-center justify-between">
+            <span class="text-slate-600 dark:text-slate-300 flex items-center gap-2 text-xs">
+              <span class="text-lg">💎</span> 金币
+            </span>
+            <span class="font-black text-lg text-yellow-600 dark:text-yellow-400">+{{ log.generatedGold }} G</span>
+          </div>
+        </div>
       </div>
 
       <div class="flex gap-3 mt-4">

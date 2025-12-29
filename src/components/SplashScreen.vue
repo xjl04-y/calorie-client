@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import gsap from 'gsap';
+import { sqliteFoodService } from '@/utils/sqliteFoodService';
 
-// 定义事件，动画结束后通知父组件销毁自己
+// 定义事件,动画结束后通知父组件销毁自己
 const emit = defineEmits(['animation-complete']);
 
 // Refs 绑定
@@ -17,8 +18,26 @@ const logoContainerRef = ref<HTMLElement | null>(null); // Logo 歪头容器
 const logoEyeRef = ref<HTMLElement | null>(null); // Logo 眼睛
 const progressLineRef = ref<HTMLElement | null>(null);
 
-onMounted(() => {
-  // 1. 锁定滚动，防止动画播放时用户滑动页面
+onMounted(async () => {
+  // [New] 检查是否启用了开屏动画 (默认为 true)
+  const enableSplash = localStorage.getItem('app_setting_splash') !== 'false';
+
+  // 0. 初始化食物数据库（在加载动画期间完成）
+  console.log('[SplashScreen] 开始初始化食物数据...');
+  try {
+    await sqliteFoodService.initializeFoodData();
+    console.log('[SplashScreen] 食物数据初始化完成');
+  } catch (error) {
+    console.error('[SplashScreen] 食物数据初始化失败:', error);
+  }
+
+  // [New] 如果禁用了动画，直接触发完成事件并退出
+  if (!enableSplash) {
+    emit('animation-complete');
+    return;
+  }
+
+  // 1. 锁定滚动,防止动画播放时用户滑动页面
   document.body.style.overflow = 'hidden';
 
   const tl = gsap.timeline();

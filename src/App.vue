@@ -2,13 +2,11 @@
 import { onMounted, onUnmounted, computed, ref, defineAsyncComponent } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useBattleStore } from '@/stores/useBattleStore';
 import AppHud from '@/components/AppHud.vue';
-import SplashScreen from '@/components/SplashScreen.vue'; // [开屏动画] 引入组件
+import SplashScreen from '@/components/SplashScreen.vue';
 
-// --- 全局模态框引入 (Modals) - 改为异步加载 ---
-// [优化] 之前是同步引入，会导致首屏加载所有弹窗代码。
-// 改为 defineAsyncComponent 后，只有组件显示时才会下载/执行代码，大幅提升 App 启动速度。
-
+// --- 全局模态框引入 (Modals) ---
 const ModalOnboarding = defineAsyncComponent(() => import('@/components/modals/ModalOnboarding.vue'));
 const ModalAddFood = defineAsyncComponent(() => import('@/components/modals/ModalAddFood.vue'));
 const ModalAddExercise = defineAsyncComponent(() => import('@/components/modals/ModalAddExercise.vue'));
@@ -36,22 +34,48 @@ const ModalExerciseLogDetail = defineAsyncComponent(() => import('@/components/m
 const ModalHydrationLogDetail = defineAsyncComponent(() => import('@/components/modals/ModalHydrationLogDetail.vue'));
 const ModalBodyTrendDetail = defineAsyncComponent(() => import('@/components/modals/ModalBodyTrendDetail.vue'));
 const ModalTransactionHistory = defineAsyncComponent(() => import('@/components/modals/ModalTransactionHistory.vue'));
-const ModalInventory = defineAsyncComponent(() => import('@/components/modals/ModalInventory.vue')); // [背包功能]
+const ModalInventory = defineAsyncComponent(() => import('@/components/modals/ModalInventory.vue'));
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const battleStore = useBattleStore();
 
 // [开屏动画] 控制开屏动画显示
 const showSplash = ref(false);
 
-// [New V5.6] 悬浮球位置持久化 Key
 const FAB_POS_KEY = 'health_rpg_fab_pos';
 
-// --- 悬浮球 (FAB) 逻辑升级: Speed Dial ---
-const fabPos = ref({ x: 0, y: 0 }); // 初始值先置0，在mounted中计算
+const fabPos = ref({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 const isFabExpanded = ref(false);
+
+// [辅助函数] 检查两个日期是否是同一天
+const isSameDay = (d1: Date, d2: Date) => {
+  return d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+};
+
+// [核心修复] 安全执行每日检查 (签到 + 连击)
+// 只有在确定今天还没签到的情况下才调用 Store 方法
+const safeCheckDailyStreak = () => {
+  if (!store.user.isInitialized) return;
+
+  const now = new Date();
+  const lastLogin = new Date(store.user.lastLoginAt || 0);
+
+  // 1. 如果上次登录时间就是今天，说明已经处理过，直接跳过
+  // 这能解决“刷新页面导致连击数暴涨”的问题
+  if (isSameDay(now, lastLogin)) {
+    console.log('[App] 今日已签到，跳过重复检查');
+    return;
+  }
+
+  // 2. 只有日期不同，才执行签到逻辑
+  console.log('[App] 检测到新的一天，执行签到检查...');
+  store.heroStore.checkLoginStreak();
+};
 
 // [指令5] 跨天时间同步优化 - 利用visibilitychange事件
 const handleVisibilityChange = () => {
@@ -59,25 +83,34 @@ const handleVisibilityChange = () => {
     // App从后台切回前台，强制检查日期是否一致
     const updated = store.logStore.checkDateConsistency();
     if (updated) {
-      console.log('[午夜修复] 日期已更新，重新加载页面');
-      // 可选：刷新页面或重新检查连胜
-      if (store.user.isInitialized) {
-        store.heroStore.checkLoginStreak();
+      console.log('[午夜修复] 日期已更新，执行跨天逻辑');
+      // 日期确实变了，才尝试签到
+      safeCheckDailyStreak();
+    } else {
+      // 日期没变，但可能需要刷新一下连击显示（不做数值修改）
+      if (battleStore.validateCombo) {
+        battleStore.validateCombo();
       }
     }
   }
 };
 
 onMounted(() => {
-  // [开屏动画] 根据全局设置决定是否显示开屏动画
   if (systemStore.enableSplashAnimation) {
     showSplash.value = true;
   }
-  
+
   store.loadState();
-  
-  // [日期同步初始化死角修复] 确保所有store在启动时日期对齐
-  // 虽然系统采用单一数据源(systemStore.currentDate),但为了防止跨时区/午夜边界问题,显式检查一次
+
+  // [新增] 从数据库加载日志
+  console.log('[App] 开始从数据库加载日志...');
+  store.logStore.loadLogsFromDb().then(() => {
+    console.log('[App] 数据库日志加载完成');
+  }).catch(err => {
+    console.error('[App] 加载数据库日志失败:', err);
+  });
+
+  // 日期修正逻辑
   const realToday = new Date();
   const currentDateValue = systemStore.currentDate;
   const todayStr = realToday.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
@@ -85,30 +118,37 @@ onMounted(() => {
     console.log(`[App初始化] 日期修正: ${currentDateValue} -> ${todayStr}`);
     systemStore.currentDate = todayStr;
   }
-  
-  if (store.user.isInitialized) {
-    store.heroStore.checkLoginStreak();
-  }
+
+  // [Bug修复] 延迟执行所有状态检查
+  // 1. 防止 store 数据未完全水合
+  // 2. 确保在日期修正逻辑之后执行
+  // 3. 合并签到与连击检查
+  setTimeout(() => {
+    // 签到检查 (防御性调用)
+    safeCheckDailyStreak();
+
+    // 连击检查 (Battle Combo)
+    if (battleStore.validateCombo) {
+      battleStore.validateCombo();
+    }
+  }, 500);
+
   if (store.isDarkMode) {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
   }
 
-  // [指令5] 注册可见性监听器 - 不仅仅依赖setInterval，切回前台时强制检查
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
-  // [Fix V6.1] 强化位置恢复逻辑，防止悬浮窗消失
   const w = window.innerWidth;
   const h = window.innerHeight;
-  // 默认位置：右下角
   const defaultPos = { x: w - 80, y: h - 200 };
 
   try {
     const savedPosStr = localStorage.getItem(FAB_POS_KEY);
     if (savedPosStr) {
       const pos = JSON.parse(savedPosStr);
-      // 边界检查：确保在屏幕可视范围内 (允许少量溢出以便贴边)
       if (
         pos &&
         typeof pos.x === 'number' && !isNaN(pos.x) &&
@@ -118,19 +158,16 @@ onMounted(() => {
       ) {
         fabPos.value = pos;
       } else {
-        console.warn('FAB position out of bounds, resetting.');
         fabPos.value = defaultPos;
       }
     } else {
       fabPos.value = defaultPos;
     }
   } catch (e) {
-    console.error('FAB load error', e);
     fabPos.value = defaultPos;
   }
 });
 
-// [技术工单03] 清理监听器
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
@@ -225,7 +262,6 @@ const openHydration = () => {
   systemStore.setModal('hydration', true);
 };
 
-// [开屏动画] 动画完成回调
 const handleSplashComplete = () => {
   showSplash.value = false;
 };
@@ -234,16 +270,14 @@ const handleSplashComplete = () => {
 
 <template>
   <van-config-provider :theme="store.isDarkMode ? 'dark' : 'light'" theme-vars-scope="global">
-    <!-- [开屏动画] 开屏动画组件 -->
     <SplashScreen v-if="showSplash" @animation-complete="handleSplashComplete" />
-    
+
     <div :class="containerClass">
 
       <div class="damage-overlay" :class="{'damage-active': store.temp.isDamaged}"></div>
       <div class="heal-overlay" :class="{'heal-active': store.temp.isHealing}"></div>
       <div class="crit-overlay" :class="{'crit-active': store.temp.isCrit}"></div>
 
-      <!-- 顶部安全区域占位：保持原有逻辑 -->
       <div class="h-[var(--status-bar-height)] w-full safe-area-top bg-white dark:bg-slate-900 transition-colors"></div>
 
       <div class="flex-1 overflow-y-auto no-scrollbar bg-slate-50 dark:bg-[#0b1120] relative" id="main-scroll-view">
@@ -350,12 +384,10 @@ const handleSplashComplete = () => {
 
       <div v-if="isFabExpanded" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity duration-500" @click="isFabExpanded = false"></div>
 
-      <!-- 全局模态框组件 - 这里的组件现在都是异步加载的 -->
       <ModalOnboarding />
       <ModalAddFood />
       <ModalAddExercise />
       <ModalQuantity />
-      <!-- [工单02] 纯净模式下RPG弹窗隔离 -->
       <ModalLevelUp v-if="!isPure" />
       <ModalAchievements v-if="!isPure" />
       <ModalUnlock v-if="!isPure" />
@@ -379,7 +411,7 @@ const handleSplashComplete = () => {
       <ModalHydrationLogDetail />
       <ModalBodyTrendDetail />
       <ModalTransactionHistory v-if="!isPure" />
-      <ModalInventory v-if="!isPure" /> <!-- [背包功能] -->
+      <ModalInventory v-if="!isPure" />
 
     </div>
   </van-config-provider>

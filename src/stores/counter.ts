@@ -90,7 +90,8 @@ export const useGameStore = defineStore('game', () => {
     try {
       const stateToSave: SaveData = {
         user: hero.user,
-        logs: logStore.logs,
+        // [已弃用] logs 现在保存到 SQLite 数据库，不再保存到 localStorage
+        // logs: logStore.logs,
         achievements: collection.achievements,
         foodDb: collection.foodDb,
         isDarkMode: system.isDarkMode,
@@ -122,8 +123,9 @@ export const useGameStore = defineStore('game', () => {
           // }
           // 注意：hero.user 的加载已经在 useHeroStore 初始化时自动完成
 
-          if (data.logs) Object.assign(logStore.logs, data.logs);
-          logStore.recalculateGlobalStats();
+          // [已弃用] logs 现在从 SQLite 数据库加载，不再从 localStorage 读取
+          // if (data.logs) Object.assign(logStore.logs, data.logs);
+          // logStore.recalculateGlobalStats();
 
           if (data.isDarkMode !== undefined) system.isDarkMode = !!data.isDarkMode;
           if (data.isPureMode !== undefined) system.isPureMode = !!data.isPureMode;

@@ -233,9 +233,47 @@ export const useBattleStore = defineStore('battle', () => {
     return { blockValue, dodgeChance };
   }
 
+  // [New] 主动检查连击状态 (用于App启动时)
+  function validateCombo() {
+    const now = Date.now();
+    const lastTime = comboState.lastLogTime || 0;
+    let hasReset = false;
+
+    // 1. 检查是否超时 (3小时)
+    if (lastTime > 0 && (now - lastTime) > COMBO_WINDOW_MS) {
+      if (comboState.count > 0) {
+        console.log('[Combo] 连击已超时，自动重置');
+        comboState.count = 0;
+        hasReset = true;
+      }
+    }
+
+    // 2. 检查是否跨天 (针对"昨天的连击显示在今天"的问题)
+    if (lastTime > 0) {
+      const lastDate = new Date(lastTime);
+      const isToday = isSameDay(lastDate, new Date());
+      if (!isToday && comboState.count > 0) {
+        console.log('[Combo] 检测到跨天，连击自动重置');
+        comboState.count = 0;
+        hasReset = true;
+      }
+    }
+
+    return hasReset;
+  }
+
   function calculateCombo(tags: string[], timestamp: number) {
     const todayStr = getLocalDateStr();
     const systemDate = systemStore.currentDate;
+
+    // [Log] 调试连击计算
+    console.log('[Combo] 计算开始:', {
+      currentCount: comboState.count,
+      lastTime: comboState.lastLogTime,
+      tags,
+      systemDate,
+      todayStr
+    });
 
     if (systemDate !== todayStr) {
       return { newCombo: comboState.count, comboMultiplier: 1.0, comboMsg: '' };
@@ -243,10 +281,13 @@ export const useBattleStore = defineStore('battle', () => {
 
     const now = Date.now();
     const lastTime = comboState.lastLogTime || now;
-    const isWithinWindow = (now - lastTime) < COMBO_WINDOW_MS;
+    // [Fix] 首次记录时不应视为超时，应该允许连击开始
+    const isFirstLogToday = comboState.count === 0 && (!comboState.lastLogTime || comboState.lastLogTime === 0);
+    const isWithinWindow = isFirstLogToday ? true : (now - lastTime) < COMBO_WINDOW_MS;
 
     const isBadFood = tags.includes('高糖') || tags.includes('高油') || tags.includes('高盐');
-    const isGoodFood = tags.includes('纯净') || tags.includes('高蛋白') || tags.includes('均衡');
+    // [Modified] 放宽连击条件：只要不是坏食物，都算好食物（允许普通食物叠连击）
+    const isGoodFood = !isBadFood;
 
     let newCombo = comboState.count;
     let comboMultiplier = 1.0;
@@ -257,6 +298,8 @@ export const useBattleStore = defineStore('battle', () => {
       comboMsg = '💔 连击中断';
     } else if (isWithinWindow && isGoodFood) {
       newCombo += 1;
+      // [Fix] 连击应该有正反馈
+      if (newCombo > 1) comboMsg = `⚡ 连击 x${newCombo}`;
     } else if (!isWithinWindow) {
       // [V4.8 Feature] 连击保护逻辑
       if (newCombo > 1 && heroStore.consumeItem('item_combo_shield', 1)) {
@@ -271,6 +314,7 @@ export const useBattleStore = defineStore('battle', () => {
     if (newCombo > 20) newCombo = 20;
     comboMultiplier = 1.0 + (newCombo > 1 ? Math.min((newCombo - 1) * 0.1, 1.0) : 0);
 
+    console.log('[Combo] 计算结果:', { newCombo, comboMultiplier });
     return { newCombo, comboMultiplier, comboMsg };
   }
 
@@ -543,8 +587,10 @@ export const useBattleStore = defineStore('battle', () => {
 
     const { newCombo, comboMultiplier, comboMsg } = calculateCombo(battleItem.tags || [], Date.now());
 
+    // [Fix] 立即更新 ComboState 确保状态同步
     if (systemStore.currentDate === getLocalDateStr()) {
       comboState.count = newCombo;
+      console.log('[BattleCommit] Combo Updated:', comboState.count);
     }
 
     if (!isResist) multiplier *= comboMultiplier;
@@ -716,7 +762,7 @@ export const useBattleStore = defineStore('battle', () => {
         generatedExp = retroactiveXp; // [指令1] 记录历史补录的经验
         heroStore.addExp(retroactiveXp, '历史补录', 'BATTLE_REWARD');
       }
-      
+
       if (!systemStore.isPureMode) {
         showToast(`历史记录已保存 (+${retroactiveXp} XP 补录奖励)`);
       }
@@ -731,7 +777,7 @@ export const useBattleStore = defineStore('battle', () => {
   // [指令3] 删除记录处理 - 修复经济系统的"零元购"与"运动刷钱"漏洞
   function deleteLog(log: FoodLog) {
     // [移除熔断] 不再检查余额,允许用户负债删除(体验更好)
-    
+
     // [读取账本] 直接读取log中保存的generatedGold和generatedExp
     const goldToRevert = log.generatedGold || 0;
     const expToRevert = log.generatedExp || 0;
@@ -743,12 +789,12 @@ export const useBattleStore = defineStore('battle', () => {
       if (expToRevert > 0) {
         heroStore.revertXp(expToRevert, '撤销操作');
       }
-      
+
       // [指令1修复] 回滚 Gold 时传入 source 参数
       if (goldToRevert > 0) {
         heroStore.revertGold(goldToRevert, '撤销操作');
       }
-      
+
       // [运动修正] 对于运动,除了扣血,必须增加扣除generatedGold的步骤
       if (removed.mealType === 'EXERCISE') {
         const healAmt = 50 + Math.floor((removed.calories || 0) / 10);
@@ -779,6 +825,7 @@ export const useBattleStore = defineStore('battle', () => {
     battleCommit,
     deleteLog,
     checkAchievements,
-    getTacticalSuggestion
+    getTacticalSuggestion,
+    validateCombo // 导出这个新方法
   };
 });

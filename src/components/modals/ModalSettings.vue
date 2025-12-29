@@ -22,9 +22,10 @@ const show = computed({
 const localState = reactive({
   isDarkMode: false,
   isPureMode: false,
+  enableWeather: true, // [New] 天气特效开关
+  enableSplash: true,  // [New] 开屏动画开关
   nickname: '',
   gender: 'MALE' as Gender
-  // [Removed] 移除了 apiKey 字段
 });
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -34,9 +35,12 @@ watch(show, (val) => {
   if (val) {
     localState.isDarkMode = systemStore.isDarkMode;
     localState.isPureMode = systemStore.isPureMode;
+    // [New] 从 LocalStorage 读取设置 (默认为 true)
+    localState.enableWeather = localStorage.getItem('app_setting_weather') !== 'false';
+    localState.enableSplash = localStorage.getItem('app_setting_splash') !== 'false';
+
     localState.nickname = store.user.nickname;
     localState.gender = store.user.gender;
-    // [Removed] 移除了 apiKey 初始化
   }
 });
 
@@ -53,6 +57,13 @@ const handleSave = () => {
 
   systemStore.isDarkMode = localState.isDarkMode;
 
+  // [New] 保存新设置到 LocalStorage
+  localStorage.setItem('app_setting_weather', String(localState.enableWeather));
+  localStorage.setItem('app_setting_splash', String(localState.enableSplash));
+
+  // [New] 触发全局事件，通知 HomeView 更新天气状态
+  window.dispatchEvent(new Event('settings-changed'));
+
   // [Fix] 模式切换守卫：从 Pure 切到 RPG 需要检查角色初始化
   console.log('🔍 [Settings] handleSave 开始', {
     modeChanged,
@@ -62,14 +73,12 @@ const handleSave = () => {
 
   if (modeChanged && localState.isPureMode === false && systemStore.isPureMode === true) {
     // 想要切换到 RPG 模式
-    const hasInitialized = heroStore.user.isInitialized;
-    const hasEnteredRPG = systemStore.hasEnteredRPGMode; // [Fix] 检查是否已经进入过RPG模式
-    const currentRace = heroStore.user.race;
+    const hasInitialized = store.user.isInitialized;
+    const hasEnteredRPG = systemStore.hasEnteredRPGMode;
 
     console.log('🔍 [Settings] 进入模式切换守卫', {
       hasInitialized,
       hasEnteredRPG,
-      userRace: currentRace
     });
 
     if (!hasInitialized) {
@@ -80,35 +89,28 @@ const handleSave = () => {
       showToast('请先完成角色创建');
       return;
     }
-      // [Fix] 核心逻辑修改：
-      // 只有在 "从未进入过RPG模式" (!hasEnteredRPG) 且 "种族是默认人类" (race === 'HUMAN') 时，才触发选择。
-      // 如果 hasEnteredRPG 为 true，说明用户之前在 RPG 模式下明确选择了人类，不应重选。
-    // 如果 race 不是 HUMAN (比如是 ELF)，说明肯定是选过的（或者是旧存档），也不重选。
-    else if (!hasEnteredRPG && (currentRace === 'HUMAN' || !currentRace)) {
+    // 只要进过一次RPG模式，hasEnteredRPG 就会是 true
+    else if (!hasEnteredRPG) {
       console.log('🔍 [Settings] 分支2: 触发种族选择:', {
-        reason: '未进入过RPG模式且种族为默认值',
-        hasEnteredRPG,
-        currentRace
+        reason: '从未真正进入过RPG模式',
+        hasEnteredRPG
       });
 
       systemStore.isPureMode = false;
-      // [Fix] 也要更新localState，保持一致
       localState.isPureMode = false;
       show.value = false;
       // 设置标记，表示是从设置页面打开的
       systemStore.temp.isFromSettings = true;
       console.log('🔍 [Settings] 打开 Onboarding，isFromSettings =', systemStore.temp.isFromSettings);
 
-      // [Critical Fix] 使用 nextTick 确保 isPureMode 更新完成后再打开弹窗
       nextTick(() => {
         console.log('🔍 [Settings] nextTick 后 isPureMode =', systemStore.isPureMode);
         systemStore.setModal('onboarding', true);
-        // watch 会自动检测并跳到种族选择步骤
         showToast('请选择您的种族');
       });
       return;
     } else {
-      console.log('🔍 [Settings] 分支3: 已选择种族或已进入RPG，直接切换');
+      console.log('🔍 [Settings] 分支3: 已进入过RPG模式，直接切换，无需重选种族');
     }
   } else {
     console.log('🔍 [Settings] 未进入模式切换守卫');
@@ -116,7 +118,6 @@ const handleSave = () => {
 
   // 应用模式切换
   systemStore.isPureMode = localState.isPureMode;
-  // [Removed] 移除了 apiKey 保存逻辑
 
   // 强制处理暗黑模式 CSS 类
   if (localState.isDarkMode) {
@@ -189,13 +190,6 @@ const onFileSelected = async (event: Event) => {
     showToast('文件格式错误');
   }
 };
-
-// [PM Feature] 重置悬浮球位置
-const resetFabPosition = () => {
-  localStorage.removeItem('health_rpg_fab_pos');
-  showToast('位置已重置，请刷新页面');
-  setTimeout(() => window.location.reload(), 1000);
-};
 </script>
 
 <template>
@@ -214,20 +208,20 @@ const resetFabPosition = () => {
 
       <div class="flex-1 overflow-y-auto space-y-6 custom-scrollbar pb-10">
 
-        <!-- 区域 1: 模式切换 -->
+        <!-- 区域 1: 模式配置 -->
         <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
           <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
             {{ localState.isPureMode ? '显示偏好' : '模式配置' }}
           </div>
 
           <!-- 暗黑模式开关 -->
-          <div class="flex items-center justify-between mb-4 p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.isDarkMode = !localState.isDarkMode">
+          <div class="flex items-center justify-between mb-2 p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.isDarkMode = !localState.isDarkMode">
             <div class="flex items-center">
               <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center mr-3 border border-indigo-200 dark:border-indigo-800">
                 <i class="fas fa-moon text-lg"></i>
               </div>
               <div>
-                <div class="font-bold text-sm dark:text-slate-200">暗黑模式</div>
+                <div class="font-bold text-sm dark:text-slate-200">深色模式</div>
                 <div class="text-[10px] text-slate-400">Dark Mode</div>
               </div>
             </div>
@@ -249,7 +243,42 @@ const resetFabPosition = () => {
           </div>
         </div>
 
-        <!-- 区域 2: 档案修改 -->
+        <!-- 区域 2: 视觉特效 [New] -->
+        <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
+            {{ localState.isPureMode ? '界面效果' : '视觉特效' }}
+          </div>
+
+          <!-- 天气特效开关 -->
+          <div class="flex items-center justify-between mb-2 p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.enableWeather = !localState.enableWeather">
+            <div class="flex items-center">
+              <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center mr-3 border border-blue-200 dark:border-blue-800">
+                <i class="fas fa-cloud-sun-rain text-lg"></i>
+              </div>
+              <div>
+                <div class="font-bold text-sm dark:text-slate-200">{{ localState.isPureMode ? '天气背景' : '环境特效' }}</div>
+                <div class="text-[10px] text-slate-400">雨雪、云雾等动态效果</div>
+              </div>
+            </div>
+            <van-switch :model-value="localState.enableWeather" @update:model-value="localState.enableWeather = $event" size="24px" active-color="#3b82f6" @click.stop />
+          </div>
+
+          <!-- 开屏动画开关 -->
+          <div class="flex items-center justify-between p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.enableSplash = !localState.enableSplash">
+            <div class="flex items-center">
+              <div class="w-10 h-10 rounded-full bg-pink-100 dark:bg-pink-900/30 text-pink-600 flex items-center justify-center mr-3 border border-pink-200 dark:border-pink-800">
+                <i class="fas fa-magic text-lg"></i>
+              </div>
+              <div>
+                <div class="font-bold text-sm dark:text-slate-200">开屏动画</div>
+                <div class="text-[10px] text-slate-400">启动时的加载动画</div>
+              </div>
+            </div>
+            <van-switch :model-value="localState.enableSplash" @update:model-value="localState.enableSplash = $event" size="24px" active-color="#ec4899" @click.stop />
+          </div>
+        </div>
+
+        <!-- 区域 3: 档案修改 -->
         <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
           <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
             {{ localState.isPureMode ? '个人信息' : '冒险者档案' }}
@@ -288,13 +317,11 @@ const resetFabPosition = () => {
           </div>
         </div>
 
-        <!-- 区域 3: 数据管理 (原高级设置) -->
+        <!-- 区域 4: 数据管理 (原高级设置) -->
         <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
           <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
             数据管理
           </div>
-
-          <!-- [Removed] 移除了 AI Key 输入框 -->
 
           <!-- 数据管理 -->
           <div>
@@ -308,11 +335,6 @@ const resetFabPosition = () => {
               </button>
               <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
             </div>
-
-            <!-- [New] UI 重置 -->
-            <button @click="resetFabPosition" class="w-full bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs py-2 rounded-lg font-bold border border-slate-300 dark:border-slate-500 active:scale-95 transition">
-              <i class="fas fa-sync-alt mr-1"></i> 重置操作窗位置 (修复按钮消失)
-            </button>
           </div>
         </div>
 
