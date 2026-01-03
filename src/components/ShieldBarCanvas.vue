@@ -112,7 +112,7 @@ type SystemState = 'EMPTY' | 'ASSEMBLING' | 'IDLE' | 'SHATTERING';
 // --- 工具函数 ---
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
 
-// [Fix] 兼容性更好的圆角矩形绘制函数，避免部分浏览器 roundRect 闪烁或报错
+// [Fix] 兼容性更好的圆角矩形绘制函数
 const drawRoundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
   if (w < 2 * r) r = w / 2;
   if (h < 2 * r) r = h / 2;
@@ -321,7 +321,6 @@ class ShieldSystem {
 
   syncHp(cur: number, max: number) {
     this.hp = cur;
-    // [Fix] 防止 MaxHp 为 0 或负数导致计算错误
     this.maxHp = max > 0 ? max : 100;
   }
 
@@ -400,7 +399,6 @@ class ShieldSystem {
     ctx.shadowOffsetY = 3;
 
     ctx.fillStyle = C.bgOuter;
-    // [Fix] 使用兼容性更好的绘制方法
     drawRoundRect(ctx, bx - 4, by - 4, CONFIG.barWidth + 8, CONFIG.barHeight + 8, cornerRadius);
     ctx.fill();
     ctx.restore();
@@ -535,7 +533,7 @@ class ShieldSystem {
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 5;
     }
-    // [Fix] 使用 Math.round 替代 Math.ceil，防止浮点数计算导致的 100/101 闪烁问题
+    // 使用 Math.round 替代 Math.ceil
     const hpText = `${Math.round(this.hp)} / ${Math.round(this.maxHp)}`;
     ctx.fillText(hpText, bx, valueY);
 
@@ -626,11 +624,21 @@ onUnmounted(() => {
   justify-content: center;
   align-items: center;
   overflow: visible;
+
+  /* [Fix] 关键修复：强制开启GPU加速，防止同级元素hover时导致重绘闪烁 */
+  transform: translateZ(0);
+  will-change: transform;
+
+  /* [Fix] 关键修复：添加一个默认的深色背景，防止Canvas ClearRect时的瞬间白屏 */
+  background: rgba(20, 25, 30, 0.8);
+  border-radius: 18px; /* 匹配 Canvas 内部绘制的圆角 */
 }
 
 canvas {
   width: 100%;
   height: auto;
   display: block;
+  /* 确保 Canvas 自身不会捕获鼠标事件 */
+  pointer-events: none;
 }
 </style>

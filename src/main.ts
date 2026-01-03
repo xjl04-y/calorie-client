@@ -22,6 +22,11 @@ import {
   DatePicker
 } from 'vant';
 
+// 引入字体图标
+import '@/assets/iconfont/iconfont.js';
+import '@/assets/iconfont/iconfont.css';
+
+
 // 创建应用实例
 const app = createApp(App);
 

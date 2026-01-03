@@ -15,6 +15,9 @@ const user = computed(() => heroStore.user);
 const heroStats = computed(() => store.heroStats);
 const isPure = computed(() => systemStore.isPureMode);
 
+// [Fix] 获取当前主题状态，用于传给 Canvas 防止白屏
+const isDark = computed(() => store.isDarkMode);
+
 const toggleTheme = () => {
   store.isDarkMode = !store.isDarkMode;
   if (store.isDarkMode) document.documentElement.classList.add('dark');
@@ -99,7 +102,7 @@ watch(() => user.value.heroCurrentHp, (newVal, oldVal) => {
   if (diff > 0) {
     enqueueText(`+${Math.floor(diff)} HP`, 'hp', '❤️');
   } else if (diff < 0) {
-  enqueueText(`${Math.floor(diff)} HP`, 'hp', '💔');
+    enqueueText(`${Math.floor(diff)} HP`, 'hp', '💔');
   }
 });
 
@@ -183,7 +186,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg sticky top-0 z-50 border-b border-slate-200/50 dark:border-slate-800/50 transition-colors duration-300 shadow-sm">
+  <!-- [Fix] 添加 will-change-transform 和 translateZ 强制该区域独立层渲染，防止内部 hover 导致父级重绘 -->
+  <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-200/50 dark:border-slate-800/50 transition-colors duration-300 shadow-sm will-change-transform" style="transform: translateZ(0);">
     <!-- [优先级五] 安全区域适配：为内容添加顶部间距 -->
     <div class="px-4 py-3" style="padding-top: max(12px, env(safe-area-inset-top));">
       <!-- 上半部分：身份与操作 -->
@@ -192,7 +196,7 @@ onUnmounted(() => {
         <div id="guide-profile" class="flex items-center gap-3 active:opacity-70 transition-opacity" @click="!isPure && store.setModal('achievements', true)">
           <!-- 头像 -->
           <div class="relative shrink-0 group">
-            <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 overflow-hidden shadow-md group-hover:scale-105 transition-transform">
+            <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 overflow-hidden shadow-md transition-transform">
               <img :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full object-cover" />
             </div>
             <!-- 等级胶囊 -->
@@ -229,65 +233,69 @@ onUnmounted(() => {
 
       <!-- 下半部分：Canvas 血条护盾组件 -->
       <div v-if="!isPure && user.isInitialized" class="status-bar-container relative w-full mt-2" @click.stop="store.setModal('hpHistory', true)">
+        <!-- [Fix] 传入 theme 参数，确保 Canvas 内部能正确设置背景色，避免重绘时白屏 -->
         <ShieldBarCanvas
           :current-hp="user.heroCurrentHp"
           :max-hp="currentMaxHp"
           :current-shield="user.heroShield || 0"
           :max-shield="currentMaxHp"
+          :theme="isDark ? 'dark' : 'light'"
         />
       </div>
 
       <!-- [交易记录入口] 金币、经验和背包显示区域 -->
-      <div v-if="!isPure && user.isInitialized" class="flex gap-2 mt-3">
+      <!-- [Fix] 使用 grid 布局替代 flex，确保在移动端等宽排列，去除了渐变色，改为更清爽的扁平风格 -->
+      <div v-if="!isPure && user.isInitialized" class="grid grid-cols-3 gap-2 mt-3">
         <!-- 金币 -->
         <div
-          class="flex-1 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 dark:from-yellow-500/20 dark:to-orange-500/20 rounded-lg px-3 py-2 border border-yellow-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+          class="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-2 border border-yellow-200 dark:border-yellow-700/30 cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden h-[52px]"
           @click.stop="openGoldHistory"
         >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <i class="fas fa-coins text-yellow-500 text-sm"></i>
-              <span class="text-[9px] text-yellow-600 dark:text-yellow-400 font-bold">GOLD</span>
-            </div>
-            <span class="text-sm font-black text-yellow-600 dark:text-yellow-400 font-mono">{{ user.gold || 0 }}</span>
+          <div class="flex items-center gap-1 relative z-10">
+            <i class="fas fa-coins text-yellow-500 text-[10px]"></i>
+            <span class="text-[9px] text-yellow-600 dark:text-yellow-400 font-bold tracking-wide">GOLD</span>
           </div>
+          <span class="text-xs font-black text-yellow-700 dark:text-yellow-300 font-mono mt-0.5 relative z-10">{{ user.gold || 0 }}</span>
+          <!-- 装饰图标 -->
+          <i class="fas fa-coins absolute -right-1 -bottom-2 text-3xl text-yellow-500/10 dark:text-yellow-500/10 z-0 transform -rotate-12"></i>
         </div>
 
         <!-- 经验 -->
         <div
-          class="flex-1 bg-gradient-to-r from-purple-500/10 to-blue-500/10 dark:from-purple-500/20 dark:to-blue-500/20 rounded-lg px-3 py-2 border border-purple-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+          class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-2 border border-purple-200 dark:border-purple-700/30 cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden h-[52px]"
           @click.stop="openExpHistory"
         >
-          <div class="flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5">
-                <i class="fas fa-star text-purple-500 text-sm"></i>
-                <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold">EXP</span>
-              </div>
-              <span class="text-[10px] font-mono font-bold text-purple-500 dark:text-purple-400">{{ Math.floor(user.currentExp) }}/{{ user.nextLevelExp }}</span>
-            </div>
-            <!-- 经验进度条 -->
-            <div class="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+          <div class="flex items-center gap-1 relative z-10 w-full justify-center">
+            <i class="fas fa-star text-purple-500 text-[10px]"></i>
+            <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold tracking-wide">EXP</span>
+          </div>
+
+          <div class="w-full mt-1 relative z-10">
+            <!-- 进度条背景 -->
+            <div class="h-1.5 w-full bg-purple-200 dark:bg-purple-950 rounded-full overflow-hidden">
+              <!-- 进度条本体 (纯色) -->
               <div
-                class="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 ease-out"
+                class="h-full bg-purple-500 dark:bg-purple-400 transition-all duration-500 ease-out"
                 :style="{ width: expPercent + '%' }"
-              >
-                <!-- 微弱的内部高光 -->
-                <div class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"></div>
-              </div>
+              ></div>
             </div>
           </div>
+          <!-- 装饰图标 -->
+          <i class="fas fa-star absolute -right-1 -bottom-2 text-3xl text-purple-500/10 dark:text-purple-500/10 z-0 transform rotate-12"></i>
         </div>
 
-        <!-- [背包功能] 背包按钮 -->
+        <!-- [背包功能] -->
         <div
-          class="bg-gradient-to-r from-green-500/10 to-emerald-500/10 dark:from-green-500/20 dark:to-emerald-500/20 rounded-lg px-3 py-2 border border-green-500/30 cursor-pointer hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
+          class="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-2 border border-emerald-200 dark:border-emerald-700/30 cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden h-[52px]"
           @click.stop="systemStore.setModal('inventory', true)"
         >
-          <div class="flex flex-col items-center gap-0.5">
-            <i class="fas fa-bag-shopping text-green-500 text-sm"></i>
-            <span class="text-[9px] text-green-600 dark:text-green-400 font-bold">背包</span>
+          <div class="flex items-center gap-1 relative z-10">
+            <i class="fas fa-bag-shopping text-emerald-500 text-[10px]"></i>
+            <span class="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold tracking-wide">BAG</span>
           </div>
+          <span class="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-0.5 relative z-10">背包</span>
+          <!-- 装饰图标 -->
+          <i class="fas fa-bag-shopping absolute -right-1 -bottom-2 text-3xl text-emerald-500/10 dark:text-emerald-500/10 z-0 transform -rotate-6"></i>
         </div>
       </div>
     </div>
@@ -319,6 +327,9 @@ onUnmounted(() => {
   position: relative;
   pointer-events: auto;
   cursor: pointer;
+
+  /* [Fix] 同样给容器加上 GPU 加速，双重保险 */
+  transform: translateZ(0);
 }
 
 /* === 浮动文字系统样式 === */

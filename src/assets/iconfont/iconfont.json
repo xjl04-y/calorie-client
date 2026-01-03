@@ -1,0 +1,1101 @@
+{
+  "id": "5076657",
+  "name": "cal",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "18813135",
+      "name": "能量棒",
+      "font_class": "nengliangbang",
+      "unicode": "e659",
+      "unicode_decimal": 58969
+    },
+    {
+      "icon_id": "18813136",
+      "name": "苹果",
+      "font_class": "pingguo",
+      "unicode": "e65a",
+      "unicode_decimal": 58970
+    },
+    {
+      "icon_id": "18813137",
+      "name": "甜椒",
+      "font_class": "tianjiao",
+      "unicode": "e65b",
+      "unicode_decimal": 58971
+    },
+    {
+      "icon_id": "18813138",
+      "name": "听装饮料",
+      "font_class": "tingzhuangyinliao",
+      "unicode": "e65c",
+      "unicode_decimal": 58972
+    },
+    {
+      "icon_id": "18813139",
+      "name": "柠檬",
+      "font_class": "ningmeng",
+      "unicode": "e65d",
+      "unicode_decimal": 58973
+    },
+    {
+      "icon_id": "18813140",
+      "name": "香蕉",
+      "font_class": "xiangjiao",
+      "unicode": "e65e",
+      "unicode_decimal": 58974
+    },
+    {
+      "icon_id": "18813141",
+      "name": "火腿荷包蛋",
+      "font_class": "huotuihebaodan",
+      "unicode": "e65f",
+      "unicode_decimal": 58975
+    },
+    {
+      "icon_id": "18813142",
+      "name": "西柚",
+      "font_class": "xiyou",
+      "unicode": "e660",
+      "unicode_decimal": 58976
+    },
+    {
+      "icon_id": "18813143",
+      "name": "樱桃",
+      "font_class": "yingtao",
+      "unicode": "e661",
+      "unicode_decimal": 58977
+    },
+    {
+      "icon_id": "18813144",
+      "name": "火鸡",
+      "font_class": "huoji",
+      "unicode": "e662",
+      "unicode_decimal": 58978
+    },
+    {
+      "icon_id": "18813145",
+      "name": "咖啡1",
+      "font_class": "kafei1",
+      "unicode": "e663",
+      "unicode_decimal": 58979
+    },
+    {
+      "icon_id": "18813146",
+      "name": "手抓饼",
+      "font_class": "shouzhuabing",
+      "unicode": "e664",
+      "unicode_decimal": 58980
+    },
+    {
+      "icon_id": "18813147",
+      "name": "洋葱",
+      "font_class": "yangcong",
+      "unicode": "e665",
+      "unicode_decimal": 58981
+    },
+    {
+      "icon_id": "18813148",
+      "name": "可乐",
+      "font_class": "kele",
+      "unicode": "e666",
+      "unicode_decimal": 58982
+    },
+    {
+      "icon_id": "18813149",
+      "name": "巧克力",
+      "font_class": "qiaokeli",
+      "unicode": "e667",
+      "unicode_decimal": 58983
+    },
+    {
+      "icon_id": "18813150",
+      "name": "甜甜圈",
+      "font_class": "tiantianquan",
+      "unicode": "e668",
+      "unicode_decimal": 58984
+    },
+    {
+      "icon_id": "18813151",
+      "name": "甜品",
+      "font_class": "tianpin",
+      "unicode": "e669",
+      "unicode_decimal": 58985
+    },
+    {
+      "icon_id": "18813152",
+      "name": "葡萄酒",
+      "font_class": "putaojiu",
+      "unicode": "e66a",
+      "unicode_decimal": 58986
+    },
+    {
+      "icon_id": "18813153",
+      "name": "玉米",
+      "font_class": "yumi",
+      "unicode": "e66b",
+      "unicode_decimal": 58987
+    },
+    {
+      "icon_id": "18813154",
+      "name": "面条",
+      "font_class": "miantiao",
+      "unicode": "e66c",
+      "unicode_decimal": 58988
+    },
+    {
+      "icon_id": "18813155",
+      "name": "汉堡薯条",
+      "font_class": "hanbaoshutiao",
+      "unicode": "e66d",
+      "unicode_decimal": 58989
+    },
+    {
+      "icon_id": "18813156",
+      "name": "香肠",
+      "font_class": "xiangchang",
+      "unicode": "e66e",
+      "unicode_decimal": 58990
+    },
+    {
+      "icon_id": "18813157",
+      "name": "西瓜",
+      "font_class": "xigua",
+      "unicode": "e66f",
+      "unicode_decimal": 58991
+    },
+    {
+      "icon_id": "18813158",
+      "name": "生啤啤酒",
+      "font_class": "shengpipijiu",
+      "unicode": "e670",
+      "unicode_decimal": 58992
+    },
+    {
+      "icon_id": "18813159",
+      "name": "夹心面包",
+      "font_class": "jiaxinmianbao",
+      "unicode": "e671",
+      "unicode_decimal": 58993
+    },
+    {
+      "icon_id": "18813160",
+      "name": "月饼",
+      "font_class": "yuebing",
+      "unicode": "e672",
+      "unicode_decimal": 58994
+    },
+    {
+      "icon_id": "18813161",
+      "name": "牛角泡芙",
+      "font_class": "niujiaopaofu",
+      "unicode": "e673",
+      "unicode_decimal": 58995
+    },
+    {
+      "icon_id": "18813162",
+      "name": "甜筒",
+      "font_class": "tiantong",
+      "unicode": "e674",
+      "unicode_decimal": 58996
+    },
+    {
+      "icon_id": "18813163",
+      "name": "饮品",
+      "font_class": "yinpin",
+      "unicode": "e675",
+      "unicode_decimal": 58997
+    },
+    {
+      "icon_id": "18813164",
+      "name": "糖果",
+      "font_class": "tangguo",
+      "unicode": "e676",
+      "unicode_decimal": 58998
+    },
+    {
+      "icon_id": "18813165",
+      "name": "泡面",
+      "font_class": "paomian",
+      "unicode": "e677",
+      "unicode_decimal": 58999
+    },
+    {
+      "icon_id": "18813166",
+      "name": "水蜜桃",
+      "font_class": "shuimitao",
+      "unicode": "e678",
+      "unicode_decimal": 59000
+    },
+    {
+      "icon_id": "18813167",
+      "name": "一打啤酒",
+      "font_class": "yidapijiu",
+      "unicode": "e679",
+      "unicode_decimal": 59001
+    },
+    {
+      "icon_id": "18813168",
+      "name": "午餐",
+      "font_class": "wucan1",
+      "unicode": "e67a",
+      "unicode_decimal": 59002
+    },
+    {
+      "icon_id": "18813169",
+      "name": "肉夹馍",
+      "font_class": "roujiamo",
+      "unicode": "e67b",
+      "unicode_decimal": 59003
+    },
+    {
+      "icon_id": "18813170",
+      "name": "热狗",
+      "font_class": "regou",
+      "unicode": "e67c",
+      "unicode_decimal": 59004
+    },
+    {
+      "icon_id": "18813171",
+      "name": "煮咖啡",
+      "font_class": "zhukafei2",
+      "unicode": "e67d",
+      "unicode_decimal": 59005
+    },
+    {
+      "icon_id": "18813172",
+      "name": "吐司面包",
+      "font_class": "tusimianbao",
+      "unicode": "e67e",
+      "unicode_decimal": 59006
+    },
+    {
+      "icon_id": "18813173",
+      "name": "煮咖啡",
+      "font_class": "zhukafei",
+      "unicode": "e67f",
+      "unicode_decimal": 59007
+    },
+    {
+      "icon_id": "18813174",
+      "name": "猕猴桃",
+      "font_class": "mihoutao",
+      "unicode": "e680",
+      "unicode_decimal": 59008
+    },
+    {
+      "icon_id": "18813175",
+      "name": "午餐",
+      "font_class": "wucan2",
+      "unicode": "e681",
+      "unicode_decimal": 59009
+    },
+    {
+      "icon_id": "18813176",
+      "name": "汤羹",
+      "font_class": "tanggeng",
+      "unicode": "e682",
+      "unicode_decimal": 59010
+    },
+    {
+      "icon_id": "18813177",
+      "name": "威士忌",
+      "font_class": "weishiji",
+      "unicode": "e683",
+      "unicode_decimal": 59011
+    },
+    {
+      "icon_id": "18813178",
+      "name": "香槟",
+      "font_class": "xiangbin",
+      "unicode": "e684",
+      "unicode_decimal": 59012
+    },
+    {
+      "icon_id": "18813179",
+      "name": "肉排",
+      "font_class": "roupai",
+      "unicode": "e685",
+      "unicode_decimal": 59013
+    },
+    {
+      "icon_id": "18813180",
+      "name": "午餐",
+      "font_class": "wucan",
+      "unicode": "e686",
+      "unicode_decimal": 59014
+    },
+    {
+      "icon_id": "18813181",
+      "name": "煮咖啡",
+      "font_class": "zhukafei1",
+      "unicode": "e687",
+      "unicode_decimal": 59015
+    },
+    {
+      "icon_id": "18813182",
+      "name": "面包",
+      "font_class": "mianbao",
+      "unicode": "e688",
+      "unicode_decimal": 59016
+    },
+    {
+      "icon_id": "18813183",
+      "name": "烤串",
+      "font_class": "kaochuan",
+      "unicode": "e689",
+      "unicode_decimal": 59017
+    },
+    {
+      "icon_id": "18813184",
+      "name": "披萨",
+      "font_class": "pisa1",
+      "unicode": "e68a",
+      "unicode_decimal": 59018
+    },
+    {
+      "icon_id": "18813185",
+      "name": "寿司",
+      "font_class": "shousi",
+      "unicode": "e68b",
+      "unicode_decimal": 59019
+    },
+    {
+      "icon_id": "18813186",
+      "name": "橡皮糖",
+      "font_class": "xiangpitang",
+      "unicode": "e68c",
+      "unicode_decimal": 59020
+    },
+    {
+      "icon_id": "18813187",
+      "name": "椰子汁",
+      "font_class": "yezizhi",
+      "unicode": "e68d",
+      "unicode_decimal": 59021
+    },
+    {
+      "icon_id": "18813188",
+      "name": "葡萄",
+      "font_class": "putao-01",
+      "unicode": "e68e",
+      "unicode_decimal": 59022
+    },
+    {
+      "icon_id": "18813189",
+      "name": "披萨",
+      "font_class": "pisa",
+      "unicode": "e68f",
+      "unicode_decimal": 59023
+    },
+    {
+      "icon_id": "18813190",
+      "name": "夹心饼干",
+      "font_class": "jiaxinbinggan",
+      "unicode": "e690",
+      "unicode_decimal": 59024
+    },
+    {
+      "icon_id": "18813199",
+      "name": "冰棍",
+      "font_class": "binggun1",
+      "unicode": "e691",
+      "unicode_decimal": 59025
+    },
+    {
+      "icon_id": "18813200",
+      "name": "包心菜",
+      "font_class": "baoxincai1",
+      "unicode": "e692",
+      "unicode_decimal": 59026
+    },
+    {
+      "icon_id": "18813201",
+      "name": "冰淇淋",
+      "font_class": "bingqilin1",
+      "unicode": "e693",
+      "unicode_decimal": 59027
+    },
+    {
+      "icon_id": "18813202",
+      "name": "饼干",
+      "font_class": "binggan1",
+      "unicode": "e694",
+      "unicode_decimal": 59028
+    },
+    {
+      "icon_id": "18813203",
+      "name": "蛋糕",
+      "font_class": "dangao2",
+      "unicode": "e695",
+      "unicode_decimal": 59029
+    },
+    {
+      "icon_id": "18813204",
+      "name": "菠萝",
+      "font_class": "boluo1",
+      "unicode": "e696",
+      "unicode_decimal": 59030
+    },
+    {
+      "icon_id": "18813205",
+      "name": "草莓酱",
+      "font_class": "caomeijiang1",
+      "unicode": "e697",
+      "unicode_decimal": 59031
+    },
+    {
+      "icon_id": "18813206",
+      "name": "火腿",
+      "font_class": "huotui1",
+      "unicode": "e698",
+      "unicode_decimal": 59032
+    },
+    {
+      "icon_id": "18813207",
+      "name": "咖啡",
+      "font_class": "kafei2",
+      "unicode": "e699",
+      "unicode_decimal": 59033
+    },
+    {
+      "icon_id": "18813208",
+      "name": "蜂蜜",
+      "font_class": "fengmi1",
+      "unicode": "e69a",
+      "unicode_decimal": 59034
+    },
+    {
+      "icon_id": "18813209",
+      "name": "果盘",
+      "font_class": "guopan1",
+      "unicode": "e69b",
+      "unicode_decimal": 59035
+    },
+    {
+      "icon_id": "18813210",
+      "name": "果汁饮品",
+      "font_class": "guozhiyinpin1",
+      "unicode": "e69c",
+      "unicode_decimal": 59036
+    },
+    {
+      "icon_id": "18813211",
+      "name": "果汁",
+      "font_class": "guozhi1",
+      "unicode": "e69d",
+      "unicode_decimal": 59037
+    },
+    {
+      "icon_id": "18813212",
+      "name": "蛋糕派",
+      "font_class": "dangaopai1",
+      "unicode": "e69e",
+      "unicode_decimal": 59038
+    },
+    {
+      "icon_id": "18813213",
+      "name": "胡萝卜",
+      "font_class": "huluobu1",
+      "unicode": "e69f",
+      "unicode_decimal": 59039
+    },
+    {
+      "icon_id": "18813214",
+      "name": "蛋糕1",
+      "font_class": "dangao11",
+      "unicode": "e6a0",
+      "unicode_decimal": 59040
+    },
+    {
+      "icon_id": "18813215",
+      "name": "鸡尾酒",
+      "font_class": "jiweijiu1",
+      "unicode": "e6a1",
+      "unicode_decimal": 59041
+    },
+    {
+      "icon_id": "18813216",
+      "name": "辣椒",
+      "font_class": "lajiao1",
+      "unicode": "e6a2",
+      "unicode_decimal": 59042
+    },
+    {
+      "icon_id": "18813217",
+      "name": "梨",
+      "font_class": "li1",
+      "unicode": "e6a3",
+      "unicode_decimal": 59043
+    },
+    {
+      "icon_id": "18813218",
+      "name": "牛排",
+      "font_class": "niupai1",
+      "unicode": "e6a4",
+      "unicode_decimal": 59044
+    },
+    {
+      "icon_id": "18813219",
+      "name": "苹果",
+      "font_class": "pingguo1",
+      "unicode": "e6a5",
+      "unicode_decimal": 59045
+    },
+    {
+      "icon_id": "18813220",
+      "name": "火腿荷包蛋",
+      "font_class": "huotuihebaodan1",
+      "unicode": "e6a6",
+      "unicode_decimal": 59046
+    },
+    {
+      "icon_id": "18813221",
+      "name": "红xing二锅头",
+      "font_class": "hongxingerguotou1",
+      "unicode": "e6a7",
+      "unicode_decimal": 59047
+    },
+    {
+      "icon_id": "18813222",
+      "name": "甜椒",
+      "font_class": "tianjiao1",
+      "unicode": "e6a8",
+      "unicode_decimal": 59048
+    },
+    {
+      "icon_id": "18813223",
+      "name": "火鸡",
+      "font_class": "huoji1",
+      "unicode": "e6a9",
+      "unicode_decimal": 59049
+    },
+    {
+      "icon_id": "18813224",
+      "name": "听装饮料",
+      "font_class": "tingzhuangyinliao1",
+      "unicode": "e6aa",
+      "unicode_decimal": 59050
+    },
+    {
+      "icon_id": "18813225",
+      "name": "南瓜",
+      "font_class": "nangua1",
+      "unicode": "e6ab",
+      "unicode_decimal": 59051
+    },
+    {
+      "icon_id": "18813226",
+      "name": "能量棒",
+      "font_class": "nengliangbang1",
+      "unicode": "e6ac",
+      "unicode_decimal": 59052
+    },
+    {
+      "icon_id": "18813227",
+      "name": "香蕉",
+      "font_class": "xiangjiao1",
+      "unicode": "e6ad",
+      "unicode_decimal": 59053
+    },
+    {
+      "icon_id": "18813228",
+      "name": "香肠",
+      "font_class": "xiangchang1",
+      "unicode": "e6ae",
+      "unicode_decimal": 59054
+    },
+    {
+      "icon_id": "18813229",
+      "name": "西柚",
+      "font_class": "xiyou1",
+      "unicode": "e6af",
+      "unicode_decimal": 59055
+    },
+    {
+      "icon_id": "18813230",
+      "name": "柠檬",
+      "font_class": "ningmeng1",
+      "unicode": "e6b0",
+      "unicode_decimal": 59056
+    },
+    {
+      "icon_id": "18813231",
+      "name": "樱桃",
+      "font_class": "yingtao1",
+      "unicode": "e6b1",
+      "unicode_decimal": 59057
+    },
+    {
+      "icon_id": "18813232",
+      "name": "洋葱",
+      "font_class": "yangcong1",
+      "unicode": "e6b2",
+      "unicode_decimal": 59058
+    },
+    {
+      "icon_id": "18813233",
+      "name": "巧克力",
+      "font_class": "qiaokeli1",
+      "unicode": "e6b3",
+      "unicode_decimal": 59059
+    },
+    {
+      "icon_id": "18813234",
+      "name": "葡萄酒",
+      "font_class": "putaojiu1",
+      "unicode": "e6b4",
+      "unicode_decimal": 59060
+    },
+    {
+      "icon_id": "18813235",
+      "name": "水蜜桃",
+      "font_class": "shuimitao1",
+      "unicode": "e6b5",
+      "unicode_decimal": 59061
+    },
+    {
+      "icon_id": "18813236",
+      "name": "甜甜圈",
+      "font_class": "tiantianquan1",
+      "unicode": "e6b6",
+      "unicode_decimal": 59062
+    },
+    {
+      "icon_id": "18813237",
+      "name": "甜品",
+      "font_class": "tianpin1",
+      "unicode": "e6b7",
+      "unicode_decimal": 59063
+    },
+    {
+      "icon_id": "18813238",
+      "name": "可乐",
+      "font_class": "kele1",
+      "unicode": "e6b8",
+      "unicode_decimal": 59064
+    },
+    {
+      "icon_id": "18813239",
+      "name": "咖啡",
+      "font_class": "kafei11",
+      "unicode": "e6b9",
+      "unicode_decimal": 59065
+    },
+    {
+      "icon_id": "18813240",
+      "name": "夹心面包",
+      "font_class": "jiaxinmianbao1",
+      "unicode": "e6ba",
+      "unicode_decimal": 59066
+    },
+    {
+      "icon_id": "18813241",
+      "name": "手抓饼",
+      "font_class": "shouzhuabing1",
+      "unicode": "e6bb",
+      "unicode_decimal": 59067
+    },
+    {
+      "icon_id": "18813242",
+      "name": "玉米",
+      "font_class": "yumi1",
+      "unicode": "e6bc",
+      "unicode_decimal": 59068
+    },
+    {
+      "icon_id": "18813243",
+      "name": "泡面",
+      "font_class": "paomian1",
+      "unicode": "e6bd",
+      "unicode_decimal": 59069
+    },
+    {
+      "icon_id": "18813244",
+      "name": "肉夹馍",
+      "font_class": "roujiamo1",
+      "unicode": "e6be",
+      "unicode_decimal": 59070
+    },
+    {
+      "icon_id": "18813245",
+      "name": "生啤啤酒",
+      "font_class": "shengpipijiu1",
+      "unicode": "e6bf",
+      "unicode_decimal": 59071
+    },
+    {
+      "icon_id": "18813246",
+      "name": "糖果",
+      "font_class": "tangguo1",
+      "unicode": "e6c0",
+      "unicode_decimal": 59072
+    },
+    {
+      "icon_id": "18813247",
+      "name": "西瓜",
+      "font_class": "xigua1",
+      "unicode": "e6c1",
+      "unicode_decimal": 59073
+    },
+    {
+      "icon_id": "18813248",
+      "name": "甜筒",
+      "font_class": "tiantong1",
+      "unicode": "e6c2",
+      "unicode_decimal": 59074
+    },
+    {
+      "icon_id": "18813249",
+      "name": "汤羹",
+      "font_class": "tanggeng1",
+      "unicode": "e6c3",
+      "unicode_decimal": 59075
+    },
+    {
+      "icon_id": "18813250",
+      "name": "月饼",
+      "font_class": "yuebing1",
+      "unicode": "e6c4",
+      "unicode_decimal": 59076
+    },
+    {
+      "icon_id": "18813251",
+      "name": "面包",
+      "font_class": "mianbao1",
+      "unicode": "e6c5",
+      "unicode_decimal": 59077
+    },
+    {
+      "icon_id": "18813252",
+      "name": "饮品",
+      "font_class": "yinpin1",
+      "unicode": "e6c6",
+      "unicode_decimal": 59078
+    },
+    {
+      "icon_id": "18813253",
+      "name": "热狗",
+      "font_class": "regou1",
+      "unicode": "e6c7",
+      "unicode_decimal": 59079
+    },
+    {
+      "icon_id": "18813254",
+      "name": "威士忌",
+      "font_class": "weishiji1",
+      "unicode": "e6c8",
+      "unicode_decimal": 59080
+    },
+    {
+      "icon_id": "18813255",
+      "name": "汉堡薯条",
+      "font_class": "hanbaoshutiao1",
+      "unicode": "e6c9",
+      "unicode_decimal": 59081
+    },
+    {
+      "icon_id": "18813256",
+      "name": "面条",
+      "font_class": "miantiao1",
+      "unicode": "e6ca",
+      "unicode_decimal": 59082
+    },
+    {
+      "icon_id": "18813257",
+      "name": "肉排",
+      "font_class": "roupai1",
+      "unicode": "e6cb",
+      "unicode_decimal": 59083
+    },
+    {
+      "icon_id": "18813258",
+      "name": "牛角泡芙",
+      "font_class": "niujiaopaofu1",
+      "unicode": "e6cc",
+      "unicode_decimal": 59084
+    },
+    {
+      "icon_id": "18813259",
+      "name": "一打啤酒",
+      "font_class": "yidapijiu1",
+      "unicode": "e6cd",
+      "unicode_decimal": 59085
+    },
+    {
+      "icon_id": "18813260",
+      "name": "橡皮糖",
+      "font_class": "xiangpitang1",
+      "unicode": "e6ce",
+      "unicode_decimal": 59086
+    },
+    {
+      "icon_id": "18813261",
+      "name": "午餐",
+      "font_class": "wucan11",
+      "unicode": "e6cf",
+      "unicode_decimal": 59087
+    },
+    {
+      "icon_id": "18813262",
+      "name": "香槟",
+      "font_class": "xiangbin1",
+      "unicode": "e6d0",
+      "unicode_decimal": 59088
+    },
+    {
+      "icon_id": "18813263",
+      "name": "吐司面包",
+      "font_class": "tusimianbao1",
+      "unicode": "e6d1",
+      "unicode_decimal": 59089
+    },
+    {
+      "icon_id": "18813264",
+      "name": "猕猴桃",
+      "font_class": "mihoutao1",
+      "unicode": "e6d2",
+      "unicode_decimal": 59090
+    },
+    {
+      "icon_id": "18813265",
+      "name": "煮咖啡",
+      "font_class": "zhukafei21",
+      "unicode": "e6d3",
+      "unicode_decimal": 59091
+    },
+    {
+      "icon_id": "18813266",
+      "name": "煮咖啡",
+      "font_class": "zhukafei3",
+      "unicode": "e6d4",
+      "unicode_decimal": 59092
+    },
+    {
+      "icon_id": "18813267",
+      "name": "午餐",
+      "font_class": "wucan3",
+      "unicode": "e6d5",
+      "unicode_decimal": 59093
+    },
+    {
+      "icon_id": "18813268",
+      "name": "披萨",
+      "font_class": "pisa2",
+      "unicode": "e6d6",
+      "unicode_decimal": 59094
+    },
+    {
+      "icon_id": "18813269",
+      "name": "葡萄",
+      "font_class": "putao-011",
+      "unicode": "e6d7",
+      "unicode_decimal": 59095
+    },
+    {
+      "icon_id": "18813270",
+      "name": "午餐",
+      "font_class": "wucan21",
+      "unicode": "e6d8",
+      "unicode_decimal": 59096
+    },
+    {
+      "icon_id": "18813271",
+      "name": "椰子汁",
+      "font_class": "yezizhi1",
+      "unicode": "e6d9",
+      "unicode_decimal": 59097
+    },
+    {
+      "icon_id": "18813272",
+      "name": "煮咖啡",
+      "font_class": "zhukafei11",
+      "unicode": "e6da",
+      "unicode_decimal": 59098
+    },
+    {
+      "icon_id": "18813273",
+      "name": "烤串",
+      "font_class": "kaochuan1",
+      "unicode": "e6db",
+      "unicode_decimal": 59099
+    },
+    {
+      "icon_id": "18813274",
+      "name": "夹心饼干",
+      "font_class": "jiaxinbinggan1",
+      "unicode": "e6dc",
+      "unicode_decimal": 59100
+    },
+    {
+      "icon_id": "18813275",
+      "name": "寿司",
+      "font_class": "shousi1",
+      "unicode": "e6dd",
+      "unicode_decimal": 59101
+    },
+    {
+      "icon_id": "18813276",
+      "name": "披萨",
+      "font_class": "pisa11",
+      "unicode": "e6de",
+      "unicode_decimal": 59102
+    },
+    {
+      "icon_id": "18813113",
+      "name": "冰棍",
+      "font_class": "binggun",
+      "unicode": "e643",
+      "unicode_decimal": 58947
+    },
+    {
+      "icon_id": "18813114",
+      "name": "冰淇淋",
+      "font_class": "bingqilin",
+      "unicode": "e644",
+      "unicode_decimal": 58948
+    },
+    {
+      "icon_id": "18813115",
+      "name": "包心菜",
+      "font_class": "baoxincai",
+      "unicode": "e645",
+      "unicode_decimal": 58949
+    },
+    {
+      "icon_id": "18813116",
+      "name": "蛋糕",
+      "font_class": "dangao",
+      "unicode": "e646",
+      "unicode_decimal": 58950
+    },
+    {
+      "icon_id": "18813117",
+      "name": "菠萝",
+      "font_class": "boluo",
+      "unicode": "e647",
+      "unicode_decimal": 58951
+    },
+    {
+      "icon_id": "18813118",
+      "name": "饼干",
+      "font_class": "binggan",
+      "unicode": "e648",
+      "unicode_decimal": 58952
+    },
+    {
+      "icon_id": "18813119",
+      "name": "草莓酱",
+      "font_class": "caomeijiang",
+      "unicode": "e649",
+      "unicode_decimal": 58953
+    },
+    {
+      "icon_id": "18813120",
+      "name": "蛋糕派",
+      "font_class": "dangaopai",
+      "unicode": "e64a",
+      "unicode_decimal": 58954
+    },
+    {
+      "icon_id": "18813121",
+      "name": "蜂蜜",
+      "font_class": "fengmi",
+      "unicode": "e64b",
+      "unicode_decimal": 58955
+    },
+    {
+      "icon_id": "18813122",
+      "name": "火腿",
+      "font_class": "huotui",
+      "unicode": "e64c",
+      "unicode_decimal": 58956
+    },
+    {
+      "icon_id": "18813123",
+      "name": "果汁饮品",
+      "font_class": "guozhiyinpin",
+      "unicode": "e64d",
+      "unicode_decimal": 58957
+    },
+    {
+      "icon_id": "18813124",
+      "name": "蛋糕",
+      "font_class": "dangao1",
+      "unicode": "e64e",
+      "unicode_decimal": 58958
+    },
+    {
+      "icon_id": "18813125",
+      "name": "辣椒",
+      "font_class": "lajiao",
+      "unicode": "e64f",
+      "unicode_decimal": 58959
+    },
+    {
+      "icon_id": "18813126",
+      "name": "梨",
+      "font_class": "li",
+      "unicode": "e650",
+      "unicode_decimal": 58960
+    },
+    {
+      "icon_id": "18813127",
+      "name": "果盘",
+      "font_class": "guopan",
+      "unicode": "e651",
+      "unicode_decimal": 58961
+    },
+    {
+      "icon_id": "18813128",
+      "name": "果汁",
+      "font_class": "guozhi",
+      "unicode": "e652",
+      "unicode_decimal": 58962
+    },
+    {
+      "icon_id": "18813129",
+      "name": "咖啡",
+      "font_class": "kafei",
+      "unicode": "e653",
+      "unicode_decimal": 58963
+    },
+    {
+      "icon_id": "18813130",
+      "name": "牛排",
+      "font_class": "niupai",
+      "unicode": "e654",
+      "unicode_decimal": 58964
+    },
+    {
+      "icon_id": "18813131",
+      "name": "鸡尾酒",
+      "font_class": "jiweijiu",
+      "unicode": "e655",
+      "unicode_decimal": 58965
+    },
+    {
+      "icon_id": "18813132",
+      "name": "胡萝卜",
+      "font_class": "huluobu",
+      "unicode": "e656",
+      "unicode_decimal": 58966
+    },
+    {
+      "icon_id": "18813133",
+      "name": "南瓜",
+      "font_class": "nangua",
+      "unicode": "e657",
+      "unicode_decimal": 58967
+    },
+    {
+      "icon_id": "18813134",
+      "name": "红xing二锅头",
+      "font_class": "hongxingerguotou",
+      "unicode": "e658",
+      "unicode_decimal": 58968
+    }
+  ]
+}

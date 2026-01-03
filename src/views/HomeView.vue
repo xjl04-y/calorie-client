@@ -287,10 +287,11 @@ const openLogDetail = (log: FoodLog) => {
   }
 }
 
+// [Mod] 更新数据说明弹窗，加入新增的“实际摄入”说明
 const showStatsInfo = () => {
   showDialog({
     title: '📊 战斗数据说明',
-    message: '🔥 (左) 运动消耗：\n今日通过运动燃烧的热量，可抵消摄入。\n\n✊ (右) 造成伤害：\n今日饮食摄入的总热量（对Boss造成的伤害）。\n\n目标：让「造成伤害」不要超过「Boss血量 + 运动消耗」。',
+    message: '🍽️ (左) 实际摄入：\n今日实际吃掉食物的总热量(kcal)。\n\n🔥 (中) 运动消耗：\n今日通过运动燃烧的热量。\n\n✊ (右) 造成伤害：\n经由RPG机制(暴击/连击)转化后的最终伤害值。\n\n目标：保持热量平衡，击败Boss！',
     confirmButtonColor: '#7c3aed'
   });
 };
@@ -688,14 +689,25 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
 
           <div class="flex gap-3 text-[9px] font-bold font-mono cursor-pointer relative group">
             <div class="absolute -top-4 right-0 text-[8px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">点击查看说明</div>
+
+            <!-- [Mod] 新增：实际摄入卡路里 (绿色) -->
+            <div class="flex items-center text-green-600 dark:text-green-400">
+              <i class="fas fa-utensils mr-1 text-[8px]"></i>
+              <span>{{ todayMacros.cals }}</span>
+            </div>
+
+            <!-- 原有：运动消耗 (橙色) -->
             <div class="flex items-center text-orange-500 dark:text-orange-400">
               <i class="fas fa-fire-alt mr-1"></i>
               <span>-{{ logStore.todayBurn }}</span>
             </div>
+
+            <!-- 原有：造成伤害 (红色) -->
             <div class="flex items-center text-red-500 dark:text-red-400">
               <i class="fas fa-fist-raised mr-1"></i>
               <span>{{ store.todayDamage }}</span>
             </div>
+
             <i class="fas fa-question-circle text-[8px] text-slate-400 ml-1"></i>
           </div>
         </div>
