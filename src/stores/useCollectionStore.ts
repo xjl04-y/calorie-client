@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, toRaw } from 'vue';
 import type { Achievement, Quest, FoodItem, FoodLog } from '@/types'; // Import FoodLog
 import { RACE_DEFAULT_FOODS, QUEST_POOL } from '@/constants/gameData';
+import { getInitialFoods } from '@/utils/foodDataMapper';
 import { useSystemStore } from './useSystemStore';
 import { useHeroStore } from './useHeroStore';
 import { showToast } from 'vant';
@@ -56,28 +57,42 @@ export const useCollectionStore = defineStore('collection', () => {
 
   // ... (initFoodDb, saveToFoodDb, unlockAch, refreshQuestHall, acceptQuest remain unchanged) ...
   function initFoodDb(race: string, force = false) {
-    const safeRace = (race && RACE_DEFAULT_FOODS[race]) ? race : 'HUMAN';
     const isEmpty = !foodDb.value || foodDb.value.length === 0;
 
-    if (!force && !isEmpty) return;
+    if (!force && !isEmpty) {
+      console.log('[CollectionStore] 食物数据已存在，跳过初始化');
+      return;
+    }
 
-    const defaultFoods = RACE_DEFAULT_FOODS[safeRace];
-    if (!defaultFoods || defaultFoods.length === 0) {
-      console.warn('Race foods missing, loading Human defaults');
-      const humanFoods = RACE_DEFAULT_FOODS['HUMAN'];
-      if (humanFoods && humanFoods.length > 0) {
-        foodDb.value = humanFoods.map((f, index) => ({
+    // 从新的 JSON 文件加载食物数据（不再按种族区分）
+    const initialFoods = getInitialFoods();
+    
+    if (!initialFoods || initialFoods.length === 0) {
+      console.warn('Failed to load foods from JSON, falling back to race defaults');
+      // 降级：使用旧的种族默认食物
+      const safeRace = (race && RACE_DEFAULT_FOODS[race]) ? race : 'HUMAN';
+      const defaultFoods = RACE_DEFAULT_FOODS[safeRace];
+      if (defaultFoods && defaultFoods.length > 0) {
+        foodDb.value = defaultFoods.map((f, index) => ({
           ...f, id: Date.now() + index, usageCount: 0
         }));
       }
       return;
     }
 
-    foodDb.value = defaultFoods.map((f, index) => ({
+    // 使用新的 JSON 数据
+    foodDb.value = initialFoods.map((f, index) => ({
       ...f,
-      id: Date.now() + index + Math.random(),
+      id: f.id || `food_${Date.now()}_${index}`,
       usageCount: 0
-    }));
+    })) as FoodItem[];
+    
+    console.log(`[CollectionStore] 加载了 ${foodDb.value.length} 条食物数据`);
+    console.log('[CollectionStore] 前5条食物示例:', foodDb.value.slice(0, 5).map(f => ({
+      name: f.name,
+      category: f.category,
+      tags: f.tags
+    })));
   }
 
   function saveToFoodDb(item: FoodItem) {

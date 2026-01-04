@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { TAG_DEFS } from '@/constants/gameData';
+import type { FoodItem } from '@/types';
 
 const store = useGameStore();
 
@@ -42,11 +43,61 @@ const calcMacros = computed(() => {
   };
 });
 
+// [UI Logic] 标签显示净化 (同步 ModalAddFood 的逻辑)
+const displayTags = computed(() => {
+  if (!item.value) return [];
+  const currentItem = item.value;
+  const tags = new Set(currentItem.tags || []);
+  const name = currentItem.name || '';
+
+  // --- 实时营养计算 (基于原始数据而非调整后的份量，以反映食物本质属性) ---
+  const c = Number(currentItem.c) || 0;
+  const f = Number(currentItem.f) || 0;
+  const p = Number(currentItem.p) || 0;
+  const grams = Number(currentItem.grams) || 100;
+  const calories = Number(currentItem.calories) || 0;
+
+  const densityC = c / grams;
+  const densityF = f / grams;
+  const densityP = p / grams;
+  const densityCal = calories / grams;
+
+  // 核心营养阈值
+  if (c > 20 && densityC > 0.2) tags.add('高碳');
+  if (f > 10 && densityF > 0.1) tags.add('高油');
+  if (p > 15 && densityP > 0.15) tags.add('高蛋白');
+
+  // 简易启发式
+  if (name.includes('糖') || name.includes('奶茶') || name.includes('蛋糕') || name.includes('甜点') || name.includes('冰淇淋') || name.includes('巧克力')) tags.add('高糖');
+  if (name.includes('咸') || name.includes('腌') || name.includes('酱')) tags.add('高盐');
+
+  // 补位标签
+  if (densityCal < 1.0 && calories < 300 && !tags.has('高油') && !tags.has('高糖')) tags.add('低卡');
+  if (grams > 200) tags.add('充饥');
+
+  // [Fix] 这里的黑名单更彻底，移除了所有感官、分类、状态标签
+  const HIDDEN_TAGS = [
+    // 基础分类
+    'DRINK', 'ALCOHOL', 'MEAT', 'RED_MEAT', 'POULTRY', 'SEAFOOD',
+    'VEGETABLE', 'FRUIT', 'STAPLE', 'SNACK', 'VEG', 'OTHER',
+    // 物理状态
+    'STATE_DRIED', 'STATE_PRESERVED', 'STATE_COOKED', 'STATE_RAW',
+    // 感官风味
+    'FLAVOR_SPICY', 'FLAVOR_SOUR', 'FLAVOR_SWEET', 'FLAVOR_BITTER',
+    'TEMP_COLD', 'TEMP_HOT'
+  ];
+
+  return Array.from(tags).filter(t => !HIDDEN_TAGS.includes(t));
+});
+
 const dmgPrediction = computed(() => {
   if (!item.value || !store.stageInfo.currentObj) return null;
 
   const monster = store.stageInfo.currentObj.data;
-  const tags = item.value.tags || [];
+  // 使用计算后的 displayTags 进行判断，或者为了逻辑严谨性保留原始tags判断?
+  // 建议还是基于 displayTags，因为这些是我们真正认定的属性
+  const tags = displayTags.value;
+
   const finalFat = calcMacros.value.f;
   const finalCarb = calcMacros.value.c;
   const finalPro = calcMacros.value.p;
@@ -95,7 +146,7 @@ const confirm = () => {
   // 先关闭所有弹窗，回到首页
   store.setModal('quantity', false);
   store.setModal('addFood', false);
-  
+
   // 延迟300ms后再执行战斗逻辑，确保用户已回到首页看到动画
   setTimeout(() => {
     store.battleCommit(finalLog);
@@ -109,9 +160,10 @@ const confirm = () => {
       <div class="text-center mb-6">
         <div class="text-6xl mb-3 animate-bounce">{{ item.icon }}</div>
         <h3 class="font-black text-2xl text-slate-800 dark:text-white">{{ item.name }}</h3>
-        <div class="flex justify-center gap-1 mt-2 mb-2" v-if="item.tags && item.tags.length">
-          <span v-for="tag in item.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1">
-            {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label }}
+        <!-- [Fix] 使用 displayTags 替代 item.tags -->
+        <div class="flex justify-center gap-1 mt-2 mb-2" v-if="displayTags.length">
+          <span v-for="tag in displayTags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1">
+            {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
           </span>
         </div>
 
@@ -184,4 +236,6 @@ const confirm = () => {
 .tag-高蛋白 { @apply bg-green-100 text-green-800 border-green-200; }
 .tag-纯净 { @apply bg-cyan-100 text-cyan-800 border-cyan-200; }
 .tag-均衡 { @apply bg-purple-100 text-purple-800 border-purple-200; }
+.tag-低卡 { @apply bg-emerald-50 text-emerald-600 border-emerald-200; }
+.tag-充饥 { @apply bg-amber-50 text-amber-600 border-amber-200; }
 </style>

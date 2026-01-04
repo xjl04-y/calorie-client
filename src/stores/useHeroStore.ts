@@ -233,7 +233,7 @@ export const useHeroStore = defineStore('hero', () => {
     balanceAfter?: number  // [修复] 允许外部传入交易后余额
   ): void {
     if (!user.transactionHistory) user.transactionHistory = [];
-    
+
     // 如果没有传入balanceAfter，自动计算当前余额
     if (balanceAfter === undefined) {
       if (currency === 'GOLD') {
@@ -244,7 +244,7 @@ export const useHeroStore = defineStore('hero', () => {
         balanceAfter = user.inventory[itemId] || 0;
       }
     }
-    
+
     const record: import('@/types').TransactionRecord = {
       timestamp: new Date().toISOString(),
       type,
@@ -253,13 +253,13 @@ export const useHeroStore = defineStore('hero', () => {
       balanceAfter,
       source
     };
-    
+
     // 如果是物品交易，记录物品信息
     if (currency === 'ITEM') {
       record.itemId = itemId;
       record.itemName = itemName || itemId;
     }
-    
+
     user.transactionHistory.push(record);
   }
 
@@ -269,7 +269,7 @@ export const useHeroStore = defineStore('hero', () => {
     if (!user.gold) user.gold = 0;
     const safeAmount = Math.floor(amount);
     user.gold += safeAmount;
-    
+
     // 记录交易流水（带类型标记）
     logTransaction(type, 'GOLD', safeAmount, source);
   }
@@ -280,38 +280,38 @@ export const useHeroStore = defineStore('hero', () => {
   function revertXp(amount: number, source: string = '系统回滚'): void {
     if (!amount || amount <= 0) return;
     const safeAmount = Math.floor(amount);
-      
+
     user.currentExp -= safeAmount;
-  
+
     // 记录交易流水（负值）
     logTransaction('SYSTEM_ROLLBACK', 'EXP', -safeAmount, source);
-  
+
     // [关键] 当经验值为负数时,进入降级循环
     while (user.currentExp < 0 && user.level > 1) {
       user.level -= 1; // 等级减1
-        
+
       // 使用逆向公式计算上一级的 nextLevelExp
       const prevLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
-        
+
       // 将当前负的经验值加上这个上限,变成上一级剩余的经验值
       user.currentExp += prevLevelExp;
-        
+
       // [关键] 同时扣除1点 skillPoints (如果大于0)
       if (user.skillPoints > 0) {
         user.skillPoints -= 1;
       }
-        
+
       // 更新 nextLevelExp
       user.nextLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
     }
-  
+
     // 边界保护: 最低只能降到1级,经验最低为0
     if (user.level < 1) {
       user.level = 1;
       user.currentExp = 0;
       user.nextLevelExp = Math.floor(100 * Math.pow(1, 2.2));
     }
-      
+
     if (user.currentExp < 0) {
       user.currentExp = 0;
     }
@@ -325,7 +325,7 @@ export const useHeroStore = defineStore('hero', () => {
     const safeAmount = Math.floor(amount);
     // [关键修改] 移除Math.max(0,...)，允许金币为负数
     user.gold -= safeAmount;
-    
+
     // 记录交易流水（负值）
     logTransaction('SYSTEM_ROLLBACK', 'GOLD', -safeAmount, source);
   }
@@ -336,17 +336,17 @@ export const useHeroStore = defineStore('hero', () => {
       showToast('金币不足');
       return false;
     }
-    
+
     // 1. 扣除金币并记录
     user.gold -= price;
     logTransaction('ITEM_BUY', 'GOLD', -price, `购买${itemName || itemId}`, undefined, undefined, user.gold);
-    
+
     // 2. 物品入库并记录
     if (!user.inventory) user.inventory = {};
     const newCount = (user.inventory[itemId] || 0) + 1;
     user.inventory[itemId] = newCount;
     logTransaction('ITEM_BUY', 'ITEM', 1, `商店购买`, itemId, itemName, newCount);
-    
+
     showToast('购买成功');
     return true;
   }
@@ -354,15 +354,15 @@ export const useHeroStore = defineStore('hero', () => {
   // [阶段二改造] 消耗道具时记录流水，区分不同道具的特殊效果
   function consumeItem(itemId: string, count = 1, itemName?: string): boolean {
     if (!user.inventory || !user.inventory[itemId] || user.inventory[itemId] < count) return false;
-    
+
     // 扣除库存并记录
     user.inventory[itemId] -= count;
     const newCount = user.inventory[itemId];
     if (newCount <= 0) delete user.inventory[itemId];
-    
+
     // 记录物品消耗流水（传入消耗后的余额）
     logTransaction('ITEM_USE', 'ITEM', -count, `使用道具`, itemId, itemName, newCount > 0 ? newCount : 0);
-    
+
     // [阶段二] 特殊逻辑：经验药水等道具的额外效果记录
     // 查找道具配置（从gameData获取）
     const SHOP_ITEMS = [
@@ -370,13 +370,13 @@ export const useHeroStore = defineStore('hero', () => {
       { id: 'item_heal_potion', name: '治疗药水', effect: 'HEAL' },
       { id: 'item_rebirth_potion', name: '转生药水', effect: 'REBIRTH' }
     ];
-    
+
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (item?.effect === 'EXP' && item.value) {
       // 经验药水：记录获得的经验
       logTransaction('ITEM_USE', 'EXP', item.value, `${item.name}效果`);
     }
-    
+
     return true;
   }
 
@@ -408,11 +408,11 @@ export const useHeroStore = defineStore('hero', () => {
     user.activeSkillCd = 0;
     // 切换种族
     user.race = newRace;
-    
+
     // [修复转生逻辑] 技能清空后，被动加成会自动归零（通过 computed 重算）
     // realMaxHp 会通过 watch 自动更新，无需手动干预
     // 警告：不要重置 baseBMR、level、exp，这些是玩家成长的核心数据
-    
+
     // 警告：绝对不能调用 localStorage.clear() 或清空 logs
     // 用户的饮食/运动记录是宝贵的健康数据，转生不影响这些记录
 
@@ -544,7 +544,7 @@ export const useHeroStore = defineStore('hero', () => {
    * @param options.note - 备注（可选）
    */
   function updateWeight(
-    newWeight: number, 
+    newWeight: number,
     options?: {
       bmi?: number;
       bodyFatRate?: number;
@@ -567,8 +567,8 @@ export const useHeroStore = defineStore('hero', () => {
     const existingIdx = history.findIndex(r => r.date === today);
 
     // 自动计算 BMI（如果没有提供）
-    const bmi = options?.bmi || (user.height > 0 
-      ? newWeight / Math.pow(user.height / 100, 2) 
+    const bmi = options?.bmi || (user.height > 0
+      ? newWeight / Math.pow(user.height / 100, 2)
       : undefined);
 
     const record: import('@/types').WeightRecord = {
@@ -674,12 +674,12 @@ export const useHeroStore = defineStore('hero', () => {
     const newLearnedSkills = { ...user.learnedSkills };
     newLearnedSkills[node.id] = currentLv + 1;
     user.learnedSkills = newLearnedSkills;
-    
+
     // [关键修复] 技能升级后，立即触发被动加成的重新计算
     // passiveBonuses 是 computed，会自动重算
     // 但某些属性（如 maxHp）需要通过 watch 触发更新
     // 这里不需要手动操作，因为 passiveBonuses 的变化会触发 realMaxHp 的 watch
-    
+
     showToast(`✨ ${node.name} 升级成功！(Lv.${currentLv + 1})`);
   }
 
@@ -892,7 +892,7 @@ export const useHeroStore = defineStore('hero', () => {
     try {
       // 优先级1：从独立 Key 读取本地数据
       const localData = localStorage.getItem(STORAGE_KEY);
-      
+
       if (localData) {
         // 本地有数据，强制使用本地数据（忽略外部传入参数）
         const parsed = JSON.parse(localData);
@@ -931,7 +931,7 @@ export const useHeroStore = defineStore('hero', () => {
       if (!user.learnedSkills) user.learnedSkills = {};
       if (!user.transactionHistory) user.transactionHistory = [];
       if (!user.inventory) user.inventory = { 'item_rebirth_potion': 1 };
-      
+
     } catch (error) {
       console.error('[Hero Store] 数据加载失败:', error);
       // 加载失败时使用默认值

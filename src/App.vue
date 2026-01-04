@@ -290,15 +290,16 @@ const handleSplashComplete = () => {
         </router-view>
       </div>
 
+      <!-- [Fix: Vue Warn] 将文本内容包裹在 span 标签中，避免 Slot default invoked outside of render function 警告 -->
       <van-tabbar v-if="store.user.isInitialized" route fixed placeholder safe-area-inset-bottom class="shadow-lg z-40 border-t dark:border-slate-800">
         <van-tabbar-item id="tour-tab-home" name="home" :icon="isPure ? 'orders-o' : 'fire-o'" to="/">
-          {{ isPure ? '饮食' : '讨伐' }}
+          <span>{{ isPure ? '饮食' : '讨伐' }}</span>
         </van-tabbar-item>
         <van-tabbar-item id="tour-tab-analysis" name="analysis" :icon="isPure ? 'bar-chart-o' : 'chart-trending-o'" to="/analysis">
-          {{ isPure ? '统计' : '战报' }}
+          <span>{{ isPure ? '统计' : '战报' }}</span>
         </van-tabbar-item>
         <van-tabbar-item id="tour-tab-profile" name="profile" :icon="isPure ? 'manager-o' : 'user-o'" to="/profile">
-          {{ isPure ? '我的' : '英雄' }}
+          <span>{{ isPure ? '我的' : '英雄' }}</span>
         </van-tabbar-item>
       </van-tabbar>
 

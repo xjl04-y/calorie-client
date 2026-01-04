@@ -146,9 +146,20 @@ export const useGameStore = defineStore('game', () => {
           }
 
           if (!loadedFood || !collection.foodDb || collection.foodDb.length === 0) {
+            console.log('[GameStore] 强制重新加载食物数据');
             collection.initFoodDb(hero.user.race || 'HUMAN', true);
           } else {
-            collection.initFoodDb(hero.user.race || 'HUMAN', false);
+            // 检查现有数据是否有正确的 category 字段
+            const hasValidCategory = collection.foodDb.some(f => 
+              f.category && ['STAPLE', 'MEAT', 'VEG', 'DRINK', 'OTHER'].includes(f.category)
+            );
+            if (!hasValidCategory) {
+              console.log('[GameStore] 旧数据没有有效的 category 字段，强制重新加载');
+              collection.initFoodDb(hero.user.race || 'HUMAN', true);
+            } else {
+              console.log('[GameStore] 使用已有的食物数据');
+              collection.initFoodDb(hero.user.race || 'HUMAN', false);
+            }
           }
 
           if (data.achievements) {

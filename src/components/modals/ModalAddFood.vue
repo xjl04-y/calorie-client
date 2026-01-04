@@ -4,17 +4,21 @@
  * 专注食物录入 (单一职责)
  * - Pure Mode: 全屏窗口
  * - RPG Mode: 底部弹窗
- * - V5.6 Feature: 新增“最近”历史记录 tab
- * - V5.7 Feature: 断食拦截 & Tab 顺序调整
+ * - V6.3 Optimization: 懒加载 + 标签净化
+ * - V6.4 Fix: 修复 onLoad 未定义报错 (调整代码顺序)
+ * - V6.5 Fix: 修复移动端滚动不加载和AI结果残留
+ * - V6.6 Fix:
+ * 1. 手动引入 VanList 组件解决 [Vue warn]: Failed to resolve component: van-list
+ * 2. 增强搜索清空逻辑，确保 AI 结果立即消失
  */
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useCooking } from '@/composables/useCooking';
 import { AiService } from '@/utils/aiService';
-import { formatRpgFoodName } from '@/utils/gameUtils';
+import { getFoodDisplayName } from '@/utils/foodNameService';
 import { TAG_DEFS } from '@/constants/gameData';
-import { showToast, showNotify, showConfirmDialog } from 'vant';
+import { showToast, showNotify, showConfirmDialog, List as VanList } from 'vant'; // [Fix] 显式引入 List 组件
 import type { FoodItem, FoodLog } from '@/types';
 import type { UploaderFileListItem } from 'vant';
 
@@ -36,16 +40,42 @@ const { isBuilding, basket, resetBasket, addToBasket, removeFromBasket, commitBa
 const query = ref('');
 const loading = ref(false);
 const loadingText = ref('AI 思考中...');
-const activeCategory = ref('ALL'); // [Fix] 默认为“全部”
+const activeCategory = ref('ALL');
 const aiResult = ref<FoodItem | null>(null);
 const aiSuggestions = ref<FoodItem[]>([]);
 
-// [PM Fix] 监听搜索内容，如果有输入，自动切换到“全部”Tab，避免用户在分类 Tab 下搜不到东西
+// --- 懒加载状态管理 ---
+const listLoading = ref(false);
+const listFinished = ref(false);
+const currentPage = ref(1);
+const pageSize = 20;
+const displayedList = ref<FoodItem[]>([]);
+
+// [Fix: Search Clear] 监听搜索内容变化
 watch(query, (newVal) => {
-  if (newVal && newVal.trim().length > 0 && activeCategory.value !== 'ALL') {
-    activeCategory.value = 'ALL';
+  // 1. 如果有输入，且当前不是"全部"，切回"全部"以便搜索
+  if (newVal && newVal.trim().length > 0) {
+    if (activeCategory.value !== 'ALL') {
+      activeCategory.value = 'ALL';
+    }
+  }
+  // 2. [New] 如果清空了输入框，立即重置 AI 结果，恢复列表显示
+  else if (!newVal || newVal.trim().length === 0) {
+    clearSearchState();
   }
 });
+
+const clearSearchState = () => {
+  aiResult.value = null;
+  aiSuggestions.value = [];
+  loading.value = false;
+};
+
+// [UI Action] 手动清空搜索
+const onClearSearch = () => {
+  query.value = '';
+  clearSearchState();
+};
 
 const suggestion = computed(() => store.stageInfo.isOverloaded ? null : store.getTacticalSuggestion());
 
@@ -55,14 +85,12 @@ const openManualAdd = () => {
 
 const resetLocalState = () => {
   query.value = '';
-  aiResult.value = null;
-  aiSuggestions.value = [];
-  loading.value = false;
+  clearSearchState();
   activeCategory.value = 'ALL';
   resetBasket();
 };
 
-// 从最近的日志中计算历史记录
+// 历史记录计算
 const historyList = computed(() => {
   const allLogs: FoodLog[] = [];
   const logEntries = Object.entries(store.logs).sort((a, b) => b[0].localeCompare(a[0]));
@@ -80,7 +108,8 @@ const historyList = computed(() => {
   return Array.from(uniqueMap.values());
 });
 
-const filteredList = computed(() => {
+// 完整过滤列表 (数据源)
+const fullFilteredList = computed(() => {
   const rawList = (store.foodDb && Array.isArray(store.foodDb)) ? store.foodDb : [];
   let result: FoodItem[] = [];
 
@@ -111,10 +140,96 @@ const filteredList = computed(() => {
   return result;
 });
 
+// [Fix: Mobile Scroll] 懒加载回调 - 增强版
+const onLoad = async () => {
+  if (listFinished.value) return;
+
+  // 使用 setTimeout 确保 UI 线程释放，避免渲染阻塞
+  setTimeout(async () => {
+    const start = (currentPage.value - 1) * pageSize;
+    const end = start + pageSize;
+
+    // 边界检查
+    if (start >= fullFilteredList.value.length) {
+      listFinished.value = true;
+      listLoading.value = false;
+      return;
+    }
+
+    const newItems = fullFilteredList.value.slice(start, end);
+
+    if (newItems.length > 0) {
+      displayedList.value.push(...newItems);
+      currentPage.value++;
+
+      // [关键] 等待 DOM 更新，确保 van-list 能检测到高度变化
+      await nextTick();
+    }
+
+    // 检查是否已加载所有数据
+    if (displayedList.value.length >= fullFilteredList.value.length) {
+      listFinished.value = true;
+    }
+
+    listLoading.value = false;
+  }, 50); // 增加一点延迟，给手机端更多缓冲时间
+};
+
+// 监听数据源变化，重置懒加载状态
+watch(fullFilteredList, () => {
+  currentPage.value = 1;
+  listFinished.value = false;
+  listLoading.value = true; // 手动置为 loading，避免闪烁
+  displayedList.value = [];
+
+  // 手动触发一次加载
+  onLoad();
+}, { immediate: true });
+
 const getDisplayName = (item: FoodItem) => {
-  if (isPure.value) return item.originalName || item.name;
-  if (item.displayName) return item.displayName;
-  return formatRpgFoodName(item.name, store.user.race, item.originalName);
+  return getFoodDisplayName(item, !isPure.value, store.user.race);
+};
+
+// [UI Logic] 标签显示净化
+const getDisplayTags = (item: FoodItem) => {
+  const tags = new Set(item.tags || []);
+  const name = item.name || '';
+
+  // --- 实时营养计算 ---
+  const c = Number(item.c) || 0;
+  const f = Number(item.f) || 0;
+  const p = Number(item.p) || 0;
+  const grams = Number(item.grams) || 100;
+  const calories = Number(item.calories) || 0;
+
+  const densityC = c / grams;
+  const densityF = f / grams;
+  const densityP = p / grams;
+  const densityCal = calories / grams;
+
+  // 核心营养阈值
+  if (c > 20 && densityC > 0.2) tags.add('高碳');
+  if (f > 10 && densityF > 0.1) tags.add('高油');
+  if (p > 15 && densityP > 0.15) tags.add('高蛋白');
+
+  // 简易启发式
+  if (name.includes('糖') || name.includes('奶茶') || name.includes('蛋糕') || name.includes('甜点') || name.includes('冰淇淋') || name.includes('巧克力')) tags.add('高糖');
+  if (name.includes('咸') || name.includes('腌') || name.includes('酱')) tags.add('高盐');
+
+  // 补位标签
+  if (densityCal < 1.0 && calories < 300 && !tags.has('高油') && !tags.has('高糖')) tags.add('低卡');
+  if (grams > 200) tags.add('充饥');
+
+  // 黑名单：隐藏基础分类、物理状态、感官风味
+  const HIDDEN_TAGS = [
+    'DRINK', 'ALCOHOL', 'MEAT', 'RED_MEAT', 'POULTRY', 'SEAFOOD',
+    'VEGETABLE', 'FRUIT', 'STAPLE', 'SNACK', 'VEG', 'OTHER',
+    'STATE_DRIED', 'STATE_PRESERVED', 'STATE_COOKED', 'STATE_RAW',
+    'FLAVOR_SPICY', 'FLAVOR_SOUR', 'FLAVOR_SWEET', 'FLAVOR_BITTER',
+    'TEMP_COLD', 'TEMP_HOT'
+  ];
+
+  return Array.from(tags).filter(t => !HIDDEN_TAGS.includes(t));
 };
 
 const onTextSearch = async () => {
@@ -151,13 +266,9 @@ const onImageUpload = async (items: UploaderFileListItem | UploaderFileListItem[
   }
 };
 
-// --- [Fix Logic] 断食拦截与记录处理 ---
 const selectItem = (item: FoodItem) => {
-  // 1. 判断是否正在断食
   if (store.user.fasting?.isFasting) {
-    // 允许喝水/零热量饮料 (DRINK 分类且热量极低)
     const isSafeDrink = (item.category === 'DRINK' && (!item.calories || item.calories < 5));
-
     if (!isSafeDrink) {
       showConfirmDialog({
         title: isPure.value ? '断食提醒' : '打破冥想？',
@@ -168,21 +279,16 @@ const selectItem = (item: FoodItem) => {
         confirmButtonColor: '#ef4444',
         cancelButtonText: '忍住'
       }).then(() => {
-        // 用户确认要吃 -> 结束断食
         store.heroStore.stopFasting();
         store.saveState();
         proceedSelection(item);
-      }).catch(() => {
-        // 用户取消 -> 什么都不做
-      });
+      }).catch(() => {});
       return;
     }
   }
-
   proceedSelection(item);
 };
 
-// 提取原有的处理逻辑
 const proceedSelection = (item: FoodItem) => {
   if (isBuilding.value) {
     if (item.isComposite || item.isPreset) {
@@ -214,7 +320,7 @@ const proceedSelection = (item: FoodItem) => {
 watch(show, (val) => {
   if (val) {
     query.value = '';
-    activeCategory.value = 'ALL'; // [Fix] 每次打开优先显示全部
+    activeCategory.value = 'ALL';
     if (!store.foodDb || store.foodDb.length === 0) store.loadState();
   } else {
     if (!store.modals.quantity && !store.temp.pendingItem) {
@@ -283,7 +389,7 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
         <div class="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full px-4 py-2 flex items-center border border-transparent focus-within:border-purple-500 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:ring-2 focus-within:ring-purple-500/20 transition-all">
           <van-icon name="search" class="text-slate-400 mr-2" />
           <input v-model="query" :placeholder="isPure ? '搜索食物' : '搜索 / 描述食物 (AI)'" class="bg-transparent w-full text-sm outline-none dark:text-white placeholder-slate-400" @keyup.enter="onTextSearch" />
-          <button v-if="query" @click="query = ''" class="mr-2 text-slate-400 hover:text-slate-600"><van-icon name="clear" /></button>
+          <button v-if="query" @click="onClearSearch" class="mr-2 text-slate-400 hover:text-slate-600"><van-icon name="clear" /></button>
           <button v-if="query" @click="onTextSearch" class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-3 py-1 rounded-full font-bold whitespace-nowrap active:scale-95 transition flex items-center">
             <i class="fas fa-magic mr-1"></i>{{ isPure ? 'AI识别' : '鉴定' }}
           </button>
@@ -303,10 +409,9 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
       <!-- Categories Tabs -->
       <div class="px-2 mt-2 bg-white dark:bg-slate-800 pb-2 border-b border-slate-100 dark:border-slate-700">
         <van-tabs v-model:active="activeCategory" background="transparent" color="#7c3aed" title-active-color="#7c3aed" shrink line-width="20px">
-          <van-tab title="全部" name="ALL"></van-tab> <!-- [Fix] 已移至最前 -->
+          <van-tab title="全部" name="ALL"></van-tab>
           <van-tab title="🕒 最近" name="RECENT"></van-tab>
           <van-tab title="❤️ 常吃" name="FAV"></van-tab>
-          <van-tab title="🍱 套餐" name="DISH"></van-tab>
           <van-tab title="🍞 主食" name="STAPLE"></van-tab>
           <van-tab title="🥩 肉类" name="MEAT"></van-tab>
           <van-tab title="🥦 素食" name="VEG"></van-tab>
@@ -331,7 +436,8 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
               <div class="font-bold text-lg dark:text-white flex items-center gap-2">
                 {{ isPure ? (aiResult.originalName || aiResult.name) : aiResult.name }}
                 <div v-if="aiResult.tags" class="flex gap-1">
-                  <span v-for="tag in aiResult.tags" :key="tag" class="text-[8px] px-1 rounded font-bold border tag-badge" :class="'tag-'+tag">{{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}</span>
+                  <!-- [UI Fix] 使用增强后的 getDisplayTags(item) -->
+                  <span v-for="tag in getDisplayTags(aiResult)" :key="tag" class="text-[8px] px-1 rounded font-bold border tag-badge" :class="'tag-'+tag">{{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}</span>
                 </div>
               </div>
               <div class="text-xs text-purple-500 mt-1 flex items-center"><i class="fas fa-sparkles mr-1"></i> {{ aiResult.tips || '未知的食物' }}</div>
@@ -362,7 +468,7 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
         </div>
 
         <!-- Empty State -->
-        <div v-if="!loading && filteredList.length === 0 && !aiResult && aiSuggestions.length === 0" class="text-center py-16 text-slate-400">
+        <div v-if="!loading && fullFilteredList.length === 0 && !aiResult && aiSuggestions.length === 0" class="text-center py-16 text-slate-400">
           <div class="text-5xl mb-4 opacity-50 grayscale">🍃</div>
           <div class="text-sm font-bold text-slate-500 mb-6">暂无此分类项目</div>
           <van-button icon="edit" round color="linear-gradient(to right, #7c3aed, #6366f1)" class="shadow-lg shadow-purple-200 dark:shadow-none font-bold px-8" @click="openManualAdd">
@@ -370,37 +476,46 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
           </van-button>
         </div>
 
-        <!-- List Items -->
+        <!-- List Items (Lazy Loaded) -->
         <div class="space-y-2.5">
-          <div v-for="item in filteredList" :key="item.id" @click="selectItem(item)"
-               class="flex justify-between p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl active:bg-slate-50 dark:active:bg-slate-700 transition cursor-pointer shadow-sm hover:shadow-md hover:border-purple-100 dark:hover:border-slate-600">
-            <div class="flex items-center flex-1 mr-2 overflow-hidden">
-              <span class="text-3xl mr-4 w-8 text-center">{{ item.icon }}</span>
-              <div class="flex-1 min-w-0">
-                <div class="font-bold dark:text-white text-sm flex items-center">
-                  <span class="truncate">{{ getDisplayName(item) }}</span>
-                  <span v-if="item.isComposite" class="ml-2 text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-200 flex items-center shrink-0"><i class="fas fa-layer-group mr-1"></i>套餐</span>
-                </div>
-                <div v-if="item.tips && !isPure" class="text-[9px] text-slate-400 mt-1 truncate flex items-center"><i class="fas fa-info-circle mr-1 text-slate-300"></i> {{ item.tips }}</div>
+          <!-- [Fix: Resolve Component] 手动使用 VanList 代替 van-list -->
+          <VanList
+            v-model:loading="listLoading"
+            :finished="listFinished"
+            finished-text="没有更多了"
+            @load="onLoad"
+            :immediate-check="false"
+          >
+            <div v-for="item in displayedList" :key="item.id" @click="selectItem(item)"
+                 class="flex justify-between p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl active:bg-slate-50 dark:active:bg-slate-700 transition cursor-pointer shadow-sm hover:shadow-md hover:border-purple-100 dark:hover:border-slate-600 mb-2">
+              <div class="flex items-center flex-1 mr-2 overflow-hidden">
+                <span class="text-3xl mr-4 w-8 text-center">{{ item.icon }}</span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold dark:text-white text-sm flex items-center">
+                    <span class="truncate">{{ getDisplayName(item) }}</span>
+                    <span v-if="item.isComposite" class="ml-2 text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-200 flex items-center shrink-0"><i class="fas fa-layer-group mr-1"></i>套餐</span>
+                  </div>
+                  <div v-if="item.tips && !isPure" class="text-[9px] text-slate-400 mt-1 truncate flex items-center"><i class="fas fa-info-circle mr-1 text-slate-300"></i> {{ item.tips }}</div>
 
-                <div class="flex gap-1 mt-1.5" v-if="item.tags && item.tags.length">
-                  <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="text-[9px] px-1.5 py-0.5 rounded font-bold border tag-badge" :class="'tag-'+tag">{{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}</span>
-                </div>
+                  <!-- [UI Update] Use getDisplayTags(item) -->
+                  <div class="flex gap-1 mt-1.5">
+                    <span v-for="tag in getDisplayTags(item).slice(0, 3)" :key="tag" class="text-[9px] px-1.5 py-0.5 rounded font-bold border tag-badge" :class="'tag-'+tag">{{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}</span>
+                  </div>
 
-                <div class="text-xs text-slate-400 mt-1 flex items-center" v-if="!item.tags || item.tags.length === 0">
-                  <span class="mr-3 bg-slate-100 dark:bg-slate-700 px-1.5 rounded">{{ item.unit }}</span>
-                  <span class="font-mono text-orange-400">摄入 ~{{ item.calories }} kcal</span>
+                  <div class="text-xs text-slate-400 mt-1 flex items-center" v-if="getDisplayTags(item).length === 0">
+                    <span class="mr-3 bg-slate-100 dark:bg-slate-700 px-1.5 rounded">{{ item.unit }}</span>
+                  </div>
                 </div>
               </div>
+              <div class="flex items-center shrink-0">
+                <van-button size="small" :color="isBuilding ? '#10b981' : (item.isComposite && !item.isPreset ? '#f59e0b' : '#7c3aed')" plain class="h-8 px-3 text-xs rounded-xl font-bold border-2">
+                  <template v-if="isBuilding"><i class="fas fa-plus mr-1"></i>加入</template>
+                  <template v-else-if="item.isComposite && !item.isPreset"><i class="fas fa-utensils mr-1"></i>制作</template>
+                  <template v-else><i class="fas fa-check mr-1"></i>记录</template>
+                </van-button>
+              </div>
             </div>
-            <div class="flex items-center shrink-0">
-              <van-button size="small" :color="isBuilding ? '#10b981' : (item.isComposite && !item.isPreset ? '#f59e0b' : '#7c3aed')" plain class="h-8 px-3 text-xs rounded-xl font-bold border-2">
-                <template v-if="isBuilding"><i class="fas fa-plus mr-1"></i>加入</template>
-                <template v-else-if="item.isComposite && !item.isPreset"><i class="fas fa-utensils mr-1"></i>制作</template>
-                <template v-else><i class="fas fa-check mr-1"></i>记录</template>
-              </van-button>
-            </div>
-          </div>
+          </VanList>
         </div>
       </div>
 
@@ -450,4 +565,14 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
 .tag-高蛋白 { @apply bg-green-100 text-green-800 border-green-200; }
 .tag-纯净 { @apply bg-cyan-100 text-cyan-800 border-cyan-200; }
 .tag-均衡 { @apply bg-purple-100 text-purple-800 border-purple-200; }
+
+/* 补充新标签样式 */
+.tag-FLAVOR_SPICY { @apply bg-red-50 text-red-600 border-red-200; }
+.tag-FLAVOR_SOUR { @apply bg-yellow-50 text-yellow-600 border-yellow-200; }
+.tag-FLAVOR_SWEET { @apply bg-pink-50 text-pink-600 border-pink-200; }
+.tag-FLAVOR_BITTER { @apply bg-stone-100 text-stone-600 border-stone-200; }
+.tag-TEMP_COLD { @apply bg-cyan-50 text-cyan-600 border-cyan-200; }
+.tag-TEMP_HOT { @apply bg-orange-50 text-orange-600 border-orange-200; }
+.tag-低卡 { @apply bg-emerald-50 text-emerald-600 border-emerald-200; }
+.tag-充饥 { @apply bg-amber-50 text-amber-600 border-amber-200; }
 </style>

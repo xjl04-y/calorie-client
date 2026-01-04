@@ -4,7 +4,8 @@
  */
 
 import { Capacitor } from '@capacitor/core';
-import { RACE_DEFAULT_FOODS } from '@/constants/gameData';
+import { getInitialFoods } from '@/utils/foodDataMapper';
+import type { Food } from '@/types';
 
 // 资料库条目接口
 export interface FoodLibraryItem {
@@ -132,20 +133,19 @@ class SqliteFoodService {
     console.log('[FoodService] 开始初始化食物数据...');
     const startTime = Date.now();
 
-    // 获取所有种族的食物数据
-    const allFoods: FoodLibraryItem[] = [];
-    
-    Object.keys(RACE_DEFAULT_FOODS).forEach((race) => {
-      const foods = RACE_DEFAULT_FOODS[race] || [];
-      foods.forEach((food: Record<string, unknown>, index: number) => {
-        allFoods.push({
-          id: `${race}_${index}_${Date.now()}`,
-          type: 'food',
-          category: race,
-          name: food.name,
-          json_data: food
-        });
-      });
+    // 从新的 JSON 文件获取食物数据
+    const foodsFromJson: Food[] = getInitialFoods();
+    console.log(`[FoodService] 从 JSON 加载 ${foodsFromJson.length} 条食物数据`);
+
+    // 转换为 FoodLibraryItem 格式
+    const allFoods: FoodLibraryItem[] = foodsFromJson.map((food: Food) => {
+      return {
+        id: food.id,
+        type: 'food',
+        category: 'COMMON', // 通用分类，不再按种族分类
+        name: food.name,
+        json_data: food as unknown as Record<string, unknown>
+      };
     });
 
     console.log(`[FoodService] 准备导入 ${allFoods.length} 条食物数据`);

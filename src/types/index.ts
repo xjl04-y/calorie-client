@@ -15,7 +15,21 @@ export interface TargetConfig {
   activityLevel: ActivityLevel; // 活动系数
   manualBMR?: number;      // 手动设定的值
 }
-
+export interface Food {
+  id: string;
+  name: string;
+  description?: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  // 新增 tags 字段，用于存储 ["MEAT", "DRINK", "COOKED"] 等标签
+  tags?: string[];
+  rarity?: 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+  image?: string;
+  price?: number;
+  // ... existing code ...
+}
 // V2.5: 技能节点
 export interface SkillNode {
   id: string;
@@ -311,7 +325,7 @@ export interface ExerciseLog {
   tags?: string[];            // 标签
   tips?: string;              // 备注
   timestamp: string;          // 记录时间
-  
+
   // RPG 效果字段
   healAmount?: number;        // 治疗量
   shieldGained?: number;      // 获得的护盾
@@ -330,7 +344,7 @@ export interface HydrationLog {
   temperature?: 'COLD' | 'WARM' | 'HOT'; // 水温
   tags?: string[];            // 标签
   timestamp: string;          // 记录时间
-  
+
   // RPG 效果字段
   healAmount?: number;        // 治疗量
   buffEffect?: string;        // Buff 效果描述
@@ -445,7 +459,7 @@ export interface DailyStreak {
 // === [阶段一] 资产闭环 - 交易类型与流水定义 ===
 
 // 交易类型：覆盖所有资产流转场景
-export type TransactionType = 
+export type TransactionType =
   // 基础货币交易
   | 'BATTLE_REWARD'      // 战斗胜利奖励
   | 'QUEST_REWARD'       // 任务完成奖励

@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
-import { TAG_DEFS } from '@/constants/gameData';
+import { TAG_DEFS, MONSTERS } from '@/constants/gameData'; // [Fix] 引入 MONSTERS 数据
 import { showConfirmDialog } from 'vant';
 
 const store = useGameStore();
@@ -21,12 +21,28 @@ const MEAL_LABELS: Record<string, string> = {
   BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
 };
 
-// [Fix] 新增判断：是否为饮食记录
-// 只要 mealType 在定义的映射中（早餐、午餐、晚餐、零食、补水），就强制视为食物日志
-// 这样可以避免“零食”因为偶尔带有 damageTaken 属性而被错误渲染成怪物攻击
 const isFoodLog = computed(() => {
   if (!log.value) return false;
   return !!MEAL_LABELS[log.value.mealType];
+});
+
+// [Fix] 标签显示净化 - 同步 ModalAddFood 的过滤逻辑
+// 只展示核心营养标签，隐藏基础分类和感官标签
+const displayTags = computed(() => {
+  if (!log.value || !log.value.tags) return [];
+
+  const HIDDEN_TAGS = [
+    // 基础分类
+    'DRINK', 'ALCOHOL', 'MEAT', 'RED_MEAT', 'POULTRY', 'SEAFOOD',
+    'VEGETABLE', 'FRUIT', 'STAPLE', 'SNACK', 'VEG', 'OTHER',
+    // 物理状态
+    'STATE_DRIED', 'STATE_PRESERVED', 'STATE_COOKED', 'STATE_RAW',
+    // 感官风味
+    'FLAVOR_SPICY', 'FLAVOR_SOUR', 'FLAVOR_SWEET', 'FLAVOR_BITTER',
+    'TEMP_COLD', 'TEMP_HOT'
+  ];
+
+  return log.value.tags.filter(t => !HIDDEN_TAGS.includes(t));
 });
 
 const handleDelete = () => {
@@ -45,6 +61,7 @@ const handleDelete = () => {
   }
 };
 
+// [Fix] 动态生成标签描述 (软编码)
 const getTagDesc = (tag: string) => {
   if (isPure.value) {
     if(tag === '高糖') return '糖分较高，请适量食用';
@@ -52,12 +69,28 @@ const getTagDesc = (tag: string) => {
     if(tag === '高碳') return '碳水化合物丰富';
     if(tag === '纯净') return '天然无添加';
     if(tag === '均衡') return '营养配比良好';
+    if(tag === '低卡') return '热量较低，适合减脂';
+    if(tag === '充饥') return '分量足，能提供饱腹感';
     return '普通属性';
   }
-  if(tag === '高糖') return '容易被 [糖霜魔像] 克制，中断连击';
-  if(tag === '高油') return '容易被 [油泥软怪] 克制，中断连击';
-  if(tag === '高碳') return '容易被 [碳水强盗] 克制';
+
+  // 动态查找具有对应弱点的怪物
+  // 逻辑：如果标签是高糖，说明会被"忌糖/低碳"的怪物克制
+  const findEnemy = (type: string) => {
+    const m = MONSTERS.find(m => m.weaknessType === type);
+    return m ? `[${m.name}]` : '此类怪物';
+  };
+
+  if(tag === '高糖') return `容易被 ${findEnemy('低碳')} 克制，中断连击`;
+  if(tag === '高油') return `容易被 ${findEnemy('低脂')} 克制，中断连击`;
+  if(tag === '高碳') return `容易被 ${findEnemy('低碳')} 克制，造成反伤`;
+
+  // 增益类标签
+  if(tag === '高蛋白') return `克制 ${findEnemy('高蛋白')} 的弱点，造成暴击`;
   if(tag === '纯净' || tag === '均衡') return '对大多数怪物有额外伤害加成，且容易触发连击';
+  if(tag === '低卡') return '轻盈的食物，容易触发连击';
+  if(tag === '充饥') return '厚实的食物，基础伤害较高';
+
   return '普通属性';
 };
 </script>
@@ -69,18 +102,16 @@ const getTagDesc = (tag: string) => {
       <div class="text-6xl mb-4 filter drop-shadow-md">{{ log.icon }}</div>
       <h3 class="font-bold text-xl dark:text-white mb-2">{{ log.name }}</h3>
 
-      <!-- 标签展示区 -->
-      <!-- [Fix] 使用 isFoodLog 代替 damageTaken === undefined，确保零食也能显示标签 -->
-      <div class="flex flex-wrap justify-center gap-1 mb-4" v-if="isFoodLog">
-        <span v-for="tag in log.tags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1 rounded">
+      <!-- 标签展示区 (使用 displayTags) -->
+      <div class="flex flex-wrap justify-center gap-1 mb-4" v-if="isFoodLog && displayTags.length > 0">
+        <span v-for="tag in displayTags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1 rounded">
             {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
         </span>
       </div>
 
-      <!-- 标签情报 -->
-      <!-- [Fix] 使用 isFoodLog -->
-      <div v-if="log.tags && log.tags.length > 0 && isFoodLog" class="mb-4 bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg text-left">
-        <div v-for="tag in log.tags" :key="tag" class="text-[10px] text-slate-500 dark:text-slate-400 mb-1 last:mb-0 flex items-start">
+      <!-- 标签情报 (使用 displayTags) -->
+      <div v-if="isFoodLog && displayTags.length > 0" class="mb-4 bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg text-left">
+        <div v-for="tag in displayTags" :key="tag" class="text-[10px] text-slate-500 dark:text-slate-400 mb-1 last:mb-0 flex items-start">
           <i class="fas fa-info-circle mr-1 mt-0.5 text-blue-400"></i>
           <span><strong :class="'text-'+tag">{{ tag }}</strong>: {{ getTagDesc(tag) }}</span>
         </div>
@@ -108,7 +139,6 @@ const getTagDesc = (tag: string) => {
         </div>
 
         <!-- RPG 模式 - 真正的怪物攻击 (非食物 且 有伤害/闪避) -->
-        <!-- [Fix] 增加 !isFoodLog 判断，防止零食误入此分支 -->
         <div class="text-left col-span-2" v-else-if="!isFoodLog && (log.damageTaken !== undefined || log.dodged)">
           <div v-if="log.dodged" class="text-green-500 font-bold text-lg">⚡ 完美闪避!</div>
           <div v-else>
@@ -137,13 +167,11 @@ const getTagDesc = (tag: string) => {
 
         <div class="text-left">
           <div class="text-xs text-slate-400">类型</div>
-          <!-- [Fix] 使用映射确保 HYDRATION 显示正确 -->
           <div class="font-bold text-xs dark:text-white">{{ MEAL_LABELS[log.mealType] || log.mealType }}</div>
         </div>
       </div>
 
       <!-- 营养成分 -->
-      <!-- [Fix] 使用 isFoodLog -->
       <div class="space-y-2 mb-4" v-if="isFoodLog">
         <div class="flex justify-between text-xs"><span class="text-slate-500">蛋白质</span><span class="font-bold text-blue-500">{{ log.p }}g</span></div>
         <div class="flex justify-between text-xs"><span class="text-slate-500">碳水</span><span class="font-bold text-green-500">{{ log.c }}g</span></div>
@@ -189,4 +217,6 @@ const getTagDesc = (tag: string) => {
 .text-高油 { color: #d97706; }
 .text-纯净 { color: #0891b2; }
 .text-均衡 { color: #7c3aed; }
+.text-低卡 { color: #059669; }
+.text-充饥 { color: #d97706; }
 </style>
