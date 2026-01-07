@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore';
 // 1. 引入新组件
 import ShieldBarCanvas from '@/components/ShieldBarCanvas.vue';
+// [新增] 引入默认头像，保持与 ProfileView 一致
+import defaultAvatar from '@/assets/avatar/avatar.jpg';
 
-
+const router = useRouter();
 const store = useGameStore();
 const systemStore = useSystemStore();
 const heroStore = useHeroStore();
@@ -43,6 +46,17 @@ const expPercent = computed(() => {
   const next = user.value.nextLevelExp || 100;
   return Math.min((current / next) * 100, 100);
 });
+
+// [交互] 头像点击处理
+const handleAvatarClick = () => {
+  if (isPure.value) {
+    // 纯净模式：跳转到个人中心
+    router.push('/profile');
+  } else {
+    // RPG模式：打开成就弹窗
+    store.setModal('achievements', true);
+  }
+};
 
 // [点击事件] 金币区域 - 打开流水弹窗并切换到GOLD Tab
 const openGoldHistory = () => {
@@ -155,7 +169,7 @@ function processQueue() {
     }, 2000);
   }
 
-  // 动态速率调整（Smart Pace）
+  // 动态速率调整 (Smart Pace)
   let nextInterval = 400; // 默认间隔
   if (textQueue.value.length > 5) {
     // 积压超过 5 条，加速处理
@@ -186,20 +200,24 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- [Fix] 添加 will-change-transform 和 translateZ 强制该区域独立层渲染，防止内部 hover 导致父级重绘 -->
-  <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-200/50 dark:border-slate-800/50 transition-colors duration-300 shadow-sm will-change-transform" style="transform: translateZ(0);">
-    <!-- [优先级五] 安全区域适配：为内容添加顶部间距 -->
+  <!-- [Mobile Opt] 顶部导航栏 UI 优化：
+       1. 浅色模式：完全透明 (bg-transparent)，移除 blur、border 和 shadow，消除“黑罩子”感。
+       2. 深色模式：保持原有的毛玻璃和深色背景。
+  -->
+  <div class="bg-transparent dark:bg-slate-900/95 dark:backdrop-blur-xl sticky top-0 z-50 dark:border-b dark:border-slate-800/50 transition-colors duration-300 shadow-none dark:shadow-sm will-change-transform" style="transform: translateZ(0);">
+
     <div class="px-4 py-3" style="padding-top: max(12px, env(safe-area-inset-top));">
       <!-- 上半部分：身份与操作 -->
       <div class="flex items-center justify-between mb-2">
         <!-- 左侧：头像与基础信息 -->
-        <div id="guide-profile" class="flex items-center gap-3 active:opacity-70 transition-opacity" @click="!isPure && store.setModal('achievements', true)">
+        <div id="guide-profile" class="flex items-center gap-3 active:opacity-70 transition-opacity cursor-pointer" @click="handleAvatarClick">
           <!-- 头像 -->
           <div class="relative shrink-0 group">
             <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 overflow-hidden shadow-md transition-transform">
-              <img :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full object-cover" />
+              <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full object-cover" />
+              <img v-else :src="defaultAvatar" class="w-full h-full object-cover" />
             </div>
-            <!-- 等级胶囊 -->
+            <!-- 等级胶囊 (仅RPG显示) -->
             <div v-if="!isPure" class="absolute -bottom-1 -right-2 bg-slate-800 text-white text-[8px] font-black px-2 py-0.5 rounded-full border-2 border-white dark:border-slate-900 shadow-sm">
               Lv.{{ user.level }}
             </div>
@@ -232,8 +250,14 @@ onUnmounted(() => {
       </div>
 
       <!-- 下半部分：Canvas 血条护盾组件 -->
-      <div v-if="!isPure && user.isInitialized" class="status-bar-container relative w-full mt-2" @click.stop="store.setModal('hpHistory', true)">
-        <!-- [Fix] 传入 theme 参数，确保 Canvas 内部能正确设置背景色，避免重绘时白屏 -->
+      <!-- [UI Design Opt] 浅色模式 UI 优化：
+           1. 移除 bg-white/bg-slate-50 等实心背景，改用 bg-transparent。
+           2. [Fix] 移除 border 类，因为 ShieldBarCanvas 组件内部会根据 theme 绘制更精确的边框，避免双重边框。
+      -->
+      <div v-if="!isPure && user.isInitialized"
+           class="status-bar-container relative w-full mt-2 rounded-2xl overflow-hidden transition-all duration-300"
+           :class="isDark ? 'bg-slate-900 border border-slate-800' : 'bg-transparent'"
+           @click.stop="store.setModal('hpHistory', true)">
         <ShieldBarCanvas
           :current-hp="user.heroCurrentHp"
           :max-hp="currentMaxHp"
@@ -244,7 +268,6 @@ onUnmounted(() => {
       </div>
 
       <!-- [交易记录入口] 金币、经验和背包显示区域 -->
-      <!-- [Fix] 使用 grid 布局替代 flex，确保在移动端等宽排列，去除了渐变色，改为更清爽的扁平风格 -->
       <div v-if="!isPure && user.isInitialized" class="grid grid-cols-3 gap-2 mt-3">
         <!-- 金币 -->
         <div
@@ -301,7 +324,7 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <!-- 浮动文字层 (Floating Text Layer) -->
+  <!-- 浮动文字层 -->
   <div class="floating-text-layer">
     <transition-group name="float-up" tag="div" class="floating-text-container">
       <div
@@ -323,25 +346,37 @@ onUnmounted(() => {
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  height: 110px; /* 与 Canvas 配置的高度一致 */
+
+  /* [Fix] 核心修复：
+     不要写死 height: 110px！
+     Canvas 现在是响应式的，高度会随宽度变化。
+     如果写死 110px，当屏幕变窄 Canvas 变矮时，Canvas 就会贴在容器顶部，导致下方留白，看起来没居中。
+     改为 auto 让容器包裹 Canvas 即可。
+  */
+  height: auto;
+  min-height: 50px; /* 防止未加载时完全坍塌 */
+
   position: relative;
   pointer-events: auto;
   cursor: pointer;
+}
 
-  /* [Fix] 同样给容器加上 GPU 加速，双重保险 */
-  transform: translateZ(0);
+/* 强制重置 Canvas 元素背景 */
+:deep(canvas) {
+  background-color: transparent !important;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
 /* === 浮动文字系统样式 === */
-
-/* 浮动文字层容器 */
 .floating-text-layer {
   position: fixed;
   top: 18%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999; /* 高于普通页面但低于模态框 */
-  pointer-events: none; /* 不阻挡点击 */
+  z-index: 9999;
+  pointer-events: none;
   width: 100%;
   max-width: 500px;
   display: flex;
@@ -358,7 +393,6 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-/* 浮动文字项 */
 .floating-text {
   display: flex;
   align-items: center;
@@ -373,7 +407,6 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-/* 类型样式 */
 .floating-text-exp {
   background: linear-gradient(135deg, rgba(147, 51, 234, 0.95), rgba(168, 85, 247, 0.95));
   color: white;
@@ -413,13 +446,11 @@ onUnmounted(() => {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* 图标弹跳动画 */
 @keyframes icon-bounce {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.3); }
 }
 
-/* Vue Transition - 浮动上升 */
 .float-up-enter-active {
   animation: float-up-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }

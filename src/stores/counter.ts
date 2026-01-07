@@ -46,9 +46,11 @@ export const useGameStore = defineStore('game', () => {
     let rawAgi = Math.floor(totalC / 180) + 10;
     let rawVit = Math.floor(totalF / 40) + 10;
 
-    rawStr = Math.floor(rawStr * (race?.growth?.str || 1) * (1 + bonuses.statMult.str));
-    rawAgi = Math.floor(rawAgi * (race?.growth?.agi || 1) * (1 + bonuses.statMult.agi));
-    rawVit = Math.floor(rawVit * (race?.growth?.vit || 1) * (1 + bonuses.statMult.vit));
+    // [Fix] 修复报错：适配扁平化的 passiveBonuses 结构
+    // 旧代码: bonuses.statMult.str -> 新代码: bonuses.strMult
+    rawStr = Math.floor(rawStr * (race?.growth?.str || 1) * (1 + (bonuses.strMult || 0)));
+    rawAgi = Math.floor(rawAgi * (race?.growth?.agi || 1) * (1 + (bonuses.agiMult || 0)));
+    rawVit = Math.floor(rawVit * (race?.growth?.vit || 1) * (1 + (bonuses.vitMult || 0)));
 
     let gearPower = 0;
     Object.values(userData.equipped).forEach(id => {
@@ -59,8 +61,10 @@ export const useGameStore = defineStore('game', () => {
     });
 
     const maxHp = 200 + (rawVit * 10);
-    const blockValue = Math.floor(rawStr * 0.8);
-    const dodgeChance = Math.min(rawAgi * 0.003, 0.60);
+
+    // [Fix] 格挡和闪避现在也加上技能树的被动加成
+    let blockValue = Math.floor(rawStr * 0.8 * (1 + (bonuses.blockPct || 0)));
+    let dodgeChance = Math.min((rawAgi * 0.003) + (bonuses.dodgeFlat || 0), 0.80);
 
     const expContribution = Math.floor(Math.pow(userData.currentExp, 0.45) * 5);
     const levelContribution = userData.level * 100;
@@ -79,7 +83,8 @@ export const useGameStore = defineStore('game', () => {
       str: Math.min(rawStr, statCap),
       agi: Math.min(rawAgi, statCap),
       vit: Math.min(rawVit, statCap),
-      maxStat: statCap, rawStr, rawAgi, rawVit,
+      maxStat: statCap,
+      rawStr, rawAgi, rawVit,
       combatPower, maxHp, blockValue, dodgeChance,
       raceName: race?.name || '人类', raceIcon: race?.icon || '👤',
       rankTitle: rank.title, rankColor: rank.color, rankIcon: rank.icon
@@ -90,8 +95,6 @@ export const useGameStore = defineStore('game', () => {
     try {
       const stateToSave: SaveData = {
         user: hero.user,
-        // [已弃用] logs 现在保存到 SQLite 数据库，不再保存到 localStorage
-        // logs: logStore.logs,
         achievements: collection.achievements,
         foodDb: collection.foodDb,
         isDarkMode: system.isDarkMode,
@@ -114,19 +117,6 @@ export const useGameStore = defineStore('game', () => {
         const data = JSON.parse(saved) as SaveData;
 
         if (data && typeof data === 'object') {
-          // [技能点修复] 废除旧数据管辖权 - 不再从这里加载 hero.user
-          // hero.user 现在由 useHeroStore 内部的 loadHeroData() 自动管理
-          // 该函数会从独立的 rpg_hero_data_v2 Key 读取最新数据
-          // if (data.user) {
-          //   Object.assign(hero.user, data.user);
-          //   ...
-          // }
-          // 注意：hero.user 的加载已经在 useHeroStore 初始化时自动完成
-
-          // [已弃用] logs 现在从 SQLite 数据库加载，不再从 localStorage 读取
-          // if (data.logs) Object.assign(logStore.logs, data.logs);
-          // logStore.recalculateGlobalStats();
-
           if (data.isDarkMode !== undefined) system.isDarkMode = !!data.isDarkMode;
           if (data.isPureMode !== undefined) system.isPureMode = !!data.isPureMode;
 
@@ -146,18 +136,14 @@ export const useGameStore = defineStore('game', () => {
           }
 
           if (!loadedFood || !collection.foodDb || collection.foodDb.length === 0) {
-            console.log('[GameStore] 强制重新加载食物数据');
             collection.initFoodDb(hero.user.race || 'HUMAN', true);
           } else {
-            // 检查现有数据是否有正确的 category 字段
-            const hasValidCategory = collection.foodDb.some(f => 
+            const hasValidCategory = collection.foodDb.some(f =>
               f.category && ['STAPLE', 'MEAT', 'VEG', 'DRINK', 'OTHER'].includes(f.category)
             );
             if (!hasValidCategory) {
-              console.log('[GameStore] 旧数据没有有效的 category 字段，强制重新加载');
               collection.initFoodDb(hero.user.race || 'HUMAN', true);
             } else {
-              console.log('[GameStore] 使用已有的食物数据');
               collection.initFoodDb(hero.user.race || 'HUMAN', false);
             }
           }
@@ -190,12 +176,10 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function initUser(formData: any) {
-    console.log('🔍 [GameStore] initUser 开始', { formData, currentHasEnteredRPG: system.hasEnteredRPGMode });
     hero.initUser(formData);
     collection.initFoodDb(hero.user.race || 'HUMAN', true);
     system.setModal('onboarding', false);
     forceSave();
-    console.log('🔍 [GameStore] initUser 结束', { hasEnteredRPG: system.hasEnteredRPGMode });
   }
 
   return {
@@ -210,7 +194,6 @@ export const useGameStore = defineStore('game', () => {
     heroStore: hero,
     logStore: logStore,
 
-    // [Fix] 关键修改：使用 computed 包装 dailyTarget，确保响应式链条不断
     dailyTarget: computed(() => hero.dailyTarget),
     heroStats,
 

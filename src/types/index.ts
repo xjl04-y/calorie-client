@@ -1,4 +1,4 @@
-1// 核心数据接口定义 - V5.2 Updated (Quest Types)
+// 核心数据接口定义 - V5.2 Updated (Quest Types)
 export type RaceType = 'HUMAN' | 'ELF' | 'ORC' | 'DWARF';
 export type SlotType = 'HEAD' | 'BODY' | 'LEGS' | 'WEAPON' | 'OFFHAND' | 'BACK' | 'ACCESSORY';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'HYDRATION' | 'EXERCISE';
@@ -385,6 +385,7 @@ export interface DailyReportData {
   goldGained: number;
   monsterName: string;
   loginStreak: number;
+  items?: Array<{ name: string; icon: string; calories: number; tags?: string[] }>; // 物资清单
 }
 
 export interface SystemTempState {

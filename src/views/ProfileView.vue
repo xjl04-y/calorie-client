@@ -12,6 +12,8 @@ import { getCombatRank } from '@/utils/gameUtils';
 import type { Achievement } from '@/types';
 import type { UploaderFileListItem } from 'vant';
 import HeroBackground from '@/components/HeroBackground.vue';
+// [新增] 引入默认头像
+import defaultAvatar from '@/assets/avatar/avatar.jpg';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
@@ -112,22 +114,7 @@ const onAvatarRead = (items: UploaderFileListItem | UploaderFileListItem[]) => {
   }
 };
 
-const changeAvatar = () => {
-  Dialog.confirm({
-    title: isPure.value ? '修改头像' : '重塑容貌',
-    message: isPure.value ? '是否随机生成一个新的头像？' : '想要改变你的英雄形象吗？',
-    showCancelButton: true,
-    confirmButtonText: '随机生成',
-    cancelButtonText: '取消',
-    confirmButtonColor: '#7c3aed',
-  }).then(() => {
-    const newSeed = Math.random().toString(36).substring(7);
-    store.user.avatarType = 'SEED';
-    store.user.avatarSeed = newSeed;
-    store.saveState();
-    showToast('头像已更新');
-  }).catch(() => {});
-};
+// [移除] 移除了 changeAvatar 函数，不再支持随机生成头像
 
 const startEditProfile = () => {
   editData.height = user.value.height;
@@ -264,10 +251,12 @@ const openTargetConfig = () => {
 
       <!-- User Card (RPG Style) -->
       <div v-if="!isPure" class="absolute inset-0 flex flex-col items-center justify-start z-20 pt-16">
-        <div class="relative group cursor-pointer mb-3" @click="changeAvatar">
+        <!-- [修改] 移除了点击事件和 cursor-pointer -->
+        <div class="relative group mb-3">
           <div class="w-24 h-24 rounded-full p-1 relative z-10 overflow-hidden shadow-xl transition-all bg-slate-200 dark:bg-slate-700 border-4 border-white dark:border-slate-800">
             <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full rounded-full object-cover" />
-            <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full rounded-full bg-slate-200 dark:bg-slate-600" />
+            <!-- [修改] 使用本地默认头像 -->
+            <img v-else :src="defaultAvatar" class="w-full h-full rounded-full bg-slate-200 dark:bg-slate-600 object-cover" />
           </div>
           <div class="absolute bottom-0 right-0 bg-yellow-500 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full border-2 border-white dark:border-slate-800 shadow-lg z-20">Lv.{{ user.level }}</div>
         </div>
@@ -302,9 +291,11 @@ const openTargetConfig = () => {
 
       <!-- User Card (Pure Style) -->
       <div v-else class="px-6 flex items-center gap-4">
-        <div class="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-100 dark:border-slate-600 flex-shrink-0" @click="changeAvatar">
+        <!-- [修改] 移除了点击事件和 cursor-pointer -->
+        <div class="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-100 dark:border-slate-600 flex-shrink-0">
           <img v-if="user.avatarType === 'CUSTOM' && user.customAvatar" :src="user.customAvatar" class="w-full h-full object-cover" />
-          <img v-else :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.avatarSeed" class="w-full h-full bg-slate-50 dark:bg-slate-700" />
+          <!-- [修改] 使用本地默认头像 -->
+          <img v-else :src="defaultAvatar" class="w-full h-full bg-slate-50 dark:bg-slate-700 object-cover" />
         </div>
         <div>
           <h3 class="text-lg font-bold text-slate-800 dark:text-white">{{ user.nickname }}</h3>

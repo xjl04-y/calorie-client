@@ -5,6 +5,8 @@ import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { TAG_DEFS } from '@/constants/gameData';
 import { showConfirmDialog, showToast } from 'vant';
+// [Import] 引入数据处理工具
+import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper';
 
 const router = useRouter();
 const store = useGameStore();
@@ -77,6 +79,56 @@ const MEAL_LABELS: Record<string, string> = {
   BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐', SNACK: '零食', HYDRATION: '补水'
 };
 
+// ==========================================
+// [核心逻辑] 智能图标处理
+// ==========================================
+const getIconDisplay = (item: any) => {
+  if (!item) return { isSymbol: false, isImage: false, content: '' };
+
+  let iconRaw = (item.icon || '').trim();
+
+  // 1. 脏数据清洗
+  if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
+    iconRaw = iconRaw.replace(/<[^>]*>?/gm, '');
+  }
+
+  // 2. 图片 URL
+  if (iconRaw.includes('/') || iconRaw.startsWith('http')) {
+    return { isSymbol: false, isImage: true, content: iconRaw };
+  }
+
+  // 3. 尝试提取 icon-xxx 并验证
+  if (iconRaw.includes('icon-')) {
+    const match = iconRaw.match(/icon-[a-zA-Z0-9-_]+/);
+    if (match) {
+      const extractedId = match[0];
+      if (isValidIcon(extractedId)) {
+        return { isSymbol: true, isImage: false, content: extractedId };
+      }
+    }
+  }
+
+  // 4. 兜底逻辑 (尝试重新分配)
+  const effectiveTags = (item.tags && item.tags.length > 0)
+    ? item.tags
+    : inferTags(item.name || '');
+
+  let assigned = assignIcon(item.name || '', effectiveTags);
+
+  // [强制兜底] 绝不返回空，如果失败，强制给一个默认图标
+  if (!assigned || assigned === 'undefined' || assigned === 'null') {
+    assigned = 'icon-food';
+  }
+
+  // 只要有 assigned (哪怕是 fallback 的)，就当作 Symbol 显示
+  if (assigned) {
+    return { isSymbol: true, isImage: false, content: assigned };
+  }
+
+  // 5. 真的没办法了
+  return { isSymbol: false, isImage: false, content: iconRaw || '❓' };
+};
+
 const handleDelete = () => {
   showConfirmDialog({
     title: '删除记录',
@@ -108,9 +160,26 @@ const handleDelete = () => {
 
       <!-- 1. 核心卡片 -->
       <div class="flex flex-col items-center">
-        <div class="w-24 h-24 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center text-6xl shadow-sm mb-4">
-          {{ log.icon }}
+        <!-- 智能图标显示区域 -->
+        <div class="w-24 h-24 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center shadow-sm mb-4 overflow-hidden relative">
+          <!-- Image 模式 -->
+          <template v-if="getIconDisplay(log).isImage">
+            <img :src="getIconDisplay(log).content" class="w-full h-full object-cover" alt="icon" />
+          </template>
+
+          <!-- Symbol 模式 (SVG) -->
+          <template v-else-if="getIconDisplay(log).isSymbol">
+            <svg class="icon text-6xl text-slate-800 dark:text-white" aria-hidden="true">
+              <use :xlink:href="'#' + getIconDisplay(log).content"></use>
+            </svg>
+          </template>
+
+          <!-- 文字回退模式 -->
+          <template v-else>
+            <span class="text-4xl text-slate-400">{{ getIconDisplay(log).content }}</span>
+          </template>
         </div>
+
         <h1 class="text-2xl font-black text-slate-800 dark:text-white mb-2 text-center leading-tight">
           {{ log.name }}
         </h1>
@@ -236,4 +305,13 @@ const handleDelete = () => {
 
 <style scoped>
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+/* 支持 SVG 图标的样式 */
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
 </style>

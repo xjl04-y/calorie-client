@@ -1,113 +1,171 @@
-import rawFoodData from '@/constants/food-table.json';
+// 【重要】这里改为引入 Python 处理好的 json 文件
+// 如果你还没跑脚本，TS 报错找不到文件，请先跑脚本或者暂时指回原文件
+import optimizedFoodData from '@/constants/food_data_complete_with_icons.json';
+import iconfontData from '@/assets/iconfont/iconfont.json';
 import type { FoodItem } from '@/types';
 
-// 辅助函数：提取字符串中的数字
-const parseNumber = (str: string | number | undefined | null): number => {
-  if (typeof str === 'number') return str;
-  if (!str || typeof str !== 'string') return 0;
-  const match = str.match(/(\d+(\.\d+)?)/);
-  return match ? parseFloat(match[0]) : 0;
+// ==========================================
+// 前端辅助逻辑
+// 用于：处理图标映射、标签推断、安全数值转换
+// ==========================================
+
+const PREFIX = (iconfontData as any).css_prefix_text || 'icon-';
+const ALL_ICONS = (iconfontData as any).glyphs || [];
+
+// 【新增】坏图标黑名单
+// 如果 iconfont.json 里有，但网页上显示为空，请把该图标的 font_class (不带 icon- 前缀) 加到这里
+const BROKEN_ICONS = [
+  'putaojiu2', // 已知损坏的图标
+  'tianpin2',  // 预留位置
+];
+
+// 简化的哈希函数
+const stringHash = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
 };
 
-// 核心：智能推断标签和分类
-const inferTags = (name: string): string[] => {
+/**
+ * [验证] 图标是否存在于当前的 iconfont 库中
+ * 增强逻辑：同时检查黑名单
+ */
+export const isValidIcon = (iconClass: string): boolean => {
+  if (!iconClass || typeof iconClass !== 'string') return false;
+
+  // 剥离前缀 (icon-apple -> apple) 进行比对
+  const target = iconClass.startsWith(PREFIX) ? iconClass.slice(PREFIX.length) : iconClass;
+
+  // 1. 检查黑名单：如果是坏图标，直接视为无效
+  if (BROKEN_ICONS.includes(target)) {
+    return false;
+  }
+
+  // 2. 检查 iconfont.json 是否包含
+  return ALL_ICONS.some((i: any) => i.font_class === target);
+};
+
+// 简化的前端标签推断 (当 JSON 缺少 tags 时使用)
+export const inferTags = (name: string): string[] => {
   const tags: string[] = [];
-
-  // --- 1. 基础分类 (底层元数据，用于Tab筛选，不一定要显示) ---
-
-  // 饮品识别
   if (/[酒啤酿醉饮茶咖奶汁露浆水]/.test(name)) tags.push('DRINK');
-  if (/[酒啤酿醉]/.test(name) || /鸡尾酒/.test(name)) tags.push('ALCOHOL');
-
-  // 肉类识别 [Bug Fix: 修复 "鸡尾酒" 被识别为禽肉的问题]
-  // 逻辑：匹配肉类关键词，且不能包含 "鸡尾酒"、"牛油果" 等干扰词
-  const isCocktail = /鸡尾酒/.test(name);
-  const isAvocado = /牛油果/.test(name); // 防御性编程
-
-  if (/牛|羊|猪|鹿|排|肠|火腿|肉/.test(name) && !isAvocado && !/果肉/.test(name)) {
-    tags.push('MEAT', 'RED_MEAT');
-  }
-  else if (/[鸡鸭鹅禽蛋]/.test(name) && !isCocktail) {
-    tags.push('MEAT', 'POULTRY');
-  }
-  else if (/[鱼虾蟹贝海]/.test(name)) {
-    tags.push('MEAT', 'SEAFOOD');
-  }
-
-  // 素食识别
-  if (/[菜瓜豆菇笋茄椒葱蒜]/.test(name)) tags.push('VEGETABLE');
-  if (/[果莓蕉梨桃橘柑柚枣]/.test(name) && !isCocktail) tags.push('FRUIT'); // 鸡尾酒不算水果
-
-  // 主食与零食
-  if (/[饭面粉饼馍糕包米麦粥]/.test(name)) tags.push('STAPLE');
-  if (/[糖巧酥蜜冻干糕]/.test(name)) tags.push('SNACK');
-
-  // --- 2. 状态识别 (RPG 属性) ---
-  if (/[干片脆]/.test(name)) tags.push('STATE_DRIED');
-  if (/[酱腌泡咸腊]/.test(name)) tags.push('STATE_PRESERVED');
-  if (/[烤熏烧炸煎炒]/.test(name)) tags.push('STATE_COOKED');
-  if (/[鲜生刺身]/.test(name)) tags.push('STATE_RAW');
-
-  // --- 3. [New] 感官风味与温度 (RPG 核心玩法标签) ---
-  // 这些标签才是需要展示给用户看的 "Buff/Debuff 提示"
-
-  // 辛辣: 火属性
-  if (/[辣麻咖]/.test(name)) tags.push('FLAVOR_SPICY');
-
-  // 酸味: 克制油腻
-  if (/[酸醋柠]/.test(name)) tags.push('FLAVOR_SOUR');
-
-  // 甜味: 治愈 (注意排除纯糖，更多指风味)
-  if (/[甜蜜糖糕]/.test(name)) tags.push('FLAVOR_SWEET');
-
-  // 苦味: 解毒
-  if (/[苦咖茶]/.test(name)) tags.push('FLAVOR_BITTER');
-
-  // 冰冷: 冰属性
-  if (/[冰冻冷雪]/.test(name) || /鸡尾酒/.test(name)) tags.push('TEMP_COLD');
-
-  // 热食: 抵抗严寒
-  if (/[锅煲炖汤热]/.test(name)) tags.push('TEMP_HOT');
-
+  else if (/[牛羊猪鹿排肠火腿肉鸡鸭鹅鸽蛋]/.test(name)) tags.push('MEAT');
+  else if (/[鱼虾蟹贝蚝鱿参]/.test(name)) tags.push('SEAFOOD');
+  else if (/[菜茄瓜豆菇笋藕葱姜蒜椒菠萝芹]/.test(name) && !/果/.test(name)) tags.push('VEGETABLE');
+  else if (/[果莓蕉梨桃橘橙柚葡萄榴莲]/.test(name)) tags.push('FRUIT');
+  else if (/[饭面粉粥饼包饺馒囊糕馍意面]/.test(name)) tags.push('STAPLE');
+  else if (/[甜蜜糖糕冰点心]/.test(name)) tags.push('FLAVOR_SWEET');
   return tags;
 };
 
-// 根据标签推断主分类（用于 Tab 筛选）
-const inferCategory = (tags: string[]): string => {
-  if (tags.includes('STAPLE')) return 'STAPLE';
-  if (tags.includes('MEAT')) return 'MEAT';
-  if (tags.includes('VEGETABLE') || tags.includes('FRUIT')) return 'VEG';
-  if (tags.includes('DRINK')) return 'DRINK';
-  return 'OTHER';
+// 简化的前端图标分配 (当 JSON 缺少 icon 或 icon 无效时使用)
+export const assignIcon = (foodName: string, tags: string[] = []): string => {
+  const target = foodName.trim();
+
+  // 1. 尝试精准匹配
+  const exact = ALL_ICONS.find((i: any) => i.name === target || i.font_class === target);
+  if (exact && !BROKEN_ICONS.includes(exact.font_class)) {
+    return `${PREFIX}${exact.font_class}`;
+  }
+
+  // 2. 尝试模糊匹配 (排除黑名单)
+  const fuzzy = ALL_ICONS.find((i: any) => target.includes(i.name) && i.name.length > 1 && !BROKEN_ICONS.includes(i.font_class));
+  if (fuzzy) return `${PREFIX}${fuzzy.font_class}`;
+
+  // 3. 类别兜底 (确保这些图标是存在的)
+  if (tags.includes('DRINK')) return `${PREFIX}drink`;
+  if (tags.includes('MEAT')) return `${PREFIX}meat`;
+  if (tags.includes('VEGETABLE')) return `${PREFIX}vegetable`;
+  if (tags.includes('FRUIT')) return `${PREFIX}fruit`;
+  if (tags.includes('STAPLE')) return `${PREFIX}fan`;
+
+  return `${PREFIX}food`;
+};
+
+/**
+ * 安全数值解析工具
+ */
+const safeNumber = (...values: any[]): number => {
+  for (const val of values) {
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val);
+      if (!isNaN(parsed)) return parsed;
+    }
+  }
+  return 0;
 };
 
 /**
  * 获取初始食物数据
+ * 增强：在加载数据时就过滤掉坏图标，直接替换为有效图标
  */
 export const getInitialFoods = (): FoodItem[] => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return rawFoodData.map((item: any, index: number) => {
-    // 优先使用 JSON 中的 ID，如果没有则生成
-    const id = item._id?.$oid || item._id || `food_${Date.now()}_${index}`;
-    const info = item.info || {};
-    const calories = parseNumber(info['能量']);
-    const tags = inferTags(item.name);
-    const category = inferCategory(tags);
+  const sourceData = optimizedFoodData;
+
+  if (!sourceData || !Array.isArray(sourceData) || sourceData.length === 0) {
+    return [];
+  }
+
+  return sourceData.map((item: any, index: number) => {
+    // [Fix] 预先清洗图标
+    let cleanIcon = item.icon;
+    if (cleanIcon && typeof cleanIcon === 'string') {
+      const match = cleanIcon.match(/icon-[a-zA-Z0-9-_]+/);
+      if (match) {
+        const iconId = match[0];
+        if (!isValidIcon(iconId)) {
+          cleanIcon = null;
+        }
+      }
+    }
+
+    const tags = Array.isArray(item.tags) ? item.tags : inferTags(item.name || '');
+
+    // 解析数值
+    const price = safeNumber(item.price, item.Price, item.cost);
+    const calories = safeNumber(item.calories, item.Calories, item.cal, item.energy, item.Energy, item.kcal, item.Kcal);
+
+    // 蛋白质尝试列表
+    const protein = safeNumber(item.protein, item.Protein, item.prot, item.protein_g, item.Protein_g, item['Protein(g)']);
+
+    // 脂肪尝试列表
+    const fat = safeNumber(item.fat, item.Fat, item.fat_g, item.Fat_g, item.Total_Fat, item['Fat(g)']);
+
+    // 碳水尝试列表
+    const carbs = safeNumber(item.carbs, item.Carbs, item.carbohydrates, item.Carbohydrate, item.carbs_g, item.Carbs_g, item['Carbs(g)'], item['Carbohydrate(g)']);
+
+    const fiber = safeNumber(item.fiber, item.Fiber, item.fibre, item.Fibre, item.fiber_g, item.Fiber_g, item['Fiber(g)']);
 
     return {
-      id: id,
-      name: item.name,
-      originalName: item.name,
-      icon: '🍽️',
-      calories: calories,
-      p: parseNumber(info['蛋白质']),
-      c: parseNumber(info['碳水化合物']),
-      f: parseNumber(info['脂肪']),
-      grams: 100,
-      category: category,
+      ...item,
+      id: item.id || `food_${Math.random().toString(36).substr(2, 9)}`,
+      name: item.name || 'Unknown',
+
+      price,
+      calories,
+
+      // [FIX] 关键修复：同时提供全称和简写
+      // UI 组件 (ModalQuantity 等) 使用 p, c, f
+      protein,
+      p: protein,
+
+      fat,
+      f: fat,
+
+      carbs,
+      c: carbs,
+
+      fiber,
+
       tags: tags,
-      tips: `每100克含有${calories}千卡能量`,
-      usageCount: 0
-    } as FoodItem;
+      category: item.category || 'DISH',
+
+      icon: cleanIcon || `iconfont ${assignIcon(item.name || '', tags)}`,
+      imgUrl: item.imgUrl || ''
+    };
   });
 };

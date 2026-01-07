@@ -10,6 +10,7 @@ export const useSystemStore = defineStore('system', () => {
   const isPureMode = ref(false);
   const enableSplashAnimation = ref(true); // [开屏动画] 全局开关
   const hasEnteredRPGMode = ref(false); // [Fix] 标记用户是否进入过RPG模式
+  const hasSeenPureGuide = ref(false); // [纯净模式] 标记是否已查看过纯净模式引导
   const currentDate = ref(getLocalDateStr());
   const analysisRefDate = ref(getLocalDateStr());
 
@@ -262,6 +263,7 @@ export const useSystemStore = defineStore('system', () => {
     isPureMode,
     enableSplashAnimation, // [开屏动画] 导出开关
     hasEnteredRPGMode, // [Fix] 导出RPG模式标记
+    hasSeenPureGuide, // [纯净模式] 导出纯净模式引导标记
     currentDate,
     analysisRefDate,
     analysisActiveTab,

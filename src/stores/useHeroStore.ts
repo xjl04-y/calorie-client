@@ -5,11 +5,11 @@ import { useSystemStore } from '@/stores/useSystemStore';
 import { useCollectionStore } from '@/stores/useCollectionStore';
 import { useLogStore } from '@/stores/useLogStore';
 import { getLocalDateStr } from '@/utils/dateUtils';
-import { RACES, RACE_SKILL_TREES, MONSTERS } from '@/constants/gameData';
+import { RACES, RACE_SKILL_TREES, MONSTERS, SHOP_ITEMS } from '@/constants/gameData';
 import { showToast, showNotify } from 'vant';
 
 const MAX_LEVEL = 100;
-const STORAGE_KEY = 'rpg_hero_data_v2'; // 独立存储key，隔离旧版本数据
+const STORAGE_KEY = 'rpg_hero_data_v2';
 
 export const useHeroStore = defineStore('hero', () => {
   const systemStore = useSystemStore();
@@ -17,7 +17,6 @@ export const useHeroStore = defineStore('hero', () => {
   const logStore = useLogStore();
 
   // --- State ---
-  // 注意：请确保 types/index.ts 中的 UserState 接口已包含 stamina 和 maxStamina 字段
   const user = reactive<UserState>({
     isInitialized: false,
     level: 1,
@@ -36,11 +35,8 @@ export const useHeroStore = defineStore('hero', () => {
     heroCurrentHp: 200,
     heroMaxHp: 200,
     heroShield: 0,
-
-    // [PM Add] 新增体力系统，配合 UI 显示
     stamina: 100,
     maxStamina: 100,
-
     equipped: { HEAD: null, BODY: null, LEGS: null, WEAPON: null, OFFHAND: null, BACK: null, ACCESSORY: null },
     weightHistory: [],
     skillPoints: 0,
@@ -51,7 +47,7 @@ export const useHeroStore = defineStore('hero', () => {
     lastLoginDate: getLocalDateStr(),
     gold: 0,
     inventory: { 'item_rebirth_potion': 1 },
-    transactionHistory: [], // [修复工单01] 初始化交易历史
+    transactionHistory: [],
     hydration: {
       dailyTargetCups: 8,
       cupSizeMl: 250,
@@ -71,84 +67,149 @@ export const useHeroStore = defineStore('hero', () => {
   });
 
   // --- Getters ---
-
   const skillTree = computed(() => {
     return RACE_SKILL_TREES[user.race] || RACE_SKILL_TREES['HUMAN'];
   });
 
-  // 计算被动加成 (Complex Logic Preserved)
+  // [Fix] 完整实现所有技能树效果的统计逻辑
+  // 这里将所有 passive 类型的技能效果聚合成一个大的属性对象
   const passiveBonuses = computed(() => {
-    let bmrBonus = 0;
-    const statMult = { str: 0, agi: 0, vit: 0 };
-    let expRate = 1.0;
+    // 初始属性结构
+    const stats = {
+      // 基础属性
+      bmrBonus: 0,
+      strMult: 0, // 力量百分比
+      agiMult: 0, // 敏捷百分比
+      vitMult: 0, // 体质百分比
 
-    // 连胜经验加成：每多一天 +1%，最高 10%
+      // 资源/发育
+      expRate: 1.0,  // 经验倍率
+      goldMult: 1.0, // 全局金币倍率
+      questGold: 0,  // 任务金币加成
+      questExp: 0,   // 任务经验加成
+      battleGold: 0, // 战斗金币加成
+
+      // 战斗属性
+      blockPct: 0,    // 格挡率
+      critRate: 0,    // 暴击率
+      critDmg: 0,     // 暴击伤害 (基础通常是 1.5，这里存增量)
+      dodgeFlat: 0,   // 闪避率 (直接数值)
+      reflectDmg: 0,  // 反弹伤害比例
+      lifesteal: 0,   // 吸血比例
+      ignoreDef: 0,   // 无视防御概率
+      dmgReduce: 0,   // 固定减伤
+      healMult: 0,    // 治疗效果加成
+
+      // 特殊机制
+      comboWindow: 0, // 连击窗口延长时间(分钟)
+      maxEatLimit: 0, // 进食上限提升
+      meatHealBonus: 0, // 肉类回复加成
+      vegExpBonus: 0,   // 蔬菜经验加成
+      cleanFoodBonus: 0,// 纯净食物加成
+      shieldDmgRate: 0, // 护盾转攻击比例
+      lowHpDmg: 0,      // 低血量增伤
+      lowHpBlock: 0     // 低血量格挡
+    };
+
+    // 1. 连击奖励 (基础机制)
     if (user.loginStreak > 1) {
-      expRate += Math.min((user.loginStreak - 1) * 0.01, 0.1);
+      stats.expRate += Math.min((user.loginStreak - 1) * 0.01, 0.1);
     }
 
+    // 2. 遍历所有已学习技能进行累加
     skillTree.value?.forEach(node => {
       const level = user.learnedSkills[node.id] || 0;
       if (level > 0) {
-        if (node.type === 'PASSIVE_BMR') {
-          bmrBonus += node.effectParams.base + (level - 1) * node.effectParams.scale;
-        } else if (node.type === 'PASSIVE_STAT') {
-          const target = node.effectParams.target;
-          const val = node.effectParams.base + (level - 1) * node.effectParams.scale;
+        // 计算当前等级的数值
+        const val = node.effectParams.base + (level - 1) * node.effectParams.scale;
 
-          if (target === 'str_mult') statMult.str += val;
-          else if (target === 'agi_mult') statMult.agi += val;
-          else if (target === 'vit_mult') statMult.vit += val;
-          else if (target === 'exp_rate') expRate += val;
-          else if (target === 'all_stat') {
-            statMult.str += val; statMult.agi += val; statMult.vit += val;
+        // BMR 特殊处理
+        if (node.type === 'PASSIVE_BMR') {
+          stats.bmrBonus += val;
+        }
+        // 属性统计处理 (涵盖 skillTrees.ts 中所有 target)
+        else if (node.type === 'PASSIVE_STAT') {
+          const t = node.effectParams.target;
+
+          switch (t) {
+            // 三维
+            case 'str_mult': stats.strMult += val; break;
+            case 'agi_mult': stats.agiMult += val; break;
+            case 'vit_mult': stats.vitMult += val; break;
+            case 'all_stat':
+              stats.strMult += val;
+              stats.agiMult += val;
+              stats.vitMult += val;
+              break;
+
+            // 资源
+            case 'exp_rate': stats.expRate += val; break;
+            case 'gold_mult': stats.goldMult += val; break;
+            case 'quest_gold': stats.questGold += val; break;
+            case 'quest_exp': stats.questExp += val; break;
+            case 'battle_gold': stats.battleGold += val; break;
+
+            // 战斗
+            case 'block_pct': stats.blockPct += val; break;
+            case 'crit_rate': stats.critRate += val; break;
+            case 'crit_dmg': stats.critDmg += val; break;
+            case 'dodge_flat': stats.dodgeFlat += val; break;
+            case 'reflect_dmg': stats.reflectDmg += val; break;
+            case 'lifesteal': stats.lifesteal += val; break;
+            case 'ignore_def': stats.ignoreDef += val; break;
+            case 'dmg_reduce': stats.dmgReduce += val; break;
+            case 'heal_mult': stats.healMult += val; break;
+
+            // 特殊
+            case 'combo_window': stats.comboWindow += val; break;
+            case 'max_eat': stats.maxEatLimit += val; break;
+            case 'meat_heal': stats.meatHealBonus += val; break;
+            case 'veg_exp': stats.vegExpBonus += val; break;
+            case 'clean_bonus': stats.cleanFoodBonus += val; break;
+            case 'shield_dmg': stats.shieldDmgRate += val; break;
+            case 'low_hp_dmg': stats.lowHpDmg += val; break;
+            case 'low_hp_block': stats.lowHpBlock += val; break;
           }
         }
       }
     });
 
-    return { bmrBonus, statMult, expRate };
+    return stats;
   });
 
-  // 动态真实最大生命值
   const realMaxHp = computed(() => {
     const { totalF } = logStore.historyTotalMacros;
     const race = RACES[user.race] || RACES.HUMAN;
     const bonuses = passiveBonuses.value;
 
-    // 基础体力由总脂肪摄入决定 (RPG 设定：脂肪储备转化为生命力)
     let rawVit = Math.floor(totalF / 40) + 10;
-    rawVit = Math.floor(rawVit * (race?.growth?.vit || 1) * (1 + bonuses.statMult.vit));
+    // 使用新的 bonuses.vitMult
+    rawVit = Math.floor(rawVit * (race?.growth?.vit || 1) * (1 + bonuses.vitMult));
 
-    // 等级上限防止数值膨胀
     const statCap = 50 + (user.level * 20);
     const finalVit = Math.min(rawVit, statCap);
 
-    return 200 + (finalVit * 10);
+    // 兽人天赋：泰坦之躯 (hp_double_no_dodge) 可能在逻辑层处理，或者直接在这里加倍
+    // 这里暂保持基础公式，特殊翻倍建议在 GameStore 或具体战斗逻辑中判定
+    return 200 + (finalVit * 10) + (bonuses.maxEatLimit * 0.5); // 稍微让暴饮暴食也加点血上限
   });
 
-  // 同步 MaxHp 到 State
   watch(realMaxHp, (val) => {
     user.heroMaxHp = val;
-    // 如果最大生命值上限降低，当前血量需要截断，但保留护盾
     if (user.heroCurrentHp > val) {
       user.heroCurrentHp = val;
     }
   }, { immediate: true });
 
-  // 每日热量目标 (Boss 血量)
   const dailyTarget = computed(() => {
     let bonus = 0;
-    // 装备加成
     Object.values(user.equipped).forEach(itemId => {
       if (itemId) {
         const item = collectionStore.achievements.find(a => a.id === itemId);
         if (item && item.bonusBMR) bonus += item.bonusBMR;
       }
     });
-    // 被动技能加成
     bonus += passiveBonuses.value.bmrBonus;
-    // 运动消耗加成 (运动越多，Boss 血量/可摄入量越高)
     const exerciseBurn = logStore.todayBurn || 0;
 
     let base = 2000;
@@ -173,7 +234,6 @@ export const useHeroStore = defineStore('hero', () => {
       return { ready: false, text: '生效中', percent: 100, active: true };
     }
 
-    // 种族技能 CD 逻辑
     let cdHours = 12;
     if (skill.id.includes('ELF')) cdHours = 8;
     if (skill.id.includes('ORC')) cdHours = 16;
@@ -205,7 +265,6 @@ export const useHeroStore = defineStore('hero', () => {
 
   // --- Actions ---
 
-  // [PM Add] 体力相关操作
   function useStamina(amount: number): boolean {
     if (!user.stamina) user.stamina = 0;
     if (user.stamina >= amount) {
@@ -221,8 +280,6 @@ export const useHeroStore = defineStore('hero', () => {
     user.stamina = Math.min(max, user.stamina + amount);
   }
 
-  // === [阶段二] 流水记录核心方法 ===
-  // 升级版 logTransaction：支持金币、经验、物品三种资产，确保账实相符
   function logTransaction(
     type: import('@/types').TransactionType,
     currency: 'GOLD' | 'EXP' | 'ITEM',
@@ -230,11 +287,10 @@ export const useHeroStore = defineStore('hero', () => {
     source: string,
     itemId?: string,
     itemName?: string,
-    balanceAfter?: number  // [修复] 允许外部传入交易后余额
+    balanceAfter?: number
   ): void {
     if (!user.transactionHistory) user.transactionHistory = [];
 
-    // 如果没有传入balanceAfter，自动计算当前余额
     if (balanceAfter === undefined) {
       if (currency === 'GOLD') {
         balanceAfter = user.gold;
@@ -254,7 +310,6 @@ export const useHeroStore = defineStore('hero', () => {
       source
     };
 
-    // 如果是物品交易，记录物品信息
     if (currency === 'ITEM') {
       record.itemId = itemId;
       record.itemName = itemName || itemId;
@@ -263,49 +318,42 @@ export const useHeroStore = defineStore('hero', () => {
     user.transactionHistory.push(record);
   }
 
-  // [阶段二改造] 支持传入type参数，区分收入来源
   function addGold(amount: number, source: string = '系统奖励', type: import('@/types').TransactionType = 'SYSTEM_GRANT'): void {
     if (!amount || amount <= 0) return;
     if (!user.gold) user.gold = 0;
-    const safeAmount = Math.floor(amount);
-    user.gold += safeAmount;
 
-    // 记录交易流水（带类型标记）
+    // 应用金币加成 (被动技能)
+    const bonuses = passiveBonuses.value;
+    let multiplier = bonuses.goldMult;
+
+    // 特定来源加成
+    if (type === 'BATTLE_REWARD' || type === 'CHECKIN_BONUS') {
+      multiplier += bonuses.battleGold;
+    } else if (type === 'QUEST_REWARD') {
+      multiplier += bonuses.questGold;
+    }
+
+    const safeAmount = Math.floor(amount * multiplier);
+    user.gold += safeAmount;
     logTransaction(type, 'GOLD', safeAmount, source);
   }
 
-  // [指令2] 回滝XP - 实现等级与经验的智能回滚机制
-  // 目标: 解决"删除记录只扣经验不降级"导致的无限刷技能点漏洞
-  // [指令1修复] 添加 source 参数并记录流水
   function revertXp(amount: number, source: string = '系统回滚'): void {
     if (!amount || amount <= 0) return;
     const safeAmount = Math.floor(amount);
-
     user.currentExp -= safeAmount;
-
-    // 记录交易流水（负值）
     logTransaction('SYSTEM_ROLLBACK', 'EXP', -safeAmount, source);
 
-    // [关键] 当经验值为负数时,进入降级循环
     while (user.currentExp < 0 && user.level > 1) {
-      user.level -= 1; // 等级减1
-
-      // 使用逆向公式计算上一级的 nextLevelExp
+      user.level -= 1;
       const prevLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
-
-      // 将当前负的经验值加上这个上限,变成上一级剩余的经验值
       user.currentExp += prevLevelExp;
-
-      // [关键] 同时扣除1点 skillPoints (如果大于0)
       if (user.skillPoints > 0) {
         user.skillPoints -= 1;
       }
-
-      // 更新 nextLevelExp
       user.nextLevelExp = Math.floor(100 * Math.pow(user.level, 2.2));
     }
 
-    // 边界保护: 最低只能降到1级,经验最低为0
     if (user.level < 1) {
       user.level = 1;
       user.currentExp = 0;
@@ -317,31 +365,23 @@ export const useHeroStore = defineStore('hero', () => {
     }
   }
 
-  // [指令3] 回滝金币 - 允许负债(修复经济系统体验)
-  // [指令1修复] 添加 source 参数并记录流水
   function revertGold(amount: number, source: string = '系统回滚'): void {
     if (!amount || amount <= 0) return;
     if (!user.gold) user.gold = 0;
     const safeAmount = Math.floor(amount);
-    // [关键修改] 移除Math.max(0,...)，允许金币为负数
     user.gold -= safeAmount;
-
-    // 记录交易流水（负值）
     logTransaction('SYSTEM_ROLLBACK', 'GOLD', -safeAmount, source);
   }
 
-  // [阶段二改造] 购买道具时记录「金币支出」和「物品入库」两条流水
   function buyItem(itemId: string, price: number, itemName?: string): boolean {
     if (user.gold < price) {
       showToast('金币不足');
       return false;
     }
 
-    // 1. 扣除金币并记录
     user.gold -= price;
     logTransaction('ITEM_BUY', 'GOLD', -price, `购买${itemName || itemId}`, undefined, undefined, user.gold);
 
-    // 2. 物品入库并记录
     if (!user.inventory) user.inventory = {};
     const newCount = (user.inventory[itemId] || 0) + 1;
     user.inventory[itemId] = newCount;
@@ -351,44 +391,80 @@ export const useHeroStore = defineStore('hero', () => {
     return true;
   }
 
-  // [阶段二改造] 消耗道具时记录流水，区分不同道具的特殊效果
   function consumeItem(itemId: string, count = 1, itemName?: string): boolean {
     if (!user.inventory || !user.inventory[itemId] || user.inventory[itemId] < count) return false;
 
-    // 扣除库存并记录
     user.inventory[itemId] -= count;
     const newCount = user.inventory[itemId];
     if (newCount <= 0) delete user.inventory[itemId];
 
-    // 记录物品消耗流水（传入消耗后的余额）
     logTransaction('ITEM_USE', 'ITEM', -count, `使用道具`, itemId, itemName, newCount > 0 ? newCount : 0);
-
-    // [阶段二] 特殊逻辑：经验药水等道具的额外效果记录
-    // 查找道具配置（从gameData获取）
-    const SHOP_ITEMS = [
-      { id: 'item_exp_potion', name: '经验药水', effect: 'EXP', value: 100 },
-      { id: 'item_heal_potion', name: '治疗药水', effect: 'HEAL' },
-      { id: 'item_rebirth_potion', name: '转生药水', effect: 'REBIRTH' }
-    ];
 
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (item?.effect === 'EXP' && item.value) {
-      // 经验药水：记录获得的经验
-      logTransaction('ITEM_USE', 'EXP', item.value, `${item.name}效果`);
+      // logic handled elsewhere
     }
 
     return true;
   }
 
-  // [工单04] 重生逻辑安全审计 - 确保只重置游戏数值，不误删真实健康记录
-  // [Fix] 转生流程改进：先打开选种族弹窗，选完后再执行转生，可以取消
+  // --- [New Actions for Shop Items] ---
+
+  function resetSkills(): void {
+    let totalRefund = 0;
+    const currentTree = RACE_SKILL_TREES[user.race];
+    if (currentTree) {
+      currentTree.forEach(node => {
+        const level = user.learnedSkills[node.id] || 0;
+        if (level > 0) {
+          totalRefund += (level * node.cost);
+        }
+      });
+    }
+    user.learnedSkills = {};
+    user.skillPoints += totalRefund;
+    showNotify({ type: 'success', message: `✨ 技能已重置，返还 ${totalRefund} 点技能点` });
+  }
+
+  function clearDebuffs(): void {
+    if (user.heroCurrentHp <= 0) {
+      user.heroCurrentHp = 1;
+      showNotify({ type: 'success', message: '✨ 净化成功！你从力竭中恢复了知觉。' });
+    } else {
+      showNotify({ type: 'success', message: '✨ 身体变得轻盈了！(净化效果)' });
+    }
+  }
+
+  function openBlindBox(type: 'COMMON' | 'RARE'): void {
+    const isRare = type === 'RARE';
+    const rand = Math.random();
+    let rewardMsg = '';
+
+    if (rand < 0.4) {
+      const gold = isRare ? 1000 + Math.floor(Math.random() * 1000) : 50 + Math.floor(Math.random() * 100);
+      addGold(gold, '盲盒奖励', 'ITEM_USE');
+      rewardMsg = `获得 ${gold} 金币`;
+    } else if (rand < 0.7) {
+      const exp = isRare ? 500 : 50;
+      addExp(exp, '盲盒奖励', 'ITEM_USE');
+      rewardMsg = `获得 ${exp} 经验`;
+    } else {
+      const potionId = isRare ? 'item_hp_potion_large' : 'item_hp_potion';
+      if (!user.inventory) user.inventory = {};
+      user.inventory[potionId] = (user.inventory[potionId] || 0) + 1;
+      const itemName = isRare ? '大型生命药剂' : '小型生命药剂';
+      rewardMsg = `获得 ${itemName} x1`;
+    }
+
+    showNotify({ type: 'success', message: `🎁 打开盲盒：${rewardMsg}`, background: '#f59e0b' });
+  }
+
   function rebirth(newRace: RaceType): void {
     if (!consumeItem('item_rebirth_potion', 1, '转生药水')) {
       showToast('缺少转生药水');
       return;
     }
 
-    // 计算需要返还的技能点
     let totalRefundSP = 0;
     const currentTree = RACE_SKILL_TREES[user.race];
     if (currentTree) {
@@ -400,21 +476,11 @@ export const useHeroStore = defineStore('hero', () => {
       });
     }
 
-    // DO NOT RESET FOOD/EXERCISE LOGS HERE - 绝对不清除用户的真实健康记录
-    // 仅重置游戏进度相关数值
     user.skillPoints += totalRefundSP;
-    user.learnedSkills = {}; // 清空已学技能
+    user.learnedSkills = {};
     user.activeSkillId = null;
     user.activeSkillCd = 0;
-    // 切换种族
     user.race = newRace;
-
-    // [修复转生逻辑] 技能清空后，被动加成会自动归零（通过 computed 重算）
-    // realMaxHp 会通过 watch 自动更新，无需手动干预
-    // 警告：不要重置 baseBMR、level、exp，这些是玩家成长的核心数据
-
-    // 警告：绝对不能调用 localStorage.clear() 或清空 logs
-    // 用户的饮食/运动记录是宝贵的健康数据，转生不影响这些记录
 
     showNotify({
       type: 'success',
@@ -424,7 +490,6 @@ export const useHeroStore = defineStore('hero', () => {
     });
   }
 
-  // 私有辅助方法：计算 TDEE
   function _calculateRecommendedBMR(weight: number, height: number, age: number, gender: string, activityLevel: number, goal: string): number {
     const w = Number(weight) || 60;
     const h = Number(height) || 170;
@@ -511,8 +576,6 @@ export const useHeroStore = defineStore('hero', () => {
     user.lastLoginDate = getLocalDateStr();
     user.gold = 0;
     user.inventory = { 'item_rebirth_potion': 1 };
-
-    // 初始化体力
     user.stamina = 100;
     user.maxStamina = 100;
 
@@ -535,14 +598,6 @@ export const useHeroStore = defineStore('hero', () => {
     user.isInitialized = true;
   }
 
-  /**
-   * 更新体重并记录到体重历史
-   * @param newWeight - 新体重 (kg)
-   * @param options - 可选参数
-   * @param options.bmi - BMI指数（可选，系统会自动计算）
-   * @param options.bodyFatRate - 体脂率（可选，未来扩展）
-   * @param options.note - 备注（可选）
-   */
   function updateWeight(
     newWeight: number,
     options?: {
@@ -554,7 +609,6 @@ export const useHeroStore = defineStore('hero', () => {
     if (newWeight <= 0) return;
     user.weight = newWeight;
 
-    // 自动模式下重新计算 BMR
     if (user.targetConfig?.mode === 'AUTO' || !user.targetConfig) {
       recalcBMR();
     }
@@ -566,7 +620,6 @@ export const useHeroStore = defineStore('hero', () => {
     const history = [...user.weightHistory];
     const existingIdx = history.findIndex(r => r.date === today);
 
-    // 自动计算 BMI（如果没有提供）
     const bmi = options?.bmi || (user.height > 0
       ? newWeight / Math.pow(user.height / 100, 2)
       : undefined);
@@ -581,34 +634,27 @@ export const useHeroStore = defineStore('hero', () => {
     };
 
     if (existingIdx !== -1) {
-      // 更新已存在的记录
       history[existingIdx] = record;
     } else {
-      // 添加新记录
       history.push(record);
     }
 
-    // 保留最近365条记录
     if (history.length > 365) {
       history.shift();
     }
 
-    // 确保触发响应式更新 - 创建新数组引用
     user.weightHistory = [...history];
   }
 
-  // [工单05] 动态XP收益模型 - 后期等级收益自动提升
-  // [阶段二改造] 支持传入type参数，区分经验来源
   function addExp(amount: number, source: string = '战斗经验', type: import('@/types').TransactionType = 'BATTLE_REWARD'): void {
     if (user.level >= MAX_LEVEL) return;
 
     const safeAmount = Number.isNaN(amount) ? 0 : amount;
-    // 引入等级缩放系数：每级增加5%收益，确保后期升级体验平滑
     const levelScaler = 1 + (user.level * 0.05);
+    // [Fix] 使用新的 expRate 计算，包含技能加成
     const realAmount = Math.floor(safeAmount * passiveBonuses.value.expRate * levelScaler);
     user.currentExp += realAmount;
 
-    // 记录交易流水（带类型标记）
     logTransaction(type, 'EXP', realAmount, source);
 
     let leveledUp = false;
@@ -633,7 +679,6 @@ export const useHeroStore = defineStore('hero', () => {
         systemStore.setModal('levelUp', true);
         const healAmount = Math.floor(realMaxHp.value * 0.2);
         heal(healAmount);
-        // 回复部分体力
         recoverStamina(50);
         setTimeout(() => {
           showToast(`升级奖励：HP 恢复 ${healAmount}, 体力恢复 50`);
@@ -668,17 +713,10 @@ export const useHeroStore = defineStore('hero', () => {
       return;
     }
 
-    // [修复核心断层] 扣除技能点并记录
     user.skillPoints -= node.cost;
-    // [修复持久化] 创建新对象引用，确保 pinia 能检测到变化
     const newLearnedSkills = { ...user.learnedSkills };
     newLearnedSkills[node.id] = currentLv + 1;
     user.learnedSkills = newLearnedSkills;
-
-    // [关键修复] 技能升级后，立即触发被动加成的重新计算
-    // passiveBonuses 是 computed，会自动重算
-    // 但某些属性（如 maxHp）需要通过 watch 触发更新
-    // 这里不需要手动操作，因为 passiveBonuses 的变化会触发 realMaxHp 的 watch
 
     showToast(`✨ ${node.name} 升级成功！(Lv.${currentLv + 1})`);
   }
@@ -701,47 +739,52 @@ export const useHeroStore = defineStore('hero', () => {
     return null;
   }
 
-  // [Fix Bug] 核心修复：治疗溢出转护盾逻辑
-  // 逻辑说明：如果当前血量+治疗量 > 上限，则补满血，并将多余部分转为护盾
   function heal(amount: number): void {
-    const safeAmount = Number.isNaN(amount) ? 0 : amount;
-    const max = realMaxHp.value;
+    let safeAmount = Number.isNaN(amount) ? 0 : amount;
 
-    // 1. 计算当前距离满血还差多少
+    // 应用治疗加成
+    if (safeAmount > 0) {
+      safeAmount = Math.floor(safeAmount * (1 + passiveBonuses.value.healMult));
+    }
+
+    const max = realMaxHp.value;
     const deficit = Math.max(0, max - user.heroCurrentHp);
 
     if (safeAmount > deficit) {
-      // 2. 如果治疗量足够补满还有剩余
-      user.heroCurrentHp = max; // 补满
-      const overflow = safeAmount - deficit; // 计算溢出
-      addShield(overflow); // 溢出转护盾
+      user.heroCurrentHp = max;
+      const overflow = safeAmount - deficit;
+      addShield(overflow);
     } else {
-      // 3. 如果不够补满，正常加血
       user.heroCurrentHp += safeAmount;
     }
   }
 
-  // [New] 增加护盾逻辑 (上限 = MaxHP)
   function addShield(amount: number): void {
     const safeAmount = Number.isNaN(amount) ? 0 : amount;
     if (!user.heroShield) user.heroShield = 0;
     user.heroShield += safeAmount;
 
-    // 护盾上限设定为最大生命值的 100%
-    const shieldCap = realMaxHp.value;
+    // 应用护盾上限加成 (如有)
+    const shieldCap = realMaxHp.value * (1 + passiveBonuses.value.shieldDmgRate * 0.1); // 暂时假设盾转攻天赋也稍微加点盾上限，或者这里使用独立的 shield_cap
     if (user.heroShield > shieldCap) user.heroShield = shieldCap;
   }
 
   function damage(amount: number): void {
     let safeAmount = Number.isNaN(amount) ? 0 : amount;
 
+    // 应用固定减伤
+    const reduce = passiveBonuses.value.dmgReduce;
+    if (reduce > 0) {
+      safeAmount = Math.max(0, safeAmount - reduce);
+    }
+
     if (user.heroShield > 0) {
       if (user.heroShield >= safeAmount) {
         user.heroShield -= safeAmount;
-        safeAmount = 0; // 护盾完全吸收
+        safeAmount = 0;
       } else {
         safeAmount -= user.heroShield;
-        user.heroShield = 0; // 护盾破碎
+        user.heroShield = 0;
       }
     }
 
@@ -750,14 +793,13 @@ export const useHeroStore = defineStore('hero', () => {
     }
   }
 
-  // 核心业务：检查连胜与结算昨日战斗
   function checkLoginStreak(): void {
     if (!user.isInitialized) return;
 
     const today = getLocalDateStr();
     const last = user.lastLoginDate;
 
-    if (today === last) return; // 今天已经处理过了
+    if (today === last) return;
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -765,7 +807,6 @@ export const useHeroStore = defineStore('hero', () => {
 
     let streakMaintained = false;
 
-    // 逻辑：如果上次登录就是昨天，则连胜保持；否则检查是否有“时间冻结道具”
     if (last === yesterdayStr) {
       streakMaintained = true;
     } else {
@@ -781,15 +822,13 @@ export const useHeroStore = defineStore('hero', () => {
 
     user.lastLoginDate = today;
 
-    // 获取昨天的记录来结算
     const yLogs = logStore.logs[yesterdayStr] || [];
 
     if (yLogs.length === 0) {
-      // 昨天没记录
       if (streakMaintained) {
         if (last === yesterdayStr) user.loginStreak += 1;
       }
-      user.heroShield = 0; // 隔天护盾清零
+      user.heroShield = 0;
       if (!systemStore.isPureMode) {
         showNotify({ type: 'warning', message: `📅 新的一天！连击天数: ${user.loginStreak}`, duration: 2000 });
       }
@@ -802,13 +841,12 @@ export const useHeroStore = defineStore('hero', () => {
 
     user.heroShield = 0;
 
-    // 核心结算：卡路里 vs 目标
     const totalCals = yLogs.reduce((sum, l) => sum + (l.calories || 0), 0);
     const targetBMR = dailyTarget.value;
 
     let status: 'VICTORY' | 'DEFEAT' | 'DRAW' = 'DRAW';
-    if (totalCals > targetBMR * 1.1) status = 'DEFEAT';      // 摄入超标 10% -> 失败
-    else if (totalCals < targetBMR * 0.6) status = 'DEFEAT'; // 摄入过低 60% -> 失败 (节食过度)
+    if (totalCals > targetBMR * 1.1) status = 'DEFEAT';
+    else if (totalCals < targetBMR * 0.6) status = 'DEFEAT';
     else status = 'VICTORY';
 
     let expGained = 0;
@@ -822,16 +860,41 @@ export const useHeroStore = defineStore('hero', () => {
       goldGained = 10;
     }
 
-    // 生成随机怪物名作为“昨日Boss”
     const seed = yesterdayStr.split('').reduce((a, b, i) => a + (b.charCodeAt(0) * (i + 1)), 0);
     const monster = MONSTERS[seed % MONSTERS.length] || MONSTERS[0];
 
     addExp(expGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
     addGold(goldGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
-    // 每日结算恢复体力
     recoverStamina(100);
 
     if (!systemStore.isPureMode) {
+      // [物资清单] 提取昨日Top8记录（按热量排序）
+      const topItems = yLogs
+        .filter(log => log.mealType !== 'EXERCISE') // 排除运动记录
+        .sort((a, b) => (b.calories || 0) - (a.calories || 0))
+        .slice(0, 8)
+        .map(log => ({
+          name: log.name,
+          icon: log.icon || '❓',
+          calories: log.calories || 0,
+          tags: log.tags || []
+        }));
+
+      // [运动记录] 提取运动记录
+      const exerciseItems = yLogs
+        .filter(log => log.mealType === 'EXERCISE')
+        .sort((a, b) => (b.calories || 0) - (a.calories || 0))
+        .slice(0, 4) // 最多显示4个运动记录
+        .map(log => ({
+          name: log.name,
+          icon: log.icon || '🏃',
+          calories: log.calories || 0,
+          tags: log.tags || []
+        }));
+
+      // 合并食物和运动记录
+      const allItems = [...topItems, ...exerciseItems];
+
       const report: DailyReportData = {
         date: yesterdayStr,
         totalCalories: totalCals,
@@ -840,7 +903,8 @@ export const useHeroStore = defineStore('hero', () => {
         expGained,
         goldGained,
         monsterName: monster.name,
-        loginStreak: user.loginStreak
+        loginStreak: user.loginStreak,
+        items: allItems.length > 0 ? allItems : undefined
       };
 
       systemStore.temp.reportData = report;
@@ -871,8 +935,6 @@ export const useHeroStore = defineStore('hero', () => {
     user.fasting.startTime = time;
   }
 
-  // === [第一步] 实时保存机制 ===
-  // 深度监听 user 对象的所有变化，立即保存到 localStorage
   watch(
     () => user,
     (newUser) => {
@@ -886,30 +948,22 @@ export const useHeroStore = defineStore('hero', () => {
     { deep: true }
   );
 
-  // === [第二步] 数据加载优先级重构 ===
-  // 强制优先使用本地数据，防止回档
   function loadHeroData(externalData?: Partial<UserState>): void {
     try {
-      // 优先级1：从独立 Key 读取本地数据
       const localData = localStorage.getItem(STORAGE_KEY);
 
       if (localData) {
-        // 本地有数据，强制使用本地数据（忽略外部传入参数）
         const parsed = JSON.parse(localData);
         Object.assign(user, parsed);
         console.log('[Hero Store] 已加载本地数据，技能点:', user.skillPoints, '已学技能:', user.learnedSkills);
       } else {
-        // 优先级2：新用户，使用外部传入数据或默认值
         if (externalData) {
           Object.assign(user, externalData);
         }
         console.log('[Hero Store] 新用户初始化');
       }
 
-      // === [第三步] 修复点数补发逻辑 ===
-      // 仅当 skillPoints 完全不存在时才补发
       if (user.skillPoints === undefined) {
-        // 计算已花费的技能点
         let spentPoints = 0;
         if (user.learnedSkills) {
           const currentTree = RACE_SKILL_TREES[user.race] || RACE_SKILL_TREES['HUMAN'];
@@ -921,27 +975,23 @@ export const useHeroStore = defineStore('hero', () => {
           });
         }
 
-        // 修正公式：剩余技能点 = (当前等级 - 1) - 已花费点数
         const totalEarned = (user.level || 1) - 1;
         user.skillPoints = Math.max(0, totalEarned - spentPoints);
         console.log('[Hero Store] 补发技能点，总获得:', totalEarned, '已花费:', spentPoints, '剩余:', user.skillPoints);
       }
 
-      // 确保必要字段存在
       if (!user.learnedSkills) user.learnedSkills = {};
       if (!user.transactionHistory) user.transactionHistory = [];
       if (!user.inventory) user.inventory = { 'item_rebirth_potion': 1 };
 
     } catch (error) {
       console.error('[Hero Store] 数据加载失败:', error);
-      // 加载失败时使用默认值
       if (externalData) {
         Object.assign(user, externalData);
       }
     }
   }
 
-  // Store 初始化时立即加载数据
   loadHeroData();
 
   return {
@@ -975,14 +1025,14 @@ export const useHeroStore = defineStore('hero', () => {
     realMaxHp,
     useStamina,
     recoverStamina,
-    // [工单01] 新增XP/Gold回滚方法
     revertXp,
     revertGold,
     logTransaction,
-    // [技能点修复] 新增数据加载方法
-    loadHeroData
+    loadHeroData,
+    resetSkills,
+    clearDebuffs,
+    openBlindBox
   };
 }, {
-  // [技能点修复] 禁用 Pinia 自动持久化，使用自定义的实时保存机制
   persist: false
 });

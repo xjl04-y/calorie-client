@@ -3,6 +3,8 @@ import { computed, ref } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { showToast } from 'vant';
+// [Import] 引入验证逻辑，与 ModalLogDetail 保持一致
+import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper';
 // 注意：保留引入以免构建报错，实际已使用内置CSS引擎替代
 import BodyTrendRPG from '@/components/trend/BodyTrendRPG.vue';
 import BodyTrendPure from '@/components/trend/BodyTrendPure.vue';
@@ -82,11 +84,11 @@ const getDayFlavorText = (status: string) => {
     }
   }
   switch(status) {
-    case 'VICTORY': return "大捷！Boss已被击退";
-    case 'DEFEAT': return "防线失守... Boss狂暴";
-    case 'ONGOING': return "战斗正在进行中";
-    case 'SKIPPED': return "英雄在营地休息";
-    default: return "未知的时空";
+    case 'VICTORY': return "任务完成";
+    case 'DEFEAT': return "防线告急";
+    case 'ONGOING': return "行动中";
+    case 'SKIPPED': return "休整";
+    default: return "未探测区域";
   }
 };
 
@@ -139,6 +141,60 @@ const openWeightUpdate = () => {
   newWeight.value = store.user.weight;
   showWeightUpdate.value = true;
 }
+
+// ==========================================
+// [Core Logic] Symbol 图标显示逻辑 (修复版)
+// ==========================================
+const getIconDisplay = (item: any) => {
+  if (!item) return { isSymbol: false, isImage: false, content: '' };
+
+  let iconRaw = item.icon || '';
+
+  // 1. 脏数据清洗
+  if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
+    iconRaw = iconRaw.replace(/<[^>]*>?/gm, '');
+  }
+
+  // 2. 图片检查
+  if (iconRaw.includes('/') || iconRaw.startsWith('http')) {
+    return { isSymbol: false, isImage: true, content: iconRaw };
+  }
+
+  // 3. Symbol ID 检查与验证
+  if (iconRaw.includes('icon-')) {
+    const match = iconRaw.match(/icon-[a-zA-Z0-9-_]+/);
+    if (match) {
+      const extractedId = match[0];
+      // 只有当它是有效的 Symbol 时才作为 Symbol 返回
+      if (isValidIcon(extractedId)) {
+        return { isSymbol: true, isImage: false, content: extractedId };
+      }
+      // 如果无效，继续向下执行 (不立即返回)
+    }
+  }
+
+  // 4. [关键修复] Emoji/文字优先策略
+  // 如果 iconRaw 有值，且不包含 'icon-'（说明不是一个损坏的 Symbol ID）
+  // 那么它大概率是 Emoji (💧, 🏃) 或者 FontAwesome class
+  // 我们直接显示它，防止被 assignIcon 覆盖
+  if (iconRaw && !iconRaw.includes('icon-')) {
+    return { isSymbol: false, isImage: false, content: iconRaw };
+  }
+
+  // 5. 智能推断 (仅当 icon 为空或 icon 无效时)
+  const effectiveTags = (item.tags && item.tags.length > 0)
+    ? item.tags
+    : inferTags(item.name || '');
+
+  const assigned = assignIcon(item.name || '', effectiveTags);
+
+  if (assigned) {
+    return { isSymbol: true, isImage: false, content: assigned };
+  }
+
+  // 6. 最终兜底
+  return { isSymbol: false, isImage: false, content: iconRaw };
+};
 
 // --------------------------------------------------------------------------
 // [Engine 3.2] 增强版 CSS 能量柱状图引擎
@@ -279,17 +335,31 @@ const useTargetWeight = () => {
 </script>
 
 <template>
-  <div class="pb-20 bg-white dark:bg-slate-900 min-h-full transition-colors duration-300">
+  <div class="pb-20 min-h-full transition-colors duration-300 font-sans"
+       :class="isPure ? 'bg-stone-50 dark:bg-slate-950' : 'bg-slate-100 dark:bg-slate-950'">
     <!-- Header -->
-    <div id="guide-analysis-header" class="sticky top-0 bg-white dark:bg-slate-900 z-20 pt-4 px-4 pb-2 shadow-sm transition-colors duration-300">
-      <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center justify-between" :class="{'font-rpg': !isPure}">
-        <span v-if="!isPure"><i class="fas fa-scroll text-purple-600 dark:text-purple-400 mr-2"></i> 冒险手札</span>
+    <div id="guide-analysis-header" class="sticky top-0 z-20 pt-4 px-4 pb-2 shadow-sm transition-colors duration-300 backdrop-blur-md bg-opacity-90"
+         :class="isPure
+            ? 'bg-white/90 dark:bg-slate-900/90 border-b border-slate-100 dark:border-slate-800'
+            : 'bg-slate-50/90 dark:bg-slate-900/90 border-b-2 border-slate-200 dark:border-slate-800'">
+
+      <h2 class="text-xl font-bold mb-4 flex items-center justify-between"
+          :class="isPure ? 'text-stone-800 dark:text-stone-100' : 'text-slate-700 dark:text-slate-200 font-mono'">
+        <span v-if="!isPure"><i class="fas fa-terminal text-blue-600 dark:text-blue-400 mr-2"></i> 战术分析</span>
         <span v-else>数据报表</span>
-        <button v-if="!isCurrentWeek" @click="resetToCurrentWeek" class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 px-3 py-1 rounded-full font-bold border border-purple-200 dark:border-purple-800 active:scale-95 transition">
-          <i class="fas fa-undo mr-1"></i> 回到本周
+        <button v-if="!isCurrentWeek" @click="resetToCurrentWeek"
+                class="text-xs px-3 py-1 rounded-full font-bold border active:scale-95 transition"
+                :class="isPure
+                   ? 'bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800'
+                   : 'bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'">
+          <i class="fas fa-undo mr-1"></i> {{ isPure ? '回到本周' : 'RESET' }}
         </button>
       </h2>
-      <van-tabs v-model:active="activeTab" type="card" color="#7c3aed" class="w-full" background="transparent">
+
+      <!-- Vant Tabs -->
+      <van-tabs v-model:active="activeTab" type="card"
+                :color="isPure ? '#0d9488' : '#2563eb'"
+                class="w-full" background="transparent">
         <van-tab title="今日热量" name="today"></van-tab>
         <van-tab title="历史记录" name="week"></van-tab>
         <van-tab title="体重趋势" name="body"></van-tab>
@@ -301,15 +371,18 @@ const useTargetWeight = () => {
       <!-- Tab 1: Today -->
       <div v-if="activeTab === 'today'" key="today" class="p-4">
         <!-- Info Card -->
-        <div class="mb-4 bg-blue-50 dark:bg-slate-800 p-3 rounded-xl border border-blue-100 dark:border-slate-700 flex gap-3 shadow-sm transition-colors duration-300">
-          <div class="text-2xl">{{ isPure ? '📊' : '💡' }}</div>
+        <div class="mb-4 p-3 rounded-xl border flex gap-3 shadow-sm transition-colors duration-300"
+             :class="isPure
+                ? 'bg-teal-50 dark:bg-teal-900/10 border-teal-100 dark:border-teal-900/30'
+                : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700'">
+          <div class="text-2xl">{{ isPure ? '📊' : '⚡' }}</div>
           <div>
-            <div class="text-xs font-bold text-blue-600 dark:text-blue-400 mb-0.5">
-              {{ isPure ? '今日概览' : '战术情报: 能量对抗' }}
+            <div class="text-xs font-bold mb-0.5" :class="isPure ? 'text-teal-600 dark:text-teal-400' : 'text-blue-600 dark:text-blue-400'">
+              {{ isPure ? '今日概览' : '状态监控: 能量读数' }}
             </div>
-            <div class="text-[10px] text-slate-600 dark:text-slate-400 leading-tight">
+            <div class="text-[10px] leading-tight" :class="isPure ? 'text-stone-600 dark:text-stone-400' : 'text-slate-600 dark:text-slate-400'">
               <span v-if="!isPure">
-                <span class="font-bold text-slate-800 dark:text-slate-200">摄入热量</span>即为对 Boss 造成的伤害。<br>目标是击穿 <span class="font-bold">BMR (基础代谢)</span> 防御值！
+                <span class="font-bold text-slate-800 dark:text-slate-200">能量摄入</span> 正在监控中。<br>维持机体运转需要击穿 <span class="font-bold">BMR</span> 阈值。
               </span>
               <span v-else>
                 今日总摄入热量与基础代谢(BMR)的对比。<br>控制热量摄入是体重管理的关键。
@@ -318,24 +391,25 @@ const useTargetWeight = () => {
           </div>
         </div>
 
-        <!-- [Mod] RPG模式下的能量主卡片：深浅色适配 -->
+        <!-- Calorie Card -->
         <div class="rounded-3xl p-6 relative overflow-hidden transition-all duration-300"
              :class="isPure
-                ? 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg'
-                : 'bg-white dark:bg-slate-900 border-4 border-double border-slate-200 dark:border-slate-700 shadow-2xl magic-border'">
+                ? 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm'
+                : 'bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-md'">
 
-          <!-- 纹理仅在RPG且深色模式下显示明显，浅色模式下极淡 -->
-          <div v-if="!isPure" class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-10 dark:opacity-20 pointer-events-none"></div>
+          <!-- 纹理 (RPG模式): 保持原有的暗纹理，但背景不再是紫色 -->
+          <div v-if="!isPure" class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-5 dark:opacity-10 pointer-events-none"></div>
 
           <h3 class="font-bold w-full mb-6 flex items-center justify-center relative z-10 text-lg"
-              :class="isPure ? 'text-slate-700 dark:text-slate-200' : 'text-slate-800 dark:text-slate-200 font-rpg'">
-            <i class="fas fa-fire-alt mr-2 animate-pulse" :class="isPure ? 'text-blue-500' : 'text-orange-500'"></i> 今日能量摄入
+              :class="isPure ? 'text-stone-700 dark:text-stone-200' : 'text-slate-800 dark:text-slate-200 font-mono uppercase tracking-wider'">
+            <i class="fas fa-fire-alt mr-2 animate-pulse" :class="isPure ? 'text-teal-500' : 'text-blue-500'"></i>
+            {{ isPure ? '今日能量摄入' : 'ENERGY INPUT' }}
           </h3>
 
           <div id="guide-analysis-circle" class="text-center relative z-10 mb-8">
-            <div class="text-5xl font-black font-mono drop-shadow-sm tracking-tighter" :class="isPure ? 'text-slate-800 dark:text-white' : 'text-slate-900 dark:text-white'">
+            <div class="text-5xl font-black font-mono drop-shadow-sm tracking-tighter" :class="isPure ? 'text-stone-800 dark:text-white' : 'text-slate-900 dark:text-white'">
               {{ todayMacros.cals }}
-              <span class="text-lg font-normal" :class="isPure ? 'text-slate-400' : 'text-slate-400'">/ {{ dailyTarget }}</span>
+              <span class="text-lg font-normal" :class="isPure ? 'text-stone-400' : 'text-slate-400'">/ {{ dailyTarget }}</span>
             </div>
             <div class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Daily Intake vs BMR</div>
 
@@ -343,9 +417,10 @@ const useTargetWeight = () => {
             <div class="w-full h-3 rounded-full mt-4 overflow-hidden border relative"
                  :class="isPure
                     ? 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600'
-                    : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600'">
+                    : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-600'">
+              <!-- 移除渐变，改用纯色 -->
               <div class="h-full transition-all duration-1000"
-                   :class="isPure ? 'bg-blue-500' : 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500'"
+                   :class="isPure ? 'bg-teal-500' : 'bg-blue-600'"
                    :style="{ width: totalProgress + '%' }"></div>
             </div>
 
@@ -356,46 +431,78 @@ const useTargetWeight = () => {
             </div>
           </div>
 
-          <!-- 营养占比卡片背景适配 -->
+          <!-- 营养占比卡片 -->
           <div id="guide-analysis-bars" class="space-y-4 relative z-10 p-4 rounded-xl border"
                :class="isPure
-                  ? 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-600'
+                  ? 'bg-stone-50 dark:bg-slate-700/30 border-stone-100 dark:border-slate-600'
                   : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'">
-            <div class="text-xs font-bold text-slate-400 text-center mb-2">能量来源占比 (Calories Source)</div>
+            <div class="text-xs font-bold text-slate-400 text-center mb-2 uppercase">Macronutrients</div>
+            <!-- 使用更健康的配色：Sky(Pro), Amber(Carb), Rose(Fat) -->
             <div>
-              <div class="flex justify-between text-xs font-bold mb-1 uppercase tracking-widest" :class="isPure ? 'text-slate-600 dark:text-slate-300' : 'text-red-600 dark:text-red-400'">
+              <div class="flex justify-between text-xs font-bold mb-1 uppercase tracking-widest" :class="isPure ? 'text-stone-600 dark:text-stone-300' : 'text-slate-600 dark:text-slate-400'">
                 <span>蛋白质 (Pro)</span><span>{{ macroCals.p }} kcal ({{ macroPct.p }}%)</span>
               </div>
               <div class="h-1.5 rounded-full overflow-hidden" :class="isPure ? 'bg-slate-200 dark:bg-slate-600' : 'bg-slate-200 dark:bg-slate-900'">
-                <div class="h-full" :class="isPure ? 'bg-blue-500' : 'bg-red-600'" :style="{ width: macroPct.p + '%' }"></div>
+                <div class="h-full bg-sky-500" :style="{ width: macroPct.p + '%' }"></div>
               </div>
             </div>
             <div>
-              <div class="flex justify-between text-xs font-bold mb-1 uppercase tracking-widest" :class="isPure ? 'text-slate-600 dark:text-slate-300' : 'text-yellow-600 dark:text-yellow-400'">
+              <div class="flex justify-between text-xs font-bold mb-1 uppercase tracking-widest" :class="isPure ? 'text-stone-600 dark:text-stone-300' : 'text-slate-600 dark:text-slate-400'">
                 <span>碳水 (Carb)</span><span>{{ macroCals.c }} kcal ({{ macroPct.c }}%)</span>
               </div>
               <div class="h-1.5 rounded-full overflow-hidden" :class="isPure ? 'bg-slate-200 dark:bg-slate-600' : 'bg-slate-200 dark:bg-slate-900'">
-                <div class="h-full" :class="isPure ? 'bg-green-500' : 'bg-yellow-500'" :style="{ width: macroPct.c + '%' }"></div>
+                <div class="h-full bg-amber-400" :style="{ width: macroPct.c + '%' }"></div>
               </div>
             </div>
             <div>
-              <div class="flex justify-between text-xs font-bold mb-1 uppercase tracking-widest" :class="isPure ? 'text-slate-600 dark:text-slate-300' : 'text-green-600 dark:text-green-400'">
+              <div class="flex justify-between text-xs font-bold mb-1 uppercase tracking-widest" :class="isPure ? 'text-stone-600 dark:text-stone-300' : 'text-slate-600 dark:text-slate-400'">
                 <span>脂肪 (Fat)</span><span>{{ macroCals.f }} kcal ({{ macroPct.f }}%)</span>
               </div>
               <div class="h-1.5 rounded-full overflow-hidden" :class="isPure ? 'bg-slate-200 dark:bg-slate-600' : 'bg-slate-200 dark:bg-slate-900'">
-                <div class="h-full" :class="isPure ? 'bg-orange-500' : 'bg-green-500'" :style="{ width: macroPct.f + '%' }"></div>
+                <div class="h-full bg-rose-400" :style="{ width: macroPct.f + '%' }"></div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="mt-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-          <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">{{ isPure ? '今日记录' : '今日狩猎战利品' }} (Top 8)</h4>
-          <div class="flex flex-wrap gap-2">
-            <span v-for="(item, i) in topFoods" :key="i" class="px-2 py-1 bg-white dark:bg-slate-700 rounded border border-slate-100 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-300 shadow-sm flex items-center">
-                {{ item.icon }} {{ item.name }}
-            </span>
-            <span v-if="topFoods.length === 0" class="text-xs text-slate-400 italic">暂无记录...</span>
+        <!-- Top Foods -->
+        <div class="mt-4 rounded-2xl p-4 border transition-colors"
+             :class="isPure
+                ? 'bg-stone-50 dark:bg-slate-800/50 border-stone-200 dark:border-slate-700'
+                : 'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'">
+          <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">{{ isPure ? '今日记录' : '物资清单' }} (Top 8)</h4>
+          <div class="grid grid-cols-4 gap-2">
+            <div v-for="(item, i) in topFoods" :key="i"
+                 class="flex flex-col items-center p-2 rounded-xl shadow-sm transition-transform hover:scale-105 active:scale-95 cursor-pointer border"
+                 :class="isPure
+                    ? 'bg-white dark:bg-slate-700 border-stone-100 dark:border-slate-600'
+                    : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600'"
+                 @click="showToast(`${item.name}: ${item.calories} kcal`)">
+
+              <div class="text-3xl mb-1 flex items-center justify-center h-8">
+                <!-- 1. 图片类型 -->
+                <template v-if="getIconDisplay(item).isImage">
+                  <img :src="getIconDisplay(item).content" class="w-8 h-8 object-contain" />
+                </template>
+                <!-- 2. SVG Symbol 类型 (标准处理) -->
+                <template v-else-if="getIconDisplay(item).isSymbol">
+                  <svg class="icon text-3xl" aria-hidden="true">
+                    <use :xlink:href="'#' + getIconDisplay(item).content"></use>
+                  </svg>
+                </template>
+                <!-- 3. 兜底 (文本/Emoji) -->
+                <template v-else>
+                  <span class="text-3xl">{{ getIconDisplay(item).content }}</span>
+                </template>
+              </div>
+              <span class="text-[10px] text-slate-600 dark:text-slate-300 truncate w-full text-center font-bold">
+                    {{ item.name }}
+                </span>
+              <span class="text-[8px] text-slate-400 font-mono">
+                    {{ item.calories }}
+                </span>
+            </div>
+            <div v-if="topFoods.length === 0" class="col-span-4 text-center py-4 text-xs text-slate-400 italic">暂无记录...</div>
           </div>
         </div>
       </div>
@@ -403,16 +510,19 @@ const useTargetWeight = () => {
       <!-- Tab 2: Week -->
       <div v-else-if="activeTab === 'week'" key="week" class="p-4">
         <!-- Info Card -->
-        <div class="mb-4 bg-purple-50 dark:bg-slate-800 p-3 rounded-xl border border-purple-100 dark:border-slate-700 flex gap-3 shadow-sm transition-colors duration-300">
+        <div class="mb-4 p-3 rounded-xl border flex gap-3 shadow-sm transition-colors duration-300"
+             :class="isPure
+                ? 'bg-teal-50 dark:bg-slate-800 border-teal-100 dark:border-slate-700'
+                : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700'">
           <div class="text-2xl">{{ isPure ? '📅' : '📜' }}</div>
           <div>
-            <div class="text-xs font-bold text-purple-600 dark:text-purple-400 mb-0.5">
+            <div class="text-xs font-bold mb-0.5" :class="isPure ? 'text-teal-600 dark:text-teal-400' : 'text-blue-600 dark:text-blue-400'">
               {{ isPure ? '历史趋势' : '战术情报: 历史回溯' }}
             </div>
             <div class="text-[10px] text-slate-600 dark:text-slate-400 leading-tight">
               <span v-if="!isPure">
-                <span class="text-green-600 font-bold">VICTORY (大捷)</span> 意味着成功控制热量；
-                <span class="text-red-500 font-bold">DEFEAT (失守)</span> 意味着 Boss 狂暴。
+                <span class="text-emerald-600 font-bold">SUCCESS</span> 意味着任务完成；
+                <span class="text-orange-500 font-bold">WARNING</span> 意味着防线告急。
               </span>
               <span v-else>
                 回顾过去一周的热量摄入情况。<br>保持绿色达标状态有助于健康。
@@ -421,7 +531,8 @@ const useTargetWeight = () => {
           </div>
         </div>
 
-        <div class="flex justify-between items-center mb-4 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+        <div class="flex justify-between items-center mb-4 p-1 rounded-lg"
+             :class="isPure ? 'bg-stone-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-800'">
           <button @click="shiftWeek(-1)" class="w-10 h-8 flex items-center justify-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 rounded-md transition-all active:scale-95">
             <i class="fas fa-chevron-left"></i>
           </button>
@@ -435,16 +546,19 @@ const useTargetWeight = () => {
         <div id="guide-weekly-stats" class="space-y-3">
           <div v-for="(day, idx) in weeklyStats" :key="idx" class="relative group" @click="!day.isFuture && openDetail(day.date)">
             <div v-if="idx < weeklyStats.length - 1" class="absolute left-6 top-10 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700 -z-10 h-full"></div>
-            <div class="flex items-center bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm transition-all"
+            <div class="flex items-center p-3 rounded-2xl border shadow-sm transition-all"
                  :class="[
-                     day.isToday ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-900 z-10' : 'opacity-90',
+                     isPure
+                        ? 'bg-white dark:bg-slate-800 border-stone-100 dark:border-slate-700'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700',
+                     day.isToday ? (isPure ? 'ring-2 ring-teal-500 z-10' : 'ring-2 ring-blue-500 z-10') : 'opacity-90',
                      day.isFuture ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer active:scale-95'
                  ]">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl mr-4 shrink-0 shadow-inner"
                    :class="{
                        'bg-slate-100 dark:bg-slate-700 text-slate-400': day.rpgStatus === 'UNKNOWN' || day.rpgStatus === 'SKIPPED',
-                       'bg-green-100 dark:bg-green-900/30 text-green-600': day.rpgStatus === 'VICTORY',
-                       'bg-red-100 dark:bg-red-900/30 text-red-500': day.rpgStatus === 'DEFEAT',
+                       'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600': day.rpgStatus === 'VICTORY',
+                       'bg-orange-100 dark:bg-orange-900/30 text-orange-500': day.rpgStatus === 'DEFEAT',
                        'bg-blue-100 dark:bg-blue-900/30 text-blue-500': day.rpgStatus === 'ONGOING'
                    }">
                 <i v-if="day.isFuture" class="fas fa-lock text-xs"></i>
@@ -458,18 +572,18 @@ const useTargetWeight = () => {
                   <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">
                     {{ day.label }} <span class="text-xs font-normal text-slate-400 ml-1">周{{ day.weekday }}</span>
                   </div>
-                  <div class="text-xs font-bold font-mono" :class="day.val > store.dailyTarget ? 'text-red-500' : 'text-slate-500'">
+                  <div class="text-xs font-bold font-mono" :class="day.val > store.dailyTarget ? 'text-orange-500' : 'text-slate-500'">
                     {{ day.val }}
                   </div>
                 </div>
                 <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                   <div class="h-full rounded-full"
                        :style="{ width: Math.min((day.val / store.dailyTarget) * 100, 100) + '%' }"
-                       :class="day.rpgStatus === 'DEFEAT' ? 'bg-red-500' : 'bg-green-500'">
+                       :class="day.rpgStatus === 'DEFEAT' ? 'bg-orange-500' : 'bg-emerald-500'">
                   </div>
                 </div>
                 <div class="text-[10px] text-slate-400 mt-1 italic flex justify-between">
-                  <span>{{ day.isFuture ? (isPure ? '未到' : '迷雾未散...') : getDayFlavorText(day.rpgStatus) }}</span>
+                  <span>{{ day.isFuture ? (isPure ? '未到' : '未解锁...') : getDayFlavorText(day.rpgStatus) }}</span>
                 </div>
               </div>
             </div>
@@ -480,11 +594,14 @@ const useTargetWeight = () => {
       <!-- Tab 3: Body Trend (Redesigned with CSS Pillars) -->
       <div v-else key="body" class="p-4">
 
-        <div class="mb-4 bg-green-50 dark:bg-slate-800 p-3 rounded-xl border border-green-100 dark:border-slate-700 flex gap-3 shadow-sm transition-colors duration-300">
+        <div class="mb-4 p-3 rounded-xl border flex gap-3 shadow-sm transition-colors duration-300"
+             :class="isPure
+                ? 'bg-teal-50 dark:bg-slate-800 border-teal-100 dark:border-slate-700'
+                : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700'">
           <div class="text-2xl">⚖️</div>
           <div class="flex-1">
-            <div class="text-xs font-bold text-green-600 dark:text-green-400 mb-0.5">
-              {{ isPure ? '体重记录' : '战术情报: 塑形魔法' }}
+            <div class="text-xs font-bold mb-0.5" :class="isPure ? 'text-teal-600 dark:text-teal-400' : 'text-blue-600 dark:text-blue-400'">
+              {{ isPure ? '体重记录' : '战术情报: 身体素质' }}
             </div>
             <div class="text-[10px] text-slate-600 dark:text-slate-400 leading-tight">
               <span v-if="!isPure">
@@ -497,32 +614,31 @@ const useTargetWeight = () => {
           </div>
           <button @click="openWeightUpdate"
                   class="px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition flex items-center gap-1.5 whitespace-nowrap"
-                  :class="isPure ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-yellow-500 text-slate-900 hover:bg-yellow-600'">
+                  :class="isPure
+                    ? 'bg-teal-500 text-white hover:bg-teal-600'
+                    : 'bg-slate-700 text-white hover:bg-slate-600'">
             <i class="fas fa-weight"></i>
             <span>更新体重</span>
           </button>
         </div>
 
-        <!--
-           [Framework Level Chart]
-           [Mod] RPG模式下背景深浅适配：从纯黑(slate-900)改为支持白底(bg-white dark:bg-slate-900)
-        -->
+        <!-- Chart Container -->
         <div id="guide-weight-chart" class="w-full h-64 relative rounded-2xl overflow-hidden p-4 transition-all duration-300 flex flex-col"
              :class="isPure
-                ? 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md'
-                : 'bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl'">
+                ? 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm'
+                : 'bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-md'">
 
-          <!-- 背景纹理 (RPG模式) -->
+          <!-- 纹理 (RPG模式) -->
           <div v-if="!isPure" class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 dark:opacity-20 pointer-events-none"></div>
 
           <!-- 标题区域 -->
           <div class="flex justify-between items-center mb-4 relative z-10">
             <div class="text-xs font-bold uppercase tracking-wider"
-                 :class="isPure ? 'text-slate-500' : 'text-slate-500 dark:text-slate-400 font-rpg'">
+                 :class="isPure ? 'text-slate-500' : 'text-slate-500 dark:text-slate-400 font-mono'">
               {{ isPure ? '近期趋势 (7次)' : 'BODY COMPOSITION (7d)' }}
             </div>
             <!-- 如果有数据，显示最新体重 -->
-            <div class="text-xs font-mono" :class="isPure ? 'text-blue-500' : 'text-purple-600 dark:text-purple-400'">
+            <div class="text-xs font-mono" :class="isPure ? 'text-teal-500' : 'text-blue-600 dark:text-blue-400'">
               {{ store.user.weight > 0 ? store.user.weight + ' kg' : '--' }}
             </div>
           </div>
@@ -546,24 +662,24 @@ const useTargetWeight = () => {
                 {{ bar.weight }}
               </div>
 
-              <!-- [Mod] 柱体颜色适配：确保在浅色/深色模式下都清晰 -->
+              <!-- 柱体颜色适配 -->
               <div class="w-full min-w-[12px] max-w-[24px] rounded-t-lg transition-all duration-700 ease-out relative overflow-hidden"
                    :style="{ height: bar.hasData ? bar.heightPct + '%' : '2px' }"
                    :class="[
                        bar.hasData
                          ? (isPure
-                            ? 'bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-800'
-                            : 'bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:border-purple-500')
+                            ? 'bg-teal-100 dark:bg-teal-900/50 hover:bg-teal-200 dark:hover:bg-teal-800'
+                            : 'bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-700 border border-slate-300 dark:border-slate-600')
                          : 'bg-slate-100 dark:bg-slate-800 opacity-50'
                      ]">
 
-                <!-- 内部填充条 (RPG模式下的能量槽效果) -->
+                <!-- 内部填充条 (RPG模式下的能量槽效果 - 纯色，无渐变) -->
                 <div v-if="bar.hasData"
                      class="absolute bottom-0 left-0 right-0 transition-all duration-1000"
                      :style="{ height: '100%' }"
                      :class="isPure
-                            ? 'bg-blue-500'
-                            : 'bg-gradient-to-t from-purple-200 via-purple-400 to-purple-600 dark:from-purple-900 dark:via-purple-600 dark:to-pink-500 opacity-80'">
+                            ? 'bg-teal-500'
+                            : 'bg-blue-600 opacity-80'">
                 </div>
 
                 <!-- 顶部高光 (Pure模式) -->
@@ -579,7 +695,7 @@ const useTargetWeight = () => {
               <!-- 趋势指示器 -->
               <div v-if="bar.change !== 0"
                    class="absolute -top-4 text-[8px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
-                   :class="bar.isUp ? 'text-red-500' : 'text-green-500'">
+                   :class="bar.isUp ? 'text-orange-500' : 'text-emerald-500'">
                 {{ bar.isUp ? '↑' : '↓' }}
               </div>
             </div>
@@ -598,6 +714,7 @@ const useTargetWeight = () => {
                 show-cancel-button
                 @confirm="saveWeight"
                 :confirm-button-text="isPure ? '保存' : '记录'"
+                :confirm-button-color="isPure ? '#0d9488' : '#2563eb'"
                 class="dark:bg-slate-800 dark:text-white">
       <div class="p-4 space-y-4">
         <!-- 当前体重 -->
@@ -614,68 +731,20 @@ const useTargetWeight = () => {
           <input type="number"
                  step="0.1"
                  v-model.number="newWeight"
-                 class="w-full bg-slate-100 dark:bg-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-center text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500 transition">
+                 class="w-full bg-slate-100 dark:bg-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-center text-slate-800 dark:text-white border-2 border-transparent focus:border-teal-500 dark:focus:border-teal-400 transition">
         </div>
 
         <!-- 推荐体重范围（RPG模式） -->
-        <div v-if="!isPure && recommendedWeightRange" class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 border border-purple-200 dark:border-purple-800">
+        <div v-if="!isPure && recommendedWeightRange" class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-200 dark:border-blue-800">
           <div class="flex items-center justify-between mb-2">
-            <div class="text-xs font-bold text-purple-600 dark:text-purple-400">
+            <div class="text-xs font-bold text-blue-600 dark:text-blue-400">
               <i class="fas fa-star mr-1"></i>推荐体重参考
             </div>
             <button @click="useRecommendedWeight"
                     type="button"
-                    class="text-[10px] bg-purple-500 text-white px-2 py-1 rounded-full font-bold active:scale-95 transition">
+                    class="text-[10px] bg-blue-500 text-white px-2 py-1 rounded-full font-bold active:scale-95 transition">
               使用理想值
             </button>
-          </div>
-          <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-            <div class="flex justify-between">
-              <span>健康范围:</span>
-              <span class="font-bold">{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span>
-            </div>
-            <div class="flex justify-between">
-              <span>理想体重:</span>
-              <span class="font-bold text-purple-600 dark:text-purple-400">{{ recommendedWeightRange.ideal }} kg</span>
-            </div>
-            <div class="text-[10px] text-slate-400 mt-2">
-              *基于BMI 18.5-24的健康范围计算
-            </div>
-          </div>
-        </div>
-
-        <!-- 目标体重信息（纯净模式） -->
-        <div v-if="isPure && targetWeight > 0" class="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 border border-green-200 dark:border-green-800">
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-xs font-bold text-green-600 dark:text-green-400">
-              <i class="fas fa-bullseye mr-1"></i>目标体重
-            </div>
-            <button @click="useTargetWeight"
-                    type="button"
-                    class="text-[10px] bg-green-500 text-white px-2 py-1 rounded-full font-bold active:scale-95 transition">
-              使用目标值
-            </button>
-          </div>
-          <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-            <div class="flex justify-between">
-              <span>你的目标:</span>
-              <span class="font-bold text-green-600 dark:text-green-400">{{ targetWeight }} kg</span>
-            </div>
-            <div v-if="targetDifference" class="flex justify-between">
-              <span>距离目标:</span>
-              <span class="font-bold" :class="targetDifference.needLose ? 'text-orange-600' : 'text-blue-600'">
-                {{ targetDifference.value.toFixed(1) }} kg ({{ targetDifference.text }})
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 推荐体重信息（纯净模式 - 无目标时显示） -->
-        <div v-if="isPure && !targetWeight && recommendedWeightRange" class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-200 dark:border-blue-800">
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-xs font-bold text-blue-600 dark:text-blue-400">
-              <i class="fas fa-info-circle mr-1"></i>健康体重参考
-            </div>
           </div>
           <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
             <div class="flex justify-between">
@@ -692,10 +761,58 @@ const useTargetWeight = () => {
           </div>
         </div>
 
+        <!-- 目标体重信息（纯净模式） -->
+        <div v-if="isPure && targetWeight > 0" class="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3 border border-emerald-200 dark:border-emerald-800">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              <i class="fas fa-bullseye mr-1"></i>目标体重
+            </div>
+            <button @click="useTargetWeight"
+                    type="button"
+                    class="text-[10px] bg-emerald-500 text-white px-2 py-1 rounded-full font-bold active:scale-95 transition">
+              使用目标值
+            </button>
+          </div>
+          <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+            <div class="flex justify-between">
+              <span>你的目标:</span>
+              <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ targetWeight }} kg</span>
+            </div>
+            <div v-if="targetDifference" class="flex justify-between">
+              <span>距离目标:</span>
+              <span class="font-bold" :class="targetDifference.needLose ? 'text-orange-600' : 'text-blue-600'">
+                {{ targetDifference.value.toFixed(1) }} kg ({{ targetDifference.text }})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 推荐体重信息（纯净模式 - 无目标时显示） -->
+        <div v-if="isPure && !targetWeight && recommendedWeightRange" class="bg-teal-50 dark:bg-teal-900/20 rounded-xl p-3 border border-teal-200 dark:border-teal-800">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-bold text-teal-600 dark:text-teal-400">
+              <i class="fas fa-info-circle mr-1"></i>健康体重参考
+            </div>
+          </div>
+          <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+            <div class="flex justify-between">
+              <span>健康范围:</span>
+              <span class="font-bold">{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span>
+            </div>
+            <div class="flex justify-between">
+              <span>理想体重:</span>
+              <span class="font-bold text-teal-600 dark:text-teal-400">{{ recommendedWeightRange.ideal }} kg</span>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-2">
+              *基于BMI 18.5-24的健康范围计算
+            </div>
+          </div>
+        </div>
+
         <!-- 变化预览 -->
         <div v-if="Math.abs(newWeight - store.user.weight) > 0.1"
              class="text-xs text-center p-2 rounded-lg"
-             :class="newWeight > store.user.weight ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600' : 'bg-green-50 dark:bg-green-900/20 text-green-600'">
+             :class="newWeight > store.user.weight ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'">
           变化: {{ newWeight > store.user.weight ? '+' : '' }}{{ (newWeight - store.user.weight).toFixed(1) }} kg
         </div>
       </div>
@@ -704,13 +821,6 @@ const useTargetWeight = () => {
 </template>
 
 <style scoped>
-.magic-border { position: relative; }
-.magic-border::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px;
-  background: linear-gradient(45deg, #7c3aed, #3b82f6, #ef4444);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; opacity: 0.5;
-}
 .animate-spin-slow { animation: spin 10s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
@@ -727,5 +837,24 @@ const useTargetWeight = () => {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+/* Symbol Icon Style */
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
+
+/* 强制覆盖 Vant Tabs 文字颜色 */
+:deep(.van-tab--card.van-tab--active) {
+  color: #ffffff !important;
+}
+
+:deep(.van-tab--card) {
+  /* 确保非选中状态的文字颜色跟随主题，而不是紫色 */
+  color: v-bind("isPure ? '#0d9488' : '#2563eb'");
 }
 </style>

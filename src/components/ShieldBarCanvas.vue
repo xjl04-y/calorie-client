@@ -1,5 +1,17 @@
 <template>
-  <div class="shield-canvas-wrapper" ref="wrapperRef">
+  <!--
+    [通用组件规范]
+    1. 移除 hack 样式，保持纯净。
+    2. aspect-ratio 确保未加载时占位正确。
+  -->
+  <div
+    class="shield-canvas-wrapper"
+    ref="wrapperRef"
+    :style="{
+      background: theme === 'dark' ? 'rgba(20, 25, 30, 0.8)' : 'transparent',
+      aspectRatio: `${CONFIG.canvasWidth} / ${CONFIG.canvasHeight}`
+    }"
+  >
     <canvas ref="canvasRef"></canvas>
   </div>
 </template>
@@ -7,13 +19,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, reactive } from 'vue';
 
-// --- Props 定义 ---
 const props = withDefaults(defineProps<{
   currentHp: number;
   maxHp: number;
   currentShield: number;
   maxShield: number;
-  // 新增 theme 属性，默认为 dark
   theme?: 'light' | 'dark';
 }>(), {
   theme: 'dark'
@@ -21,21 +31,21 @@ const props = withDefaults(defineProps<{
 
 // --- 配色系统 ---
 interface ColorPalette {
-  bgOuter: string;      // 外层背景
-  bgInner: string;      // 内层背景（血条槽位）
-  border: string;       // 边框颜色
-  shadow: string;       // 阴影颜色
-  textHpLabel: string;  // HP 标签文字
-  textShieldLabel: string; // Shield 标签文字
-  textHpValue: string;  // HP 数值
-  textShieldValue: string; // Shield 数值
-  shieldMain: string;   // 护盾主色（粒子）
-  shieldFaint: string;  // 护盾微弱填充色
-  shieldHit: string;    // 受击反白
-  hpStart: string;      // 血条渐变始
-  hpEnd: string;        // 血条渐变终
-  gloss: string;        // 高光反射
-  sweep: string;        // 扫光颜色
+  bgOuter: string;
+  bgInner: string;
+  border: string;
+  shadow: string;
+  textHpLabel: string;
+  textShieldLabel: string;
+  textHpValue: string;
+  textShieldValue: string;
+  shieldMain: string;
+  shieldFaint: string;
+  shieldHit: string;
+  hpStart: string;
+  hpEnd: string;
+  gloss: string;
+  sweep: string;
 }
 
 const THEMES: Record<string, ColorPalette> = {
@@ -57,27 +67,27 @@ const THEMES: Record<string, ColorPalette> = {
     sweep: 'rgba(0, 255, 255, 0.2)'
   },
   light: {
-    bgOuter: 'rgba(255, 255, 255, 0.4)',
+    // 浅色模式：微调透明度和颜色，增加通透感
+    bgOuter: 'rgba(255, 255, 255, 0.25)',
     bgInner: '#ffffff',
-    border: 'rgba(0, 0, 0, 0.05)',
-    shadow: 'rgba(0, 0, 0, 0)',
-    textHpLabel: 'rgba(220, 38, 38, 0.8)',
-    textShieldLabel: 'rgba(2, 136, 209, 0.8)',
+    border: 'rgba(0, 0, 0, 0.25)',
+    shadow: 'rgba(0, 0, 0, 0.05)',
+    textHpLabel: 'rgba(220, 38, 38, 0.9)',
+    textShieldLabel: 'rgba(2, 136, 209, 0.9)',
     textHpValue: '#1a1a1a',
     textShieldValue: '#0288D1',
     shieldMain: '#00bcd4',
-    shieldFaint: 'rgba(0, 188, 212, 0.05)',
+    shieldFaint: 'rgba(0, 188, 212, 0.08)',
     shieldHit: '#ffffff',
     hpStart: '#ef5350',
     hpEnd: '#e57373',
-    gloss: 'rgba(255, 255, 255, 0.8)',
+    gloss: 'rgba(255, 255, 255, 0.6)',
     sweep: 'rgba(0, 188, 212, 0.2)'
   }
 };
 
 // --- 核心配置 ---
 const CONFIG = reactive({
-  // 逻辑画布尺寸
   canvasWidth: 480,
   canvasHeight: 110,
   barWidth: 440,
@@ -93,26 +103,22 @@ const CONFIG = reactive({
   friction: 0.9,
   shakeIntensity: 6,
 
-  // 颜色配置
   colors: { ...THEMES.dark }
 });
 
-// --- 监听主题变化 ---
 watch(() => props.theme, (newTheme) => {
   const palette = THEMES[newTheme] || THEMES.dark;
   Object.assign(CONFIG.colors, palette);
 }, { immediate: true });
 
-// --- 类型定义 ---
+// --- 工具函数与类 ---
 interface ImpactRing {
   x: number; y: number; r: number; maxR: number; alpha: number; width: number;
 }
 type SystemState = 'EMPTY' | 'ASSEMBLING' | 'IDLE' | 'SHATTERING';
 
-// --- 工具函数 ---
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
 
-// [Fix] 兼容性更好的圆角矩形绘制函数
 const drawRoundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
   if (w < 2 * r) r = w / 2;
   if (h < 2 * r) r = h / 2;
@@ -125,7 +131,6 @@ const drawRoundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.closePath();
 };
 
-// --- 物理类 (HexCell) ---
 class HexCell {
   row: number; col: number;
   targetXRel: number; targetYRel: number;
@@ -288,18 +293,17 @@ class HexCell {
   }
 }
 
-// --- 物理系统 ---
 class ShieldSystem {
   cells: HexCell[] = [];
   state: SystemState = 'EMPTY';
-
   maxHp = 100; hp = 100;
   maxShield = 100; shield = 0;
-
   sweepTimer = 0; shakeTimer = 0; shakePower = 0;
   impactRings: ImpactRing[] = [];
-
   cx = CONFIG.canvasWidth / 2;
+  // [Correct Fix] 还原几何中心。
+  // 注意：任何视觉上的“不居中”应该由外部容器布局解决，而不是在组件内部偏移。
+  // 偏移会导致组件在小屏幕上被截断。
   cy = CONFIG.canvasHeight / 2;
 
   constructor() {
@@ -376,7 +380,6 @@ class ShieldSystem {
 
   draw(ctx: CanvasRenderingContext2D) {
     const C = CONFIG.colors;
-
     let sx = 0, sy = 0;
     if (this.shakeTimer > 0) {
       sx = (Math.random() - 0.5) * this.shakePower;
@@ -394,13 +397,23 @@ class ShieldSystem {
 
     // --- 背景层 ---
     ctx.save();
-    ctx.shadowColor = C.shadow;
-    ctx.shadowBlur = 15;
-    ctx.shadowOffsetY = 3;
-
+    if (C.shadow !== 'transparent') {
+      ctx.shadowColor = C.shadow;
+      ctx.shadowBlur = 15;
+      ctx.shadowOffsetY = 3;
+    }
     ctx.fillStyle = C.bgOuter;
     drawRoundRect(ctx, bx - 4, by - 4, CONFIG.barWidth + 8, CONFIG.barHeight + 8, cornerRadius);
     ctx.fill();
+
+    // [自绘边框] 浅色模式下，Canvas 自己画边框，保证和圆角完美贴合
+    // 颜色使用淡淡的 slate-200/300 级别
+    if (props.theme === 'light') {
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)'; // slate-400 with opacity
+      ctx.lineWidth = 1; // 物理 1px，缩放后也是 1 单位，看起来很细
+      drawRoundRect(ctx, bx - 4, by - 4, CONFIG.barWidth + 8, CONFIG.barHeight + 8, cornerRadius);
+      ctx.stroke();
+    }
     ctx.restore();
 
     // --- 内层槽位 ---
@@ -413,24 +426,19 @@ class ShieldSystem {
     const hpW = (this.hp / safeMaxHp) * CONFIG.barWidth;
     if (hpW > 0) {
       ctx.save();
-      // Clip
       drawRoundRect(ctx, bx, by, CONFIG.barWidth, CONFIG.barHeight, cornerRadius - 2);
       ctx.clip();
-
       const grad = ctx.createLinearGradient(bx, by, bx, by + CONFIG.barHeight);
       grad.addColorStop(0, C.hpStart);
       grad.addColorStop(0.5, C.hpEnd);
       grad.addColorStop(1, C.hpStart);
       ctx.fillStyle = grad;
       ctx.fillRect(bx, by, hpW, CONFIG.barHeight);
-
-      // 高光
       const glossGrad = ctx.createLinearGradient(bx, by, bx, by + CONFIG.barHeight * 0.5);
       glossGrad.addColorStop(0, C.gloss);
       glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = glossGrad;
       ctx.fillRect(bx, by, hpW, CONFIG.barHeight * 0.5);
-
       ctx.restore();
     }
 
@@ -440,12 +448,11 @@ class ShieldSystem {
     drawRoundRect(ctx, bx, by, CONFIG.barWidth, CONFIG.barHeight, cornerRadius - 2);
     ctx.stroke();
 
-    // --- 护盾逻辑 ---
+    // --- 护盾 ---
     if (this.state !== 'EMPTY') {
       const safeMaxShield = this.maxShield || 100;
       const shieldW = (this.shield / safeMaxShield) * CONFIG.barWidth;
       const isHit = this.shakeTimer > 0;
-
       this.sweepTimer += CONFIG.sweepSpeed;
       const cycle = CONFIG.barWidth + CONFIG.sweepInterval;
       const sweepPos = (this.sweepTimer % cycle) - CONFIG.barWidth / 2;
@@ -458,19 +465,15 @@ class ShieldSystem {
           ctx.fillRect(bx, by, shieldW, CONFIG.barHeight);
         }
       }
-
       if (props.theme === 'dark') {
         ctx.globalCompositeOperation = 'lighter';
       }
-
       let activeCount = 0;
       this.cells.forEach(c => {
         c.update(this.state, this.cx, this.cy, sweepPos, shieldW);
         c.draw(ctx, isHit);
         if (c.life > 0) activeCount++;
       });
-
-      // 扫描高光
       if (this.state === 'IDLE') {
         const absSweepX = this.cx + sweepPos;
         if (absSweepX > bx && absSweepX < bx + shieldW) {
@@ -483,7 +486,6 @@ class ShieldSystem {
       }
       ctx.restore();
 
-      // 冲击波
       ctx.globalCompositeOperation = 'source-over';
       for (let i = this.impactRings.length - 1; i >= 0; i--) {
         const ring = this.impactRings[i];
@@ -492,22 +494,18 @@ class ShieldSystem {
         ctx.globalAlpha = ring.alpha;
         ctx.lineWidth = ring.width; ctx.stroke();
         ctx.globalAlpha = 1.0;
-
         ring.r += (ring.maxR - ring.r) * 0.15; ring.alpha -= 0.08;
         if (ring.alpha <= 0) this.impactRings.splice(i, 1);
       }
       if (this.state === 'SHATTERING' && activeCount === 0) this.state = 'EMPTY';
     }
 
-    // --- UI 文字层 ---
+    // --- 文字 ---
     const labelY = by - 32;
     ctx.textBaseline = 'middle';
-
-    // 左侧 HP 标签
     ctx.textAlign = 'left';
     ctx.font = 'bold 10px "Segoe UI", sans-serif';
     ctx.fillStyle = C.textHpLabel;
-
     if (props.theme === 'dark') {
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 2;
@@ -515,17 +513,13 @@ class ShieldSystem {
       ctx.shadowBlur = 0;
     }
 
-    // 右侧护盾标签
     if (this.shield > 0) {
       ctx.textAlign = 'right';
       ctx.fillStyle = C.textShieldLabel;
       ctx.fillText('🛡️ SHIELD', bx + CONFIG.barWidth, labelY);
     }
 
-    // 数值层
     const valueY = by - 12;
-
-    // 左侧 HP 数值
     ctx.textAlign = 'left';
     ctx.font = 'bold 18px "Segoe UI", -apple-system, sans-serif';
     ctx.fillStyle = C.textHpValue;
@@ -533,11 +527,9 @@ class ShieldSystem {
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 5;
     }
-    // 使用 Math.round 替代 Math.ceil
     const hpText = `${Math.round(this.hp)} / ${Math.round(this.maxHp)}`;
     ctx.fillText(hpText, bx, valueY);
 
-    // 右侧护盾数值
     if (this.shield > 0) {
       ctx.textAlign = 'right';
       ctx.font = 'bold 18px "Segoe UI", -apple-system, sans-serif';
@@ -553,43 +545,45 @@ class ShieldSystem {
       ctx.fillText(shieldText, bx + CONFIG.barWidth, valueY);
     }
 
-    // 重置阴影
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
-
     ctx.restore();
   }
 }
 
-// --- Vue 逻辑 ---
+// --- Vue Logic ---
 const wrapperRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const system = new ShieldSystem();
 let animId = 0;
+let resizeObserver: ResizeObserver | null = null;
 
 watch(
   () => [props.currentHp, props.maxHp, props.currentShield, props.maxShield],
   (newValues, oldValues) => {
     const [newHp, newMaxHp, newShield, newMaxShield] = newValues as number[];
-    const [oldHp, oldMaxHp, oldShield, oldMaxShield] = (oldValues || []) as number[];
+    const [ , , oldShield = 0] = (oldValues || []) as number[];
 
-    system.syncHp(newHp, newMaxHp);
+    system.syncHp(newHp || 0, newMaxHp || 100);
+
+    const safeNewShield = newShield || 0;
+    const safeMaxShield = newMaxShield || 100;
 
     if (!oldValues) {
-      if (newShield > 0) {
-        system.addShieldEffect(newShield, newMaxShield);
+      if (safeNewShield > 0) {
+        system.addShieldEffect(safeNewShield, safeMaxShield);
       }
       return;
     }
 
-    if (newShield > oldShield) {
-      system.addShieldEffect(newShield, newMaxShield);
-    } else if (newShield < oldShield) {
-      if (newShield <= 0 && oldShield > 0) {
+    if (safeNewShield > oldShield) {
+      system.addShieldEffect(safeNewShield, safeMaxShield);
+    } else if (safeNewShield < oldShield) {
+      if (safeNewShield <= 0 && oldShield > 0) {
         system.shatterEffect();
       } else {
-        system.takeDamageEffect(newShield, newMaxShield, oldShield - newShield);
+        system.takeDamageEffect(safeNewShield, safeMaxShield, oldShield - safeNewShield);
       }
     }
   },
@@ -603,42 +597,70 @@ const animate = () => {
   animId = requestAnimationFrame(animate);
 };
 
+// [Mobile Opt] 响应式画布尺寸计算
+const resizeCanvas = () => {
+  const wrapper = wrapperRef.value;
+  const canvas = canvasRef.value;
+  if (!wrapper || !canvas) return;
+
+  const displayWidth = wrapper.clientWidth;
+  const aspectRatio = CONFIG.canvasHeight / CONFIG.canvasWidth;
+  const displayHeight = displayWidth * aspectRatio;
+
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width = displayWidth * dpr;
+  canvas.height = displayHeight * dpr;
+
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const scaleFactor = (displayWidth * dpr) / CONFIG.canvasWidth;
+    ctx.scale(scaleFactor, scaleFactor);
+  }
+};
+
 onMounted(() => {
-  if (canvasRef.value) {
-    canvasRef.value.width = CONFIG.canvasWidth;
-    canvasRef.value.height = CONFIG.canvasHeight;
-    animate();
+  resizeCanvas();
+  animate();
+  if (wrapperRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      resizeCanvas();
+    });
+    resizeObserver.observe(wrapperRef.value);
   }
 });
 
 onUnmounted(() => {
   cancelAnimationFrame(animId);
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+  }
 });
 </script>
 
 <style scoped>
 .shield-canvas-wrapper {
+  /* [Mobile Opt] 响应式核心：让宽度撑满容器，高度由 aspect-ratio 自动推算 */
   width: 100%;
-  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: visible;
 
-  /* [Fix] 关键修复：强制开启GPU加速，防止同级元素hover时导致重绘闪烁 */
+  /* 强制 GPU 加速 */
   transform: translateZ(0);
   will-change: transform;
-
-  /* [Fix] 关键修复：添加一个默认的深色背景，防止Canvas ClearRect时的瞬间白屏 */
-  background: rgba(20, 25, 30, 0.8);
-  border-radius: 18px; /* 匹配 Canvas 内部绘制的圆角 */
+  border-radius: 18px;
 }
 
 canvas {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  /* 确保 Canvas 自身不会捕获鼠标事件 */
   pointer-events: none;
 }
 </style>

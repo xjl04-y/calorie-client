@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper';
 
-const store = useGameStore();
 const systemStore = useSystemStore();
 
 const show = computed({
@@ -45,6 +44,47 @@ const statusIcon = computed(() => {
     default: return '🏳️';
   }
 });
+
+// [物资清单] 图标显示逻辑（与HomeView/AnalysisView保持一致）
+const getIconDisplay = (item: any) => {
+  if (!item) return { isSymbol: false, isImage: false, content: '' };
+
+  let iconRaw = item.icon || '';
+
+  // 1. 脏数据清洗
+  if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
+    iconRaw = iconRaw.replace(/<[^>]*>?/gm, '');
+  }
+
+  // 2. 图片检查
+  if (iconRaw.includes('/') || iconRaw.startsWith('http')) {
+    return { isSymbol: false, isImage: true, content: iconRaw };
+  }
+
+  // 3. Symbol ID 检查
+  if (iconRaw.includes('icon-')) {
+    const match = iconRaw.match(/icon-[a-zA-Z0-9-_]+/);
+    if (match) {
+      const extractedId = match[0];
+      if (isValidIcon(extractedId)) {
+        return { isSymbol: true, isImage: false, content: extractedId };
+      }
+    }
+  }
+
+  // 4. Hot-fix (自动修复)
+  const effectiveTags = (item.tags && item.tags.length > 0)
+    ? item.tags
+    : inferTags(item.name || '');
+
+  const assigned = assignIcon(item.name || '', effectiveTags);
+  if (assigned) {
+    return { isSymbol: true, isImage: false, content: assigned };
+  }
+
+  // 5. 兜底
+  return { isSymbol: false, isImage: false, content: iconRaw };
+};
 </script>
 
 <template>
@@ -110,6 +150,44 @@ const statusIcon = computed(() => {
           </div>
         </div>
 
+        <!-- [物资清单] 显示昨日获取的物资 -->
+        <div v-if="report?.items && report.items.length > 0" class="mt-6">
+          <div class="text-xs text-slate-500 uppercase tracking-widest font-bold mb-3 flex items-center">
+            <span>📦</span>
+            <span class="ml-2">物资清单</span>
+          </div>
+          
+          <div class="grid grid-cols-4 gap-2">
+            <div v-for="(item, i) in report.items" :key="i"
+                 class="flex flex-col items-center p-2 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 transition-colors">
+              <!-- 图标显示 -->
+              <div class="text-2xl mb-1 flex items-center justify-center h-8">
+                <template v-if="getIconDisplay(item).isImage">
+                  <img :src="getIconDisplay(item).content" class="w-8 h-8 object-contain" />
+                </template>
+                <template v-else-if="getIconDisplay(item).isSymbol">
+                  <svg class="icon text-2xl" aria-hidden="true">
+                    <use :xlink:href="'#' + getIconDisplay(item).content"></use>
+                  </svg>
+                </template>
+                <template v-else>
+                  <span class="text-2xl">{{ getIconDisplay(item).content }}</span>
+                </template>
+              </div>
+              
+              <!-- 名称 -->
+              <span class="text-[9px] text-slate-300 truncate w-full text-center font-bold leading-tight">
+                {{ item.name }}
+              </span>
+              
+              <!-- 热量 -->
+              <span class="text-[8px] text-slate-500 font-mono mt-0.5">
+                {{ item.calories }}
+              </span>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- 底部按钮 -->
@@ -124,6 +202,15 @@ const statusIcon = computed(() => {
 </template>
 
 <style scoped>
+/* Iconfont Symbol 通用样式 */
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
+
 .animate-pop-in { animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 @keyframes pop-in {
   0% { transform: scale(0.8); opacity: 0; }

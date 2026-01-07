@@ -1,8 +1,8 @@
 @font-face {
   font-family: "iconfont"; /* Project id 5076657 */
-  src: url('iconfont.woff2?t=1767170623050') format('woff2'),
-       url('iconfont.woff?t=1767170623050') format('woff'),
-       url('iconfont.ttf?t=1767170623050') format('truetype');
+  src: url('iconfont.woff2?t=1767612168875') format('woff2'),
+       url('iconfont.woff?t=1767612168875') format('woff'),
+       url('iconfont.ttf?t=1767612168875') format('truetype');
 }
 
 .iconfont {
@@ -11,6 +11,198 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-malatang:before {
+  content: "\e6df";
+}
+
+.icon-pijiu:before {
+  content: "\e6e0";
+}
+
+.icon-mifan:before {
+  content: "\e6e1";
+}
+
+.icon-yazi:before {
+  content: "\e62d";
+}
+
+.icon-qiezi:before {
+  content: "\e71c";
+}
+
+.icon-luo:before {
+  content: "\e6e2";
+}
+
+.icon-shucai:before {
+  content: "\e621";
+}
+
+.icon-jitui:before {
+  content: "\e627";
+}
+
+.icon-rou:before {
+  content: "\e62a";
+}
+
+.icon-e:before {
+  content: "\e6e3";
+}
+
+.icon-sharpicons_peach:before {
+  content: "\e845";
+}
+
+.icon-sharpicons_peas:before {
+  content: "\e846";
+}
+
+.icon-sharpicons_pear-:before {
+  content: "\e847";
+}
+
+.icon-sharpicons_plum:before {
+  content: "\e848";
+}
+
+.icon-sharpicons_radish:before {
+  content: "\e849";
+}
+
+.icon-sharpicons_watermelon-slice:before {
+  content: "\e84a";
+}
+
+.icon-sharpicons_pepper:before {
+  content: "\e84b";
+}
+
+.icon-sharpicons_tomato:before {
+  content: "\e84c";
+}
+
+.icon-sharpicons_pineapple:before {
+  content: "\e84d";
+}
+
+.icon-sharpicons_potato:before {
+  content: "\e84e";
+}
+
+.icon-sharpicons_pomegrade:before {
+  content: "\e84f";
+}
+
+.icon-sharpicons_watermelon:before {
+  content: "\e850";
+}
+
+.icon-sharpicons_garlic:before {
+  content: "\e851";
+}
+
+.icon-sharpicons_watermelon-:before {
+  content: "\e852";
+}
+
+.icon-sharpicons_chilli-pepper:before {
+  content: "\e853";
+}
+
+.icon-sharpicons_lemon:before {
+  content: "\e854";
+}
+
+.icon-sharpicons_avocado:before {
+  content: "\e855";
+}
+
+.icon-sharpicons_pear:before {
+  content: "\e856";
+}
+
+.icon-sharpicons_basilico:before {
+  content: "\e857";
+}
+
+.icon-sharpicons_onions:before {
+  content: "\e858";
+}
+
+.icon-sharpicons_banana:before {
+  content: "\e859";
+}
+
+.icon-sharpicons_carrot:before {
+  content: "\e85a";
+}
+
+.icon-sharpicons_strawberry:before {
+  content: "\e85b";
+}
+
+.icon-sharpicons_hazelnut:before {
+  content: "\e85c";
+}
+
+.icon-sharpicons_onion:before {
+  content: "\e85d";
+}
+
+.icon-sharpicons_lemon-:before {
+  content: "\e85e";
+}
+
+.icon-sharpicons_lettuce:before {
+  content: "\e85f";
+}
+
+.icon-sharpicons_chestnuts:before {
+  content: "\e860";
+}
+
+.icon-sharpicons_eggplant:before {
+  content: "\e861";
+}
+
+.icon-sharpicons_apple:before {
+  content: "\e862";
+}
+
+.icon-sharpicons_cabbage:before {
+  content: "\e863";
+}
+
+.icon-sharpicons_corn:before {
+  content: "\e864";
+}
+
+.icon-sharpicons_grapes:before {
+  content: "\e865";
+}
+
+.icon-shell:before {
+  content: "\e731";
+}
+
+.icon-zhushuijiao:before {
+  content: "\e780";
+}
+
+.icon-haixian:before {
+  content: "\e6e4";
+}
+
+.icon-yu:before {
+  content: "\e6e5";
+}
+
+.icon-haican:before {
+  content: "\e7a4";
 }
 
 .icon-nengliangbang:before {

@@ -12,11 +12,42 @@ import { useHeroStore } from './useHeroStore';
 import { useCollectionStore } from './useCollectionStore';
 import { useLogStore } from './useLogStore';
 
+// [Fix] 扩充小怪池，让战斗前期的怪物更加多样化，覆盖所有弱点类型
 const MINIONS_POOL = [
+  // --- 低碳/高糖系 ---
   { name: '糖分小鬼', icon: '🍬', weakness: '忌高糖', weaknessType: '低碳' },
-  { name: '油腻史莱姆', icon: '💧', weakness: '忌油腻', weaknessType: '低脂' },
   { name: '碳水强盗', icon: '🍞', weakness: '忌高碳', weaknessType: '低碳' },
-  { name: '懒惰炸弹', icon: '💣', weakness: '需高蛋白', weaknessType: '高蛋白' }
+  { name: '面团怪', icon: '🥯', weakness: '忌面食', weaknessType: '低碳' },
+  { name: '饼干士兵', icon: '🍪', weakness: '忌甜食', weaknessType: '低碳' },
+  { name: '馒头拳师', icon: '👊', weakness: '忌淀粉', weaknessType: '低碳' },
+
+  // --- 低脂/油腻系 ---
+  { name: '油腻史莱姆', icon: '💧', weakness: '忌油腻', weaknessType: '低脂' },
+  { name: '炸鸡块怪', icon: '🍗', weakness: '忌油炸', weaknessType: '低脂' },
+  { name: '薯条精', icon: '🍟', weakness: '忌快餐', weaknessType: '低脂' },
+  { name: '肥肉球', icon: '🥓', weakness: '忌肥肉', weaknessType: '低脂' },
+  { name: '黄油滑怪', icon: '🧈', weakness: '忌高脂', weaknessType: '低脂' },
+
+  // --- 高蛋白/虚弱系 ---
+  { name: '懒惰炸弹', icon: '💣', weakness: '需高蛋白', weaknessType: '高蛋白' },
+  { name: '软脚虾', icon: '🦐', weakness: '需补充', weaknessType: '高蛋白' },
+  { name: '骨架兵', icon: '💀', weakness: '需钙质', weaknessType: '高蛋白' },
+  { name: '虚弱豆芽', icon: '🌱', weakness: '需营养', weaknessType: '高蛋白' },
+  { name: '纸片人', icon: '📄', weakness: '需增肌', weaknessType: '高蛋白' },
+
+  // --- 补水/干燥系 ---
+  { name: '干燥怪', icon: '🏜️', weakness: '需补水', weaknessType: '水' },
+  { name: '咸鱼干', icon: '🐟', weakness: '需淡化', weaknessType: '水' },
+  { name: '枯叶精', icon: '🍂', weakness: '需滋润', weaknessType: '水' },
+  { name: '火苗怪', icon: '🔥', weakness: '需降火', weaknessType: '水' },
+  { name: '咖啡因小鬼', icon: '☕', weakness: '需补水', weaknessType: '水' },
+
+  // --- 纯净/垃圾食品系 ---
+  { name: '垃圾袋怪', icon: '🗑️', weakness: '忌垃圾', weaknessType: '纯净' },
+  { name: '防腐剂幽灵', icon: '👻', weakness: '忌添加剂', weaknessType: '纯净' },
+  { name: '辣条蛇', icon: '🐍', weakness: '忌辛辣', weaknessType: '纯净' },
+  { name: '剩饭团', icon: '🍙', weakness: '忌隔夜', weaknessType: '纯净' },
+  { name: '色素史莱姆', icon: '🌈', weakness: '忌色素', weaknessType: '纯净' }
 ];
 
 const COMBO_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -42,7 +73,7 @@ export const useBattleStore = defineStore('battle', () => {
     lastLogId: 0 as string | number
   });
 
-  // ... dailyMonster, environment ...
+  // [Fix] 升级版怪物生成逻辑：完全匹配 monsters.ts 的分类
   const dailyMonster = computed(() => {
     const todayStr = systemStore.currentDate;
     const [y, m, d] = todayStr.split('-').map(Number);
@@ -54,21 +85,42 @@ export const useBattleStore = defineStore('battle', () => {
     const yKey = getLocalDateStr(yesterdayDate);
 
     const yLogs = logStore.logs[yKey] || [];
+
+    // 统计昨日数据
     const yStats = yLogs.reduce((acc, l) => ({
       c: acc.c + (Number(l.c) || 0),
       f: acc.f + (Number(l.f) || 0),
       p: acc.p + (Number(l.p) || 0)
     }), { c: 0, f: 0, p: 0 });
 
-    let monsterType = '均衡';
-    if (yStats.c > 300) monsterType = '低碳';
-    else if (yStats.f > 80) monsterType = '低脂';
-    else if (yStats.p < 30 && yLogs.length > 0) monsterType = '高蛋白';
+    // 统计特殊行为
+    const junkCount = yLogs.filter(l => l.tags?.includes('高糖') || l.tags?.includes('高油') || l.tags?.includes('垃圾食品')).length;
+    const waterCount = yLogs.filter(l => l.mealType === 'HYDRATION').length;
 
+    // [Fix] 智能判定怪物类型，覆盖所有 monsters.ts 定义
+    let monsterType = '均衡'; // 默认 Lv.1-10
+
+    // 优先级判断：问题最严重的领域优先生成 Boss
+    if (waterCount < 2) {
+      monsterType = '水'; // 缺水 -> 荒芜旱怪 (Lv.86-95)
+    } else if (junkCount > 3) {
+      monsterType = '纯净'; // 垃圾吃多了 -> 毒素变异体 (Lv.71-85)
+    } else if (yStats.c > 350) {
+      monsterType = '低碳'; // 碳水炸弹 -> 碳水大军 (Lv.26-40) / 糖分军团 (Lv.11-25)
+    } else if (yStats.f > 100) {
+      monsterType = '低脂'; // 油脂过高 -> 油脂魔物 (Lv.41-55)
+    } else if (yStats.p < 40 && yLogs.length > 2) {
+      monsterType = '高蛋白'; // 蛋白质不足 -> 虚弱鬼魂 (Lv.56-70)
+    }
+
+    // 从 MONSTERS 池中筛选符合类型的
     const candidates = MONSTERS.filter(m => m?.weaknessType === monsterType);
 
-    const seed = todayStr.split('').reduce((a, b, i) => a + (b.charCodeAt(0) * (i + 1)), 0);
+    // 如果没有找到对应类型的怪（防止填错了），则回退到全部列表
     const safeCandidates = candidates.length > 0 ? candidates : MONSTERS;
+
+    // 使用日期种子随机选择
+    const seed = todayStr.split('').reduce((a, b, i) => a + (b.charCodeAt(0) * (i + 1)), 0);
     return safeCandidates[seed % safeCandidates.length] || MONSTERS[0];
   });
 
@@ -364,6 +416,9 @@ export const useBattleStore = defineStore('battle', () => {
       if (macros.p < 50) return { text: '攻击力不足！急需补充蛋白质！', type: 'INFO', icon: '🥩', tags: ['高蛋白'] };
       return { text: '状态良好！继续保持高蛋白摄入。', type: 'GOOD', icon: '✨', tags: ['高蛋白'] };
     }
+    if (wType === '水' || wType === 'WATER') {
+      return { text: 'Boss 厌恶水分！多喝水造成暴击！', type: 'INFO', icon: '💧', tags: ['水'] };
+    }
 
     return { text: '保持均衡饮食，稳扎稳打。', type: 'INFO', icon: '🛡️', tags: ['均衡'] };
   }
@@ -506,6 +561,10 @@ export const useBattleStore = defineStore('battle', () => {
       if (p > 15 && densityP > 0.15) newTags.add('高蛋白');
     }
 
+    // [Fix] 增加标签判定逻辑，支持更多怪物类型
+    if (item.name.includes('水') || item.name.includes('茶') || item.name.includes('咖啡')) newTags.add('水');
+    if (!newTags.has('高糖') && !newTags.has('高油') && !newTags.has('垃圾食品')) newTags.add('纯净');
+
     if (item.name.includes('糖') || item.name.includes('奶茶') || item.name.includes('蛋糕')) newTags.add('高糖');
     if (newTags.has('高碳') && newTags.has('高蛋白') && newTags.has('纯净')) newTags.add('均衡');
 
@@ -564,23 +623,50 @@ export const useBattleStore = defineStore('battle', () => {
       }
     }
 
-    // ... (Keep weakness logic) ...
+    // [Fix] 补全所有怪物类型的克制/抵抗逻辑
     if (monster && !ignoreResist) {
-      const isCleanSet = newTags.has('纯净') && (item.isPreset || item.isComposite);
-      const carbThreshold = isCleanSet ? 100 : 30;
-      const fatThreshold = isCleanSet ? 50 : 15;
+      const type = monster.weaknessType;
 
-      if (monster.weaknessType === '低碳' && (newTags.has('高碳') || c > carbThreshold)) {
-        if (isCleanSet) {
-          multiplier = 0.8;
-        } else {
-          multiplier = 0.3; isResist = true; resistReason = 'Boss 厌恶碳水！';
+      // 1. 低碳怪 (糖霜魔像等)
+      if (type === '低碳' || type === 'LOW_CARB') {
+        if (newTags.has('高碳') || newTags.has('高糖')) {
+          multiplier = 0.3; isResist = true; resistReason = 'Boss 厌恶碳水/糖分！';
         }
-      } else if (monster.weaknessType === '低脂' && (newTags.has('高油') || f > fatThreshold)) {
-        if (isCleanSet) {
-          multiplier = 0.8;
-        } else {
+      }
+      // 2. 低脂怪 (油腻史莱姆等)
+      else if (type === '低脂' || type === 'LOW_FAT') {
+        if (newTags.has('高油')) {
           multiplier = 0.3; isResist = true; resistReason = 'Boss 厌恶油腻！';
+        }
+      }
+      // 3. 高蛋白怪 (饥饿幽灵等) - 奖励机制
+      else if (type === '高蛋白' || type === 'HIGH_PRO') {
+        if (newTags.has('高蛋白')) {
+          multiplier *= 1.5; // 蛋白质暴击
+        } else {
+          multiplier *= 0.8; // 没肉没伤害
+        }
+      }
+      // 4. 纯净怪 (垃圾桶怪等)
+      else if (type === '纯净' || type === 'CLEAN') {
+        if (newTags.has('高糖') || newTags.has('高油') || newTags.has('垃圾食品')) {
+          multiplier = 0.2; isResist = true; resistReason = 'Boss 免疫垃圾食品！';
+        } else if (newTags.has('纯净')) {
+          multiplier *= 1.3; // 纯净加成
+        }
+      }
+      // 5. 水怪 (荒芜旱怪等)
+      else if (type === '水' || type === 'WATER') {
+        if (battleItem.mealType === 'HYDRATION' || newTags.has('水')) {
+          multiplier *= 2.0; // 水属性暴击
+        } else if (battleItem.mealType === 'SNACK') {
+          multiplier *= 0.5; // 干粮效果差
+        }
+      }
+      // 6. 均衡怪 (暴食史莱姆等)
+      else if (type === '均衡' || type === 'BALANCED') {
+        if (newTags.has('均衡')) {
+          multiplier *= 1.5;
         }
       }
     }

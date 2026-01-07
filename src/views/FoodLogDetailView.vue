@@ -5,6 +5,8 @@ import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { showToast } from 'vant';
 import type { FoodLog } from '@/types';
+// [Import] 引入数据处理工具
+import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper';
 
 // 创建类型守卫函数
 function isFullFoodLog(log: any): log is FoodLog & { damageTaken: number; healed: number; blocked: number } {
@@ -15,17 +17,14 @@ const router = useRouter();
 const store = useGameStore();
 const systemStore = useSystemStore();
 
-// 获取当前日志（从临时状态或路由参数）
+// 获取当前日志
 const currentLog = computed(() => {
-  // 如果有临时选中的日志，优先使用
   if (systemStore.temp.selectedLog) {
     return systemStore.temp.selectedLog;
   }
-  // 否则可以根据路由参数查找日志
   return null;
 });
 
-// 如果没有选中的日志，返回上一页
 if (!currentLog.value) {
   router.back();
 }
@@ -33,10 +32,10 @@ if (!currentLog.value) {
 // 计算营养成分占比
 const macroRatios = computed(() => {
   if (!currentLog.value) return { p: 0, c: 0, f: 0 };
-  
+
   const totalCals = (currentLog.value.p || 0) * 4 + (currentLog.value.c || 0) * 4 + (currentLog.value.f || 0) * 9;
   if (totalCals === 0) return { p: 0, c: 0, f: 0 };
-  
+
   return {
     p: Math.round(((currentLog.value.p || 0) * 4 / totalCals) * 100),
     c: Math.round(((currentLog.value.c || 0) * 4 / totalCals) * 100),
@@ -44,7 +43,66 @@ const macroRatios = computed(() => {
   };
 });
 
-// 表单状态（用于编辑模式）
+// ==========================================
+// [DEBUG版本] 图标处理逻辑
+// ==========================================
+const getIconDisplay = (item: any) => {
+  const DEBUG_PREFIX = `[IconDebug - ${item?.name || 'Unknown'}]:`;
+
+  if (!item) return { isSymbol: false, isImage: false, content: '' };
+
+  let iconRaw = (item.icon || '').trim(); // 去除首尾空格
+
+  // 1. 脏数据清洗
+  if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
+    iconRaw = iconRaw.replace(/<[^>]*>?/gm, '');
+  }
+
+  // console.log(`${DEBUG_PREFIX} Start processing '${iconRaw}'`);
+
+  // 2. 图片 URL
+  if (iconRaw.includes('/') || iconRaw.startsWith('http')) {
+    // console.log(`${DEBUG_PREFIX} Detected as Image`);
+    return { isSymbol: false, isImage: true, content: iconRaw };
+  }
+
+  // 3. 尝试提取 icon-xxx 并验证
+  if (iconRaw.includes('icon-')) {
+    const match = iconRaw.match(/icon-[a-zA-Z0-9-_]+/);
+    if (match) {
+      const extractedId = match[0];
+      const valid = isValidIcon(extractedId);
+
+      console.log(`${DEBUG_PREFIX} Extracted ID: ${extractedId}, Valid in JSON: ${valid}`);
+
+      if (valid) {
+        return { isSymbol: true, isImage: false, content: extractedId };
+      } else {
+        console.warn(`${DEBUG_PREFIX} Validation failed for ${extractedId}. It might be missing in iconfont.json or BROKEN_ICONS list.`);
+      }
+    } else {
+      console.warn(`${DEBUG_PREFIX} Regex failed to match icon- pattern in '${iconRaw}'`);
+    }
+  }
+
+  // 4. 兜底逻辑 (尝试重新分配)
+  const effectiveTags = (item.tags && item.tags.length > 0)
+    ? item.tags
+    : inferTags(item.name || '');
+
+  const assigned = assignIcon(item.name || '', effectiveTags);
+  console.log(`${DEBUG_PREFIX} Fallback assigned: ${assigned}`);
+
+  if (assigned) {
+    return { isSymbol: true, isImage: false, content: assigned };
+  }
+
+  // 5. 实在没办法，显示文字
+  console.log(`${DEBUG_PREFIX} Final fallback to text: ${iconRaw}`);
+  return { isSymbol: false, isImage: false, content: iconRaw || '❓' };
+};
+
+// 表单状态
 const isEditing = ref(false);
 const editForm = ref({
   name: '',
@@ -57,10 +115,8 @@ const editForm = ref({
   mealType: 'SNACK' as 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK'
 });
 
-// 删除记录
 const deleteLog = () => {
   if (!currentLog.value) return;
-  
   const removed = store.deleteLog(currentLog.value);
   if (removed) {
     showToast('记录已删除');
@@ -68,10 +124,8 @@ const deleteLog = () => {
   }
 };
 
-// 进入编辑模式
 const startEdit = () => {
   if (!currentLog.value) return;
-  
   editForm.value = {
     name: currentLog.value.name,
     icon: currentLog.value.icon,
@@ -85,12 +139,7 @@ const startEdit = () => {
   isEditing.value = true;
 };
 
-// 保存编辑
 const saveEdit = () => {
-  if (!currentLog.value) return;
-  
-  // 这里应该调用相应的更新方法
-  // 由于食物记录的更新逻辑比较复杂，暂时只给出提示
   showToast('编辑功能正在开发中');
   isEditing.value = false;
 };
@@ -103,21 +152,57 @@ const saveEdit = () => {
       <button @click="router.back()" class="w-8 h-8 flex items-center justify-center rounded-full active:bg-slate-100 dark:active:bg-slate-800 transition">
         <i class="fas fa-arrow-left text-slate-600 dark:text-slate-300"></i>
       </button>
-      <span class="font-bold text-slate-800 dark:text-white">🥗 食物详情</span>
-      <div class="w-8 h-8"></div> <!-- 占位符 -->
+      <span class="font-bold text-slate-800 dark:text-white">🥗 食物详情 (Debug)</span>
+      <div class="w-8 h-8"></div>
     </div>
 
     <div class="flex-1 p-4">
       <div v-if="currentLog" class="space-y-6">
         <!-- 食物信息卡片 -->
         <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
-          <div class="flex items-center gap-4 mb-6">
-            <div class="w-16 h-16 rounded-full bg-green-50 dark:bg-green-900/20 text-3xl flex items-center justify-center">
-              {{ currentLog.icon }}
+          <div class="flex flex-col items-center mb-6">
+
+            <!-- 智能图标显示区域 -->
+            <div class="w-24 h-24 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center shadow-sm mb-4 overflow-hidden relative group">
+
+              <!-- Image 模式 -->
+              <template v-if="getIconDisplay(currentLog).isImage">
+                <img :src="getIconDisplay(currentLog).content" class="w-full h-full object-cover" alt="icon" />
+              </template>
+
+              <!-- Symbol 模式 (SVG) -->
+              <template v-else-if="getIconDisplay(currentLog).isSymbol">
+                <svg class="icon text-6xl text-slate-800 dark:text-white" aria-hidden="true">
+                  <use :xlink:href="'#' + getIconDisplay(currentLog).content"></use>
+                </svg>
+              </template>
+
+              <!-- 文字回退模式 -->
+              <template v-else>
+                <div class="flex flex-col items-center justify-center p-2 text-center">
+                  <span class="text-xs text-red-400 mb-1">Invalid Icon</span>
+                  <span class="text-sm font-mono break-all leading-tight">{{ getIconDisplay(currentLog).content }}</span>
+                </div>
+              </template>
+
+              <!-- DEBUG 浮层 (鼠标悬停显示) -->
+              <div class="absolute inset-0 bg-black/80 text-white text-[10px] p-1 flex flex-col justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div>Raw: {{ currentLog.icon }}</div>
+                <div>Res: {{ getIconDisplay(currentLog).content }}</div>
+                <div>Sym: {{ getIconDisplay(currentLog).isSymbol }}</div>
+              </div>
             </div>
-            <div>
-              <div class="text-2xl font-bold text-slate-800 dark:text-white">{{ currentLog.name }}</div>
-              <div class="text-slate-500 dark:text-slate-400">{{ new Date(currentLog.timestamp).toLocaleString() }}</div>
+
+            <!-- 显式调试信息 (帮助你定位问题) -->
+            <div class="mb-4 p-2 bg-slate-100 dark:bg-slate-900 rounded text-[10px] font-mono text-slate-500 w-full break-all">
+              <strong>DEBUG INFO:</strong><br/>
+              Raw: "{{ currentLog.icon }}"<br/>
+              Result: {{ JSON.stringify(getIconDisplay(currentLog)) }}
+            </div>
+
+            <div class="text-center">
+              <div class="text-2xl font-bold text-slate-800 dark:text-white mb-1">{{ currentLog.name }}</div>
+              <div class="text-slate-500 dark:text-slate-400 text-sm">{{ new Date(currentLog.timestamp).toLocaleString() }}</div>
             </div>
           </div>
 
@@ -145,21 +230,21 @@ const saveEdit = () => {
           <div class="mb-6">
             <div class="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">营养成分占比（按热量）</div>
             <div class="flex gap-1 h-3 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-700">
-              <div 
+              <div
                 v-if="macroRatios.p > 0"
-                class="bg-red-500 transition-all" 
+                class="bg-red-500 transition-all"
                 :style="{ width: macroRatios.p + '%' }"
                 :title="`蛋白质 ${macroRatios.p}%`"
               ></div>
-              <div 
+              <div
                 v-if="macroRatios.c > 0"
-                class="bg-blue-500 transition-all" 
+                class="bg-blue-500 transition-all"
                 :style="{ width: macroRatios.c + '%' }"
                 :title="`碳水 ${macroRatios.c}%`"
               ></div>
-              <div 
+              <div
                 v-if="macroRatios.f > 0"
-                class="bg-yellow-500 transition-all" 
+                class="bg-yellow-500 transition-all"
                 :style="{ width: macroRatios.f + '%' }"
                 :title="`脂肪 ${macroRatios.f}%`"
               ></div>
@@ -252,3 +337,13 @@ const saveEdit = () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
+</style>

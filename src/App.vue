@@ -290,8 +290,12 @@ const handleSplashComplete = () => {
         </router-view>
       </div>
 
-      <!-- [Fix: Vue Warn] 将文本内容包裹在 span 标签中，避免 Slot default invoked outside of render function 警告 -->
-      <van-tabbar v-if="store.user.isInitialized" route fixed placeholder safe-area-inset-bottom class="shadow-lg z-40 border-t dark:border-slate-800">
+      <!-- Tabbar: 根据 Pure/RPG 模式调整高亮颜色 -->
+      <van-tabbar
+        v-if="store.user.isInitialized"
+        route fixed placeholder safe-area-inset-bottom
+        class="shadow-lg z-40 border-t dark:border-slate-800"
+        :active-color="isPure ? '#0d9488' : '#2563eb'">
         <van-tabbar-item id="tour-tab-home" name="home" :icon="isPure ? 'orders-o' : 'fire-o'" to="/">
           <span>{{ isPure ? '饮食' : '讨伐' }}</span>
         </van-tabbar-item>
@@ -303,6 +307,8 @@ const handleSplashComplete = () => {
         </van-tabbar-item>
       </van-tabbar>
 
+      <!-- 1. 补水按钮 (Hydration) -->
+      <!-- Pure: Sky-500 | RPG: Blue-600 | 拒绝紫色 -->
       <div v-if="store.user.isInitialized"
            class="fixed z-40 pointer-events-none"
            :style="{
@@ -311,7 +317,8 @@ const handleSplashComplete = () => {
              transition: isDragging ? 'left 0.1s ease-out, top 0.1s ease-out' : 'left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)'
            }">
         <div @click="!isDragging && openHydration()"
-             class="w-10 h-10 rounded-full bg-blue-500 text-white shadow-lg flex flex-col items-center justify-center border-2 border-white dark:border-slate-700 cursor-pointer hover:scale-110 transition-transform pointer-events-auto active:scale-90"
+             class="w-10 h-10 rounded-full text-white shadow-lg flex flex-col items-center justify-center border-2 border-white dark:border-slate-700 cursor-pointer hover:scale-110 transition-transform pointer-events-auto active:scale-90"
+             :class="isPure ? 'bg-sky-500' : 'bg-blue-600'"
              :style="{
                transform: `translateY(${ isTopSide ? (isFabExpanded ? 160 : 70) : (isFabExpanded ? -150 : -65) }px)`,
                transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)'
@@ -320,6 +327,8 @@ const handleSplashComplete = () => {
         </div>
       </div>
 
+      <!-- 2. 运动按钮 (Exercise) -->
+      <!-- Pure: Emerald-500 | RPG: Teal-600 -->
       <div v-if="store.user.isInitialized"
            class="fixed z-50 flex items-center justify-center cursor-pointer"
            :class="[
@@ -332,7 +341,9 @@ const handleSplashComplete = () => {
              top: (fabPos.y + (isTopSide ? 80 : -80)) + 'px',
              transition: isDragging ? 'none' : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s'
            }">
-        <div @click="openExercise" class="w-14 h-14 rounded-full bg-green-500 text-white shadow-lg flex flex-col items-center justify-center border-2 border-white dark:border-slate-700 relative hover:brightness-110 active:scale-90 transition-all">
+        <div @click="openExercise"
+             class="w-14 h-14 rounded-full text-white shadow-lg flex flex-col items-center justify-center border-2 border-white dark:border-slate-700 relative hover:brightness-110 active:scale-90 transition-all"
+             :class="isPure ? 'bg-emerald-500' : 'bg-teal-600'">
           <i class="fas fa-running text-xl"></i>
           <span class="text-[10px] font-bold absolute top-1/2 -translate-y-1/2 bg-slate-800 text-white px-2 py-1 rounded-lg opacity-90 whitespace-nowrap shadow-md"
                 :class="isLeftSide ? 'left-full ml-3' : 'right-full mr-3'">
@@ -341,6 +352,8 @@ const handleSplashComplete = () => {
         </div>
       </div>
 
+      <!-- 3. 饮食按钮 (Supply) -->
+      <!-- Pure: Amber-500 | RPG: Orange-600 -->
       <div v-if="store.user.isInitialized"
            class="fixed z-50 flex items-center justify-center cursor-pointer"
            :class="[
@@ -353,7 +366,9 @@ const handleSplashComplete = () => {
              top: (fabPos.y) + 'px',
              transition: isDragging ? 'none' : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s'
            }">
-        <div @click="openSupply" class="w-14 h-14 rounded-full bg-orange-500 text-white shadow-lg flex flex-col items-center justify-center border-2 border-white dark:border-slate-700 relative hover:brightness-110 active:scale-90 transition-all">
+        <div @click="openSupply"
+             class="w-14 h-14 rounded-full text-white shadow-lg flex flex-col items-center justify-center border-2 border-white dark:border-slate-700 relative hover:brightness-110 active:scale-90 transition-all"
+             :class="isPure ? 'bg-amber-500' : 'bg-orange-600'">
           <i class="fas fa-utensils text-xl"></i>
           <span class="text-[10px] font-bold absolute left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-0.5 rounded opacity-90 whitespace-nowrap shadow-md"
                 :class="isTopSide ? 'top-full mt-3' : 'bottom-full mb-3'">
@@ -362,6 +377,8 @@ const handleSplashComplete = () => {
         </div>
       </div>
 
+      <!-- 4. 主开关按钮 (Main Toggle) -->
+      <!-- 根据 深色/浅色 模式反转黑白，确保对比度 -->
       <div v-if="store.user.isInitialized"
            id="guide-global-supply"
            class="fixed z-[60] transition-transform active:scale-90 cursor-pointer"
@@ -376,9 +393,13 @@ const handleSplashComplete = () => {
            @click="toggleFab">
 
         <div class="w-14 h-14 rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.3)] flex flex-col items-center justify-center border-2 transition-all duration-300"
-             :class="isFabExpanded
-               ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 border-slate-300 dark:border-slate-500 rotate-45 scale-90'
-               : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-700 dark:border-slate-200 hover:scale-105'">
+             :class="[
+               isFabExpanded
+                 /* 展开状态: 灰色背景，适应深浅模式 */
+                 ? (isPure ? 'bg-stone-200 dark:bg-slate-700 text-stone-500 border-stone-300 dark:border-slate-500' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 border-slate-300 dark:border-slate-500') + ' rotate-45 scale-90'
+                 /* 收起状态: 黑白反转，高对比度 */
+                 : (isPure ? 'bg-white dark:bg-stone-800 text-stone-800 dark:text-white border-stone-200 dark:border-stone-700' : 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-700 dark:border-slate-300') + ' hover:scale-105'
+             ]">
           <div class="text-3xl mb-[-2px] leading-none transition-transform duration-300">+</div>
         </div>
       </div>
@@ -399,7 +420,7 @@ const handleSplashComplete = () => {
       <ModalHpHistory v-if="!isPure" />
       <ModalQuestBoard v-if="!isPure" />
       <ModalSkillTree v-if="!isPure" />
-      <ModalNpcGuide v-if="!isPure" />
+      <ModalNpcGuide />
       <ModalSettings />
       <ModalShop v-if="!isPure" />
       <ModalRebirth v-if="!isPure" />

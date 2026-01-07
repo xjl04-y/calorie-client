@@ -6,6 +6,342 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "210195",
+      "name": "麻辣烫",
+      "font_class": "malatang",
+      "unicode": "e6df",
+      "unicode_decimal": 59103
+    },
+    {
+      "icon_id": "1314011",
+      "name": "啤酒",
+      "font_class": "pijiu",
+      "unicode": "e6e0",
+      "unicode_decimal": 59104
+    },
+    {
+      "icon_id": "1793597",
+      "name": "米饭",
+      "font_class": "mifan",
+      "unicode": "e6e1",
+      "unicode_decimal": 59105
+    },
+    {
+      "icon_id": "3831715",
+      "name": "鸭子",
+      "font_class": "yazi",
+      "unicode": "e62d",
+      "unicode_decimal": 58925
+    },
+    {
+      "icon_id": "4511840",
+      "name": "茄子",
+      "font_class": "qiezi",
+      "unicode": "e71c",
+      "unicode_decimal": 59164
+    },
+    {
+      "icon_id": "5045188",
+      "name": "螺",
+      "font_class": "luo",
+      "unicode": "e6e2",
+      "unicode_decimal": 59106
+    },
+    {
+      "icon_id": "5193924",
+      "name": "蔬菜",
+      "font_class": "shucai",
+      "unicode": "e621",
+      "unicode_decimal": 58913
+    },
+    {
+      "icon_id": "5220534",
+      "name": "鸡腿",
+      "font_class": "jitui",
+      "unicode": "e627",
+      "unicode_decimal": 58919
+    },
+    {
+      "icon_id": "5220541",
+      "name": "肉",
+      "font_class": "rou",
+      "unicode": "e62a",
+      "unicode_decimal": 58922
+    },
+    {
+      "icon_id": "5482939",
+      "name": "鹅",
+      "font_class": "e",
+      "unicode": "e6e3",
+      "unicode_decimal": 59107
+    },
+    {
+      "icon_id": "10574474",
+      "name": "peach",
+      "font_class": "sharpicons_peach",
+      "unicode": "e845",
+      "unicode_decimal": 59461
+    },
+    {
+      "icon_id": "10574475",
+      "name": "peas",
+      "font_class": "sharpicons_peas",
+      "unicode": "e846",
+      "unicode_decimal": 59462
+    },
+    {
+      "icon_id": "10574476",
+      "name": "pear-2",
+      "font_class": "sharpicons_pear-",
+      "unicode": "e847",
+      "unicode_decimal": 59463
+    },
+    {
+      "icon_id": "10574477",
+      "name": "plum",
+      "font_class": "sharpicons_plum",
+      "unicode": "e848",
+      "unicode_decimal": 59464
+    },
+    {
+      "icon_id": "10574478",
+      "name": "radish",
+      "font_class": "sharpicons_radish",
+      "unicode": "e849",
+      "unicode_decimal": 59465
+    },
+    {
+      "icon_id": "10574479",
+      "name": "watermelon-slice",
+      "font_class": "sharpicons_watermelon-slice",
+      "unicode": "e84a",
+      "unicode_decimal": 59466
+    },
+    {
+      "icon_id": "10574480",
+      "name": "pepper",
+      "font_class": "sharpicons_pepper",
+      "unicode": "e84b",
+      "unicode_decimal": 59467
+    },
+    {
+      "icon_id": "10574481",
+      "name": "tomato",
+      "font_class": "sharpicons_tomato",
+      "unicode": "e84c",
+      "unicode_decimal": 59468
+    },
+    {
+      "icon_id": "10574482",
+      "name": "pineapple",
+      "font_class": "sharpicons_pineapple",
+      "unicode": "e84d",
+      "unicode_decimal": 59469
+    },
+    {
+      "icon_id": "10574483",
+      "name": "potato",
+      "font_class": "sharpicons_potato",
+      "unicode": "e84e",
+      "unicode_decimal": 59470
+    },
+    {
+      "icon_id": "10574484",
+      "name": "pomegrade",
+      "font_class": "sharpicons_pomegrade",
+      "unicode": "e84f",
+      "unicode_decimal": 59471
+    },
+    {
+      "icon_id": "10574485",
+      "name": "watermelon",
+      "font_class": "sharpicons_watermelon",
+      "unicode": "e850",
+      "unicode_decimal": 59472
+    },
+    {
+      "icon_id": "10574486",
+      "name": "garlic",
+      "font_class": "sharpicons_garlic",
+      "unicode": "e851",
+      "unicode_decimal": 59473
+    },
+    {
+      "icon_id": "10574487",
+      "name": "watermelon-2",
+      "font_class": "sharpicons_watermelon-",
+      "unicode": "e852",
+      "unicode_decimal": 59474
+    },
+    {
+      "icon_id": "10574488",
+      "name": "chilli-pepper",
+      "font_class": "sharpicons_chilli-pepper",
+      "unicode": "e853",
+      "unicode_decimal": 59475
+    },
+    {
+      "icon_id": "10574489",
+      "name": "lemon",
+      "font_class": "sharpicons_lemon",
+      "unicode": "e854",
+      "unicode_decimal": 59476
+    },
+    {
+      "icon_id": "10574490",
+      "name": "avocado",
+      "font_class": "sharpicons_avocado",
+      "unicode": "e855",
+      "unicode_decimal": 59477
+    },
+    {
+      "icon_id": "10574491",
+      "name": "pear",
+      "font_class": "sharpicons_pear",
+      "unicode": "e856",
+      "unicode_decimal": 59478
+    },
+    {
+      "icon_id": "10574492",
+      "name": "basilico",
+      "font_class": "sharpicons_basilico",
+      "unicode": "e857",
+      "unicode_decimal": 59479
+    },
+    {
+      "icon_id": "10574493",
+      "name": "onions",
+      "font_class": "sharpicons_onions",
+      "unicode": "e858",
+      "unicode_decimal": 59480
+    },
+    {
+      "icon_id": "10574494",
+      "name": "banana",
+      "font_class": "sharpicons_banana",
+      "unicode": "e859",
+      "unicode_decimal": 59481
+    },
+    {
+      "icon_id": "10574495",
+      "name": "carrot",
+      "font_class": "sharpicons_carrot",
+      "unicode": "e85a",
+      "unicode_decimal": 59482
+    },
+    {
+      "icon_id": "10574496",
+      "name": "strawberry",
+      "font_class": "sharpicons_strawberry",
+      "unicode": "e85b",
+      "unicode_decimal": 59483
+    },
+    {
+      "icon_id": "10574497",
+      "name": "hazelnut",
+      "font_class": "sharpicons_hazelnut",
+      "unicode": "e85c",
+      "unicode_decimal": 59484
+    },
+    {
+      "icon_id": "10574498",
+      "name": "onion",
+      "font_class": "sharpicons_onion",
+      "unicode": "e85d",
+      "unicode_decimal": 59485
+    },
+    {
+      "icon_id": "10574499",
+      "name": "lemon-2",
+      "font_class": "sharpicons_lemon-",
+      "unicode": "e85e",
+      "unicode_decimal": 59486
+    },
+    {
+      "icon_id": "10574500",
+      "name": "lettuce",
+      "font_class": "sharpicons_lettuce",
+      "unicode": "e85f",
+      "unicode_decimal": 59487
+    },
+    {
+      "icon_id": "10574503",
+      "name": "chestnuts",
+      "font_class": "sharpicons_chestnuts",
+      "unicode": "e860",
+      "unicode_decimal": 59488
+    },
+    {
+      "icon_id": "10574504",
+      "name": "eggplant",
+      "font_class": "sharpicons_eggplant",
+      "unicode": "e861",
+      "unicode_decimal": 59489
+    },
+    {
+      "icon_id": "10574505",
+      "name": "apple",
+      "font_class": "sharpicons_apple",
+      "unicode": "e862",
+      "unicode_decimal": 59490
+    },
+    {
+      "icon_id": "10574506",
+      "name": "cabbage",
+      "font_class": "sharpicons_cabbage",
+      "unicode": "e863",
+      "unicode_decimal": 59491
+    },
+    {
+      "icon_id": "10574507",
+      "name": "corn",
+      "font_class": "sharpicons_corn",
+      "unicode": "e864",
+      "unicode_decimal": 59492
+    },
+    {
+      "icon_id": "10574508",
+      "name": "grapes",
+      "font_class": "sharpicons_grapes",
+      "unicode": "e865",
+      "unicode_decimal": 59493
+    },
+    {
+      "icon_id": "11837432",
+      "name": "shell",
+      "font_class": "shell",
+      "unicode": "e731",
+      "unicode_decimal": 59185
+    },
+    {
+      "icon_id": "16071238",
+      "name": "煮水饺",
+      "font_class": "zhushuijiao",
+      "unicode": "e780",
+      "unicode_decimal": 59264
+    },
+    {
+      "icon_id": "16328301",
+      "name": "海鲜",
+      "font_class": "haixian",
+      "unicode": "e6e4",
+      "unicode_decimal": 59108
+    },
+    {
+      "icon_id": "16328335",
+      "name": "鱼",
+      "font_class": "yu",
+      "unicode": "e6e5",
+      "unicode_decimal": 59109
+    },
+    {
+      "icon_id": "45995707",
+      "name": "海参（图例）",
+      "font_class": "haican",
+      "unicode": "e7a4",
+      "unicode_decimal": 59300
+    },
+    {
       "icon_id": "18813135",
       "name": "能量棒",
       "font_class": "nengliangbang",

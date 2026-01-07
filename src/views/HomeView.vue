@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, onUnmounted, reactive } from 'vue';
+import { computed, onMounted, ref, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
@@ -7,9 +7,11 @@ import { useHeroStore } from '@/stores/useHeroStore';
 import { useLogStore } from '@/stores/useLogStore';
 import AppHud from '@/components/AppHud.vue';
 import DateNavigator from '@/components/DateNavigator.vue';
-import { showConfirmDialog, showDialog, showNotify, showToast } from 'vant';
+import { showConfirmDialog, showDialog, showNotify } from 'vant';
 import type { FoodLog, MealType } from '@/types';
 import ShieldBarCanvas from '@/components/ShieldBarCanvas.vue';
+import { assignIcon, inferTags } from '@/utils/foodDataMapper';
+import ModalQuestBoard from '@/components/modals/ModalQuestBoard.vue';
 
 const router = useRouter();
 const store = useGameStore();
@@ -17,7 +19,7 @@ const systemStore = useSystemStore();
 const heroStore = useHeroStore();
 const logStore = useLogStore();
 
-// --- [PM Add] 新增：连胜奖励弹窗状态 ---
+// --- [PM Add] 连胜奖励弹窗状态 ---
 const showDailyBonusModal = ref(false);
 const dailyBonusMessage = ref('');
 
@@ -39,7 +41,7 @@ const isExhausted = computed(() => store.heroStore.isExhausted);
 const isPure = computed(() => systemStore.isPureMode);
 
 const isDarkTheme = computed(() => {
-  return true;
+  return store.isDarkMode;
 });
 
 const todayMacros = computed(() => store.todayMacros || { p: 0, c: 0, f: 0, cals: 0 });
@@ -71,26 +73,102 @@ const updateFastingTime = () => {
   }
 };
 
+// [Color/Icon Change] 断食状态配色与图标优化
 const fastingStatus = computed(() => {
   const hours = fastingTime.value / (1000 * 60 * 60);
   const isFasting = store.user.fasting?.isFasting;
 
   if (isFasting) {
-    if (hours > 16) return { text: '⚡ 蓄力完成 (2.0x)', color: 'text-yellow-500 dark:text-yellow-400 animate-pulse', icon: 'fas fa-bolt' };
-    if (hours > 12) return { text: '🔥 正在蓄力 (1.5x)', color: 'text-orange-500 dark:text-orange-400', icon: 'fas fa-fire' };
-    return { text: `🧘 冥想中 ${Math.floor(hours)}h`, color: 'text-purple-500 dark:text-purple-400', icon: 'fas fa-hourglass-half' };
+    // 超过16小时：翡翠绿 - 闪电 (能量充满/高效燃脂)
+    if (hours > 16) return {
+      text: '✨ 燃脂全开 (2.0x)',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      icon: 'fas fa-bolt',
+      bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+      border: 'border-emerald-200 dark:border-emerald-800'
+    };
+    // 超过12小时：宝蓝色 - 火焰 (燃烧中)
+    if (hours > 12) return {
+      text: '🔥 正在燃烧 (1.5x)',
+      color: 'text-blue-600 dark:text-blue-400',
+      icon: 'fas fa-fire',
+      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      border: 'border-blue-200 dark:border-blue-800'
+    };
+    // 初始阶段：天蓝色 - 莲花/Spa (身体净化/冥想)
+    return {
+      text: `🧘 身体净化中 ${Math.floor(hours)}h`,
+      color: 'text-sky-600 dark:text-sky-400',
+      icon: 'fas fa-spa',
+      bg: 'bg-sky-50 dark:bg-sky-900/20',
+      border: 'border-sky-200 dark:border-sky-800'
+    };
   }
 
-  return { text: `🕒 距上一餐 ${Math.floor(hours)}h`, color: 'text-slate-500 dark:text-slate-400', icon: 'fas fa-history' };
+  // 未断食状态：灰色/中性色 - 餐具
+  return {
+    text: `🕒 距上一餐 ${Math.floor(hours)}h`,
+    color: 'text-slate-500 dark:text-slate-400',
+    icon: 'fas fa-utensils',
+    bg: 'bg-white dark:bg-slate-800',
+    border: 'border-slate-200 dark:border-slate-700'
+  };
 });
 
 const openFastingModal = () => {
   systemStore.setModal('fasting', true);
 };
 
-// --- Weather Animation Logic ---
+const openQuestBoard = () => {
+  store.setModal('questBoard', true);
+};
 
-// [Mod] 控制天气特效显示的开关 (连接到 localStorage)
+// ==========================================
+// [Core Logic] 运行时动态图标显示逻辑 (Symbol 版)
+// ==========================================
+const getIconDisplay = (item: any) => {
+  if (!item) return { isSymbol: false, isImage: false, content: '' };
+
+  let iconRaw = item.icon || '';
+
+  // 1. 脏数据清洗
+  if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
+    iconRaw = iconRaw.replace(/<[^>]*>?/gm, '');
+  }
+
+  // 2. 图片检查
+  if (iconRaw.includes('/') || iconRaw.startsWith('http')) {
+    return { isSymbol: false, isImage: true, content: iconRaw };
+  }
+
+  // 3. Symbol ID 提取
+  if (iconRaw.includes('iconfont') || iconRaw.includes('icon-')) {
+    const match = iconRaw.match(/icon-[\w-]+/);
+    const iconId = match ? match[0] : iconRaw;
+    return { isSymbol: true, isImage: false, content: iconId };
+  }
+
+  // 4. Hot-fix (仅针对食物类型的记录)
+  const isFood = !item.mealType || ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'].includes(item.mealType);
+
+  if (isFood) {
+    const effectiveTags = (item.tags && item.tags.length > 0)
+      ? item.tags
+      : inferTags(item.name || '');
+
+    const assigned = assignIcon(item.name || '', effectiveTags);
+    if (assigned) {
+      const match = assigned.match(/icon-[\w-]+/);
+      const iconId = match ? match[0] : assigned;
+      return { isSymbol: true, isImage: false, content: iconId };
+    }
+  }
+
+  // 5. 兜底 (Unicode / Emoji)
+  return { isSymbol: false, isImage: false, content: iconRaw };
+};
+
+// --- Weather Animation Logic ---
 const weatherEnabled = ref(localStorage.getItem('app_setting_weather') !== 'false');
 
 const showWeatherEffects = computed(() => {
@@ -99,27 +177,19 @@ const showWeatherEffects = computed(() => {
 
 const updateWeatherSetting = () => {
   weatherEnabled.value = localStorage.getItem('app_setting_weather') !== 'false';
-  console.log('[HomeView] Weather setting updated:', weatherEnabled.value);
 };
 
 const weatherMode = computed(() => {
   const name = env.value?.name || '';
-
-  // 优先级匹配：先匹配极端天气，再匹配普通天气
   if (name.includes('暴雨') || name.includes('大雨') || name.includes('雷') || name.includes('Storm')) return 'HEAVY_RAIN';
   if (name.includes('小雨') || name.includes('细雨') || name.includes('Drizzle')) return 'LIGHT_RAIN';
   if (name.includes('雨') || name.includes('Rain') || name.includes('湿')) return 'RAIN';
-
   if (name.includes('暴雪') || name.includes('大雪') || name.includes('Blizzard')) return 'BLIZZARD';
   if (name.includes('雪') || name.includes('冰') || name.includes('Snow') || name.includes('寒')) return 'SNOW';
-
   if (name.includes('雾') || name.includes('霾') || name.includes('Fog') || name.includes('Mist')) return 'FOG';
-
   if (name.includes('云') || name.includes('阴') || name.includes('Cloud')) return 'CLOUDY';
-
   if (name.includes('热') || name.includes('火') || name.includes('Sun') || name.includes('旱') || name.includes('炎')) return 'HEAT';
-
-  return 'CLEAR'; // Default
+  return 'CLEAR';
 });
 
 // Optimization: Static Arrays
@@ -128,10 +198,21 @@ const particlesMedium = Array.from({ length: 80 }).map((_, i) => i);
 const particlesHeavy = Array.from({ length: 150 }).map((_, i) => i);
 const particlesClouds = Array.from({ length: 6 }).map((_, i) => i);
 const particlesHeat = Array.from({ length: 20 }).map((_, i) => i);
-// -------------------------------------
+const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
+  id: i,
+  style: {
+    left: `${Math.random() * 100}%`,
+    top: `${Math.random() * 100}%`,
+    animationDelay: `${Math.random() * 5}s`,
+    animationDuration: `${8 + Math.random() * 10}s`,
+    width: `${Math.random() * 4 + 2}px`,
+    height: `${Math.random() * 4 + 2}px`,
+    opacity: 0.3 + Math.random() * 0.5,
+  },
+  class: Math.random() > 0.5 ? 'bg-sky-200' : 'bg-blue-200' // Lighter particles
+}));
 
 onMounted(() => {
-  // 监听设置变更事件
   window.addEventListener('settings-changed', updateWeatherSetting);
 
   if (store.user.isInitialized) {
@@ -149,6 +230,14 @@ onMounted(() => {
         showDailyBonusModal.value = true;
       }, 1000);
     }
+  }
+
+  // [纯净模式] 首次进入纯净模式时触发引导
+  if (isPure.value && !systemStore.hasSeenPureGuide && store.user.isInitialized) {
+    setTimeout(() => {
+      systemStore.hasSeenPureGuide = true;
+      store.setModal('npcGuide', true);
+    }, 1500); // 稍微延迟，让页面渲染完成
   }
 });
 
@@ -172,7 +261,6 @@ const hpPercent = computed(() => {
   return Math.floor((stageInfo.value.currentHpRemaining / stageInfo.value.currentObj.maxHp) * 100);
 });
 
-// [Fix] 稳定的血量数值计算属性，防止闪烁
 const safeCurrentHp = computed(() => {
   if (stageInfo.value && typeof stageInfo.value.currentHpRemaining === 'number') {
     return stageInfo.value.currentHpRemaining;
@@ -184,7 +272,6 @@ const safeMaxHp = computed(() => {
   if (stageInfo.value && stageInfo.value.currentObj && stageInfo.value.currentObj.maxHp) {
     return stageInfo.value.currentObj.maxHp;
   }
-  // 如果暂时获取不到 maxHp，不要轻易返回默认值，尽量保持稳定或返回 100
   return 100;
 });
 
@@ -202,19 +289,25 @@ const bossOverlayIcon = computed(() => {
   return '';
 });
 
+// [Color Change] 调整弱点颜色
 const weaknessColor = computed(() => {
   const type = stageInfo.value.currentObj?.data?.weaknessType;
   if (type === '低碳' || type === 'LOW_CARB') return 'text-orange-500 dark:text-orange-400 border-orange-200 dark:border-orange-400 bg-orange-50 dark:bg-orange-900/20';
   if (type === '低脂' || type === 'LOW_FAT') return 'text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
   if (type === '高蛋白' || type === 'HIGH_PRO') return 'text-red-500 dark:text-red-400 border-red-200 dark:border-red-400 bg-red-50 dark:bg-red-900/20';
+  if (type === '纯净' || type === 'CLEAN') return 'text-emerald-500 dark:text-emerald-400 border-emerald-200 dark:border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20';
+  if (type === '水' || type === 'WATER') return 'text-cyan-500 dark:text-cyan-400 border-cyan-200 dark:border-cyan-400 bg-cyan-50 dark:bg-cyan-900/20';
+  if (type === '均衡' || type === 'BALANCED') return 'text-sky-500 dark:text-sky-400 border-sky-200 dark:border-sky-400 bg-sky-50 dark:bg-sky-900/20';
+
   return 'text-blue-500 dark:text-blue-400 border-blue-200 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20';
 });
 
+// [Color Change]
 const comboColor = computed(() => {
   const c = comboState.value.count;
-  if (c >= 5) return 'text-purple-500 from-purple-500 to-pink-500 drop-shadow-md';
-  if (c >= 2) return 'text-blue-500 from-blue-500 to-cyan-500';
-  return 'text-slate-400 from-slate-400 to-slate-300';
+  if (c >= 5) return 'text-sky-600 dark:text-sky-400 drop-shadow-md';
+  if (c >= 2) return 'text-blue-500 dark:text-blue-400';
+  return 'text-slate-400 dark:text-slate-500';
 });
 
 const tacticalTip = computed(() => {
@@ -224,10 +317,11 @@ const tacticalTip = computed(() => {
 
 const tipClass = computed(() => {
   const t = tacticalTip.value?.type;
-  if (t === 'DANGER') return 'bg-red-500 text-white border-red-600 animate-pulse';
+  if (t === 'DANGER') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800';
   if (t === 'WARN') return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800';
-  if (t === 'GOOD') return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800';
-  return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+  if (t === 'GOOD') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
+  // 默认：清爽蓝
+  return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-slate-800 dark:text-sky-300 dark:border-slate-700';
 });
 
 const confirmDelete = (log: FoodLog) => {
@@ -235,17 +329,45 @@ const confirmDelete = (log: FoodLog) => {
     title: isPure.value ? '确认删除' : '时光倒流',
     message: isPure.value ? '确定要删除这条记录吗？' : '确定要撤销这条记录吗？',
     confirmButtonText: '确认',
-    confirmButtonColor: '#1e293b'
+    confirmButtonColor: '#0ea5e9' // sky-500
   }).then(() => {
     store.deleteLog(log);
   }).catch(() => {});
 };
 
+// [Icon/Color Fix] 替换丑Emoji，使用更精致的 FontAwesome 图标
+// 将晚餐的紫色/靛蓝改为更沉稳的深蓝色/石板灰
 const rpgMeals = [
-  { key: 'BREAKFAST', label: '早餐', rpgName: '晨间补给', icon: '🌅' },
-  { key: 'LUNCH', label: '午餐', rpgName: '营火烹饪', icon: '⛺' },
-  { key: 'DINNER', label: '晚餐', rpgName: '庆功晚宴', icon: '🏰' },
-  { key: 'SNACK', label: '零食', rpgName: '炼金药剂', icon: '🧪' }
+  {
+    key: 'BREAKFAST',
+    label: '早餐',
+    rpgName: '晨间补给',
+    icon: 'fas fa-mug-hot', // 咖啡/热茶
+    color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/30'
+  },
+  {
+    key: 'LUNCH',
+    label: '午餐',
+    rpgName: '营火烹饪',
+    icon: 'fas fa-drumstick-bite', // 鸡腿，更有食欲
+    color: 'text-orange-500 bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800/30'
+  },
+  {
+    key: 'DINNER',
+    label: '晚餐',
+    rpgName: '庆功晚宴',
+    icon: 'fas fa-utensils', // 刀叉，正式晚宴
+    // 将原本的 Indigo (紫色系) 改为 Slate/Blue (夜幕色)
+    color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800/30'
+  },
+  {
+    key: 'SNACK',
+    label: '零食',
+    rpgName: '炼金药剂',
+    icon: 'fas fa-apple-alt', // 苹果，暗示健康零食
+    // 零食保持粉/红系，比较活泼，或者也可以改为 teal 健康色，这里暂时保留粉色但调淡一点
+    color: 'text-rose-500 bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/30'
+  }
 ];
 
 const openAddFood = (key: MealType) => {
@@ -287,159 +409,84 @@ const openLogDetail = (log: FoodLog) => {
   }
 }
 
-// [Mod] 更新数据说明弹窗，加入新增的“实际摄入”说明
 const showStatsInfo = () => {
   showDialog({
     title: '📊 战斗数据说明',
     message: '🍽️ (左) 实际摄入：\n今日实际吃掉食物的总热量(kcal)。\n\n🔥 (中) 运动消耗：\n今日通过运动燃烧的热量。\n\n✊ (右) 造成伤害：\n经由RPG机制(暴击/连击)转化后的最终伤害值。\n\n目标：保持热量平衡，击败Boss！',
-    confirmButtonColor: '#7c3aed'
+    confirmButtonColor: '#0ea5e9' // sky-500
   });
 };
-
-// [New] 浅色模式下的粒子特效 (复用 ProfileView 的逻辑)
-const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
-  id: i,
-  style: {
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-    animationDelay: `${Math.random() * 5}s`,
-    animationDuration: `${8 + Math.random() * 10}s`,
-    width: `${Math.random() * 4 + 2}px`,
-    height: `${Math.random() * 4 + 2}px`,
-    opacity: 0.3 + Math.random() * 0.5,
-  },
-  class: Math.random() > 0.5 ? 'bg-blue-400' : 'bg-indigo-400'
-}));
 </script>
 
 <template>
-  <div class="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300 relative overflow-x-hidden">
+  <div class="pb-24 min-h-screen transition-colors duration-300 relative overflow-x-hidden"
+       :class="isDarkTheme ? 'bg-slate-900' : 'bg-slate-50'">
 
-    <!-- [New] Weather Animation Layer -->
+    <!-- [Background] Weather Animation Layer -->
     <div v-if="showWeatherEffects" class="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none">
-
-      <!-- 1. LIGHT_RAIN: Sparse, slow drops -->
+      <!-- 1. LIGHT_RAIN -->
       <div v-if="weatherMode === 'LIGHT_RAIN'" class="absolute inset-0">
         <div v-for="i in particlesLight" :key="'rain-l-'+i"
-             class="absolute bg-blue-300/40 dark:bg-slate-400/30 w-px h-3 animate-rain"
-             :style="{
-                 left: Math.random() * 100 + '%',
-                 top: -20 + '%',
-                 animationDuration: 1.5 + Math.random() * 1 + 's',
-                 animationDelay: Math.random() * 3 + 's'
-               }">
+             class="absolute bg-sky-300/40 dark:bg-slate-400/30 w-px h-3 animate-rain"
+             :style="{ left: Math.random() * 100 + '%', top: -20 + '%', animationDuration: 1.5 + Math.random() * 1 + 's', animationDelay: Math.random() * 3 + 's' }">
         </div>
       </div>
-
-      <!-- 2. RAIN: Standard rain -->
+      <!-- 2. RAIN -->
       <div v-if="weatherMode === 'RAIN'" class="absolute inset-0">
         <div v-for="i in particlesMedium" :key="'rain-m-'+i"
-             class="absolute bg-blue-400/50 dark:bg-slate-400/40 w-0.5 h-5 animate-rain"
-             :style="{
-                 left: Math.random() * 100 + '%',
-                 top: -20 + '%',
-                 animationDuration: 0.8 + Math.random() * 0.5 + 's',
-                 animationDelay: Math.random() * 2 + 's'
-               }">
+             class="absolute bg-sky-400/50 dark:bg-slate-400/40 w-0.5 h-5 animate-rain"
+             :style="{ left: Math.random() * 100 + '%', top: -20 + '%', animationDuration: 0.8 + Math.random() * 0.5 + 's', animationDelay: Math.random() * 2 + 's' }">
         </div>
       </div>
-
-      <!-- 3. HEAVY_RAIN: Dense, fast, slanted, with flashes -->
+      <!-- 3. HEAVY_RAIN -->
       <div v-if="weatherMode === 'HEAVY_RAIN'" class="absolute inset-0">
-        <!-- Lightning Flash Overlay -->
         <div class="absolute inset-0 bg-white/20 animate-flash z-0"></div>
         <div v-for="i in particlesHeavy" :key="'rain-h-'+i"
-             class="absolute bg-blue-500/60 dark:bg-slate-300/50 w-0.5 h-8 animate-rain-fast"
-             :style="{
-                 left: Math.random() * 120 - 10 + '%', /* Allow wider range for slant */
-                 top: -20 + '%',
-                 animationDuration: 0.4 + Math.random() * 0.3 + 's',
-                 animationDelay: Math.random() * 1 + 's'
-               }">
+             class="absolute bg-sky-500/60 dark:bg-slate-300/50 w-0.5 h-8 animate-rain-fast"
+             :style="{ left: Math.random() * 120 - 10 + '%', top: -20 + '%', animationDuration: 0.4 + Math.random() * 0.3 + 's', animationDelay: Math.random() * 1 + 's' }">
         </div>
       </div>
-
-      <!-- 4. SNOW: Gentle flakes -->
+      <!-- 4. SNOW -->
       <div v-if="weatherMode === 'SNOW'" class="absolute inset-0">
         <div v-for="i in particlesLight" :key="'snow-l-'+i"
              class="absolute bg-white/80 dark:bg-slate-200/60 rounded-full animate-snow"
-             :style="{
-                 width: Math.random() * 4 + 2 + 'px',
-                 height: Math.random() * 4 + 2 + 'px',
-                 left: Math.random() * 100 + '%',
-                 top: -10 + '%',
-                 animationDuration: 4 + Math.random() * 4 + 's',
-                 animationDelay: Math.random() * 5 + 's'
-               }">
+             :style="{ width: Math.random() * 4 + 2 + 'px', height: Math.random() * 4 + 2 + 'px', left: Math.random() * 100 + '%', top: -10 + '%', animationDuration: 4 + Math.random() * 4 + 's', animationDelay: Math.random() * 5 + 's' }">
         </div>
       </div>
-
-      <!-- 5. BLIZZARD: Heavy, fast, horizontal movement -->
+      <!-- 5. BLIZZARD -->
       <div v-if="weatherMode === 'BLIZZARD'" class="absolute inset-0">
         <div v-for="i in particlesMedium" :key="'snow-b-'+i"
              class="absolute bg-white/90 dark:bg-slate-100/70 w-1.5 h-1.5 rounded-full animate-blizzard"
-             :style="{
-                 left: Math.random() * 100 + '%',
-                 top: Math.random() * 100 + '%',
-                 animationDuration: 0.5 + Math.random() * 1 + 's',
-                 animationDelay: Math.random() * 2 + 's'
-               }">
+             :style="{ left: Math.random() * 100 + '%', top: Math.random() * 100 + '%', animationDuration: 0.5 + Math.random() * 1 + 's', animationDelay: Math.random() * 2 + 's' }">
         </div>
-        <!-- Fog overlay for blizzard -->
         <div class="absolute inset-0 bg-white/10 dark:bg-slate-300/10 backdrop-blur-[1px]"></div>
       </div>
-
-      <!-- 6. CLOUDY: Floating clouds -->
+      <!-- 6. CLOUDY -->
       <div v-if="weatherMode === 'CLOUDY'" class="absolute inset-0">
         <div v-for="i in particlesClouds" :key="'cloud-'+i"
              class="absolute opacity-30 dark:opacity-20 animate-float-cloud blur-3xl rounded-full"
              :class="isDarkTheme ? 'bg-slate-500' : 'bg-slate-400'"
-             :style="{
-                 width: 200 + Math.random() * 200 + 'px',
-                 height: 80 + Math.random() * 80 + 'px',
-                 top: Math.random() * 50 + '%',
-                 left: -50 + '%',
-                 animationDuration: 30 + Math.random() * 30 + 's',
-                 animationDelay: Math.random() * 20 + 's'
-               }">
+             :style="{ width: 200 + Math.random() * 200 + 'px', height: 80 + Math.random() * 80 + 'px', top: Math.random() * 50 + '%', left: -50 + '%', animationDuration: 30 + Math.random() * 30 + 's', animationDelay: Math.random() * 20 + 's' }">
         </div>
       </div>
-
-      <!-- 7. FOG: Thick fog overlay -->
+      <!-- 7. FOG -->
       <div v-if="weatherMode === 'FOG'" class="absolute inset-0 overflow-hidden">
         <div class="absolute inset-0 bg-slate-300/20 dark:bg-slate-600/30 animate-pulse-slow"></div>
         <div v-for="i in 3" :key="'fog-'+i"
              class="absolute w-[200%] h-full bg-gradient-to-r from-transparent via-slate-200/20 to-transparent dark:via-slate-500/20 animate-float-cloud"
-             :style="{
-                 top: (i * 30) + '%',
-                 animationDuration: 20 + i * 5 + 's',
-                 left: '-100%'
-               }">
+             :style="{ top: (i * 30) + '%', animationDuration: 20 + i * 5 + 's', left: '-100%' }">
         </div>
       </div>
-
-      <!-- 8. HEAT: Distortion and rising embers -->
+      <!-- 8. HEAT -->
       <div v-if="weatherMode === 'HEAT'" class="absolute inset-0">
-        <!-- Warm bottom glow -->
         <div class="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-orange-500/20 to-transparent dark:from-red-900/30 pointer-events-none"></div>
-
-        <!-- Rising Embers -->
         <div v-for="i in particlesHeat" :key="'heat-'+i"
              class="absolute bg-orange-400/40 dark:bg-red-500/40 rounded-full blur-[1px] animate-float-up-wobbly"
-             :style="{
-                 width: Math.random() * 4 + 2 + 'px',
-                 height: Math.random() * 4 + 2 + 'px',
-                 left: Math.random() * 100 + '%',
-                 bottom: '-10px',
-                 animationDuration: 3 + Math.random() * 4 + 's',
-                 animationDelay: Math.random() * 5 + 's'
-               }">
+             :style="{ width: Math.random() * 4 + 2 + 'px', height: Math.random() * 4 + 2 + 'px', left: Math.random() * 100 + '%', bottom: '-10px', animationDuration: 3 + Math.random() * 4 + 's', animationDelay: Math.random() * 5 + 's' }">
         </div>
-        <!-- Heat Haze Overlay (Subtle) -->
         <div class="absolute inset-0 bg-orange-500/5 mix-blend-overlay animate-pulse-slow"></div>
       </div>
-
-      <!-- 9. CLEAR: Default Particles (Only for RPG mode or default) -->
+      <!-- 9. CLEAR (RPG Only) -->
       <div v-if="weatherMode === 'CLEAR' && !isPure" class="absolute inset-0">
         <div v-for="p in lightParticles" :key="'clear-'+p.id"
              class="absolute rounded-full animate-float-up mix-blend-multiply dark:mix-blend-normal"
@@ -449,14 +496,14 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
     </div>
 
-    <!-- [Animation Layer 1] 投掷物层 -->
+    <!-- Projectile Layer -->
     <div v-if="projectile && projectile.show" class="fixed inset-0 pointer-events-none z-[60]" style="perspective: 1000px;">
       <div class="anim-projectile flex items-center justify-center w-12 h-12 bg-white rounded-full shadow-xl border-2 border-slate-200">
         {{ projectile.icon }}
       </div>
     </div>
 
-    <!-- 战斗飘字层 -->
+    <!-- Floating Text Layer -->
     <div v-if="!isPure" class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
       <transition-group name="float-up">
         <div v-for="ft in floatingTexts" :key="ft.id"
@@ -466,7 +513,7 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
                'text-green-400': ft.type === 'HEAL',
                'text-yellow-400 text-3xl': ft.type === 'CRIT',
                'text-blue-400': ft.type === 'BLOCK',
-               'text-purple-300 text-sm': ft.type === 'EXP'
+               'text-sky-300 text-sm': ft.type === 'EXP'
              }"
              :style="{ left: ft.x + '%', top: ft.y + '%' }">
           {{ ft.text }}
@@ -474,7 +521,7 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </transition-group>
     </div>
 
-    <!-- 力竭状态遮罩 -->
+    <!-- Exhaustion Overlay -->
     <div v-if="isExhausted && !isPure" class="fixed inset-0 pointer-events-none z-30 shadow-[inset_0_0_60px_20px_rgba(220,38,38,0.5)] animate-pulse"></div>
     <div v-if="isExhausted && !isPure" class="absolute top-14 left-4 right-4 z-40 animate-bounce">
       <div class="bg-red-600/90 text-white px-4 py-2 rounded-xl border-2 border-red-400 shadow-lg backdrop-blur flex items-center justify-between">
@@ -490,14 +537,16 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
 
     <AppHud @open-achievements="store.setModal('achievements', true)" />
 
-    <div id="guide-date">
+    <!-- [UI Fix] 日历容器优化：增加上下间距，保持干净 -->
+    <div id="guide-date" class="relative z-10 my-2">
       <DateNavigator />
     </div>
 
-    <!-- 战地情报 -->
-    <div v-if="!isPure && env" class="px-4 mt-3 flex gap-3 relative z-10" id="guide-env">
-      <div class="flex-1 bg-gradient-to-br from-orange-50 to-red-50 dark:from-slate-800 dark:to-slate-800 rounded-xl p-2.5 border border-orange-200 dark:border-slate-700 flex items-center shadow-sm">
-        <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-500 flex items-center justify-center mr-2">
+    <!-- 战地情报 (去除渐变，改为扁平纯色) -->
+    <div v-if="!isPure && env" class="px-4 mt-2 flex gap-3 relative z-10" id="guide-env">
+      <!-- 连胜卡片 -->
+      <div class="flex-1 rounded-xl p-2.5 border flex items-center shadow-sm bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/50">
+        <div class="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-500 flex items-center justify-center mr-2 shadow-sm">
           <i class="fas fa-fire-alt"></i>
         </div>
         <div>
@@ -508,8 +557,9 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
         </div>
       </div>
 
-      <div class="flex-[1.5] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 rounded-xl p-2.5 border border-blue-200 dark:border-slate-700 flex items-center shadow-sm">
-        <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-500 flex items-center justify-center mr-2 text-lg">
+      <!-- 环境卡片 -->
+      <div class="flex-[1.5] rounded-xl p-2.5 border flex items-center shadow-sm bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/50">
+        <div class="w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-500 flex items-center justify-center mr-2 text-lg shadow-sm">
           {{ env.icon }}
         </div>
         <div>
@@ -521,24 +571,32 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
     </div>
 
-    <!-- [New V5.7] 断食状态条 (Pure & RPG) -->
+    <!-- [Color Fix] 断食状态条优化：移除生硬边框，使用柔和背景色 -->
     <div class="px-4 mt-3 relative z-10" @click="openFastingModal">
-      <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 flex justify-between items-center active:scale-95 transition cursor-pointer hover:border-purple-400 shadow-sm">
-        <div class="text-xs font-bold flex items-center gap-2">
-          <i :class="fastingStatus.icon + ' ' + (isPure ? 'text-slate-500 dark:text-slate-400' : '')"></i>
-          <span :class="fastingStatus.color">{{ fastingStatus.text }}</span>
+      <div class="rounded-xl px-4 py-3 flex justify-between items-center active:scale-98 transition-all cursor-pointer shadow-sm border border-transparent"
+           :class="[fastingStatus.bg, fastingStatus.border]">
+        <div class="text-xs font-bold flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-white/50 dark:bg-black/20 flex items-center justify-center text-lg shadow-sm">
+            <i :class="fastingStatus.icon + ' ' + fastingStatus.color"></i>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[10px] opacity-70 font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">断食状态</span>
+            <span :class="fastingStatus.color" class="text-sm">{{ fastingStatus.text }}</span>
+          </div>
         </div>
-        <div class="text-[9px] text-slate-500 dark:text-slate-400 flex items-center">
-          {{ store.user.fasting?.isFasting ? (isPure ? '断食中' : '蓄力中') : '未开启' }} <van-icon name="arrow" class="ml-1" />
+        <div class="text-[10px] text-slate-400 dark:text-slate-500 flex items-center bg-white/40 dark:bg-black/20 px-2 py-1 rounded-full">
+          {{ store.user.fasting?.isFasting ? '查看详情' : '去开启' }} <van-icon name="arrow" class="ml-1" />
         </div>
       </div>
     </div>
 
+    <!-- RPG 模式功能入口 (去除渐变) -->
     <div v-if="!isPure" class="px-4 mt-3 grid grid-cols-2 gap-3 relative z-10">
       <div @click="store.setModal('questBoard', true)" id="guide-quest"
-           class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group">
+           class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group hover:border-sky-200 dark:hover:border-sky-700/50">
         <div class="flex items-center gap-2 relative z-10">
-          <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-500 rounded-lg flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+          <!-- 蓝色图标 -->
+          <div class="w-10 h-10 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-500 rounded-lg flex items-center justify-center text-xl group-hover:scale-110 transition-transform shadow-sm">
             <i class="fas fa-scroll"></i>
           </div>
           <div>
@@ -550,9 +608,10 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
 
       <div @click="store.setModal('skillTree', true)" id="guide-skill"
-           class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group">
+           class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between active:scale-95 transition relative overflow-hidden cursor-pointer group hover:border-teal-200 dark:hover:border-teal-700/50">
         <div class="flex items-center gap-2 relative z-10">
-          <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-500 rounded-lg flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+          <!-- 青色/Teal图标，替换紫色 -->
+          <div class="w-10 h-10 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-500 rounded-lg flex items-center justify-center text-xl group-hover:scale-110 transition-transform shadow-sm">
             <i class="fas fa-project-diagram"></i>
           </div>
           <div>
@@ -567,8 +626,11 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
     </div>
 
-    <div v-if="isPure" class="px-4 mt-3 relative z-10" @click="store.setModal('questBoard', true)">
-      <div id="guide-quest" class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between active:scale-95 transition shadow-sm">
+    <!-- [Fix] 纯净模式：每日打卡任务入口 -->
+    <div v-if="isPure" class="px-4 mt-3 relative z-10">
+      <div id="guide-quest-pure"
+           class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between active:scale-95 transition shadow-sm hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer"
+           @click.stop="openQuestBoard">
         <div class="flex items-center gap-3">
           <i class="fas fa-tasks text-blue-500 text-lg"></i>
           <span class="text-sm font-bold text-slate-700 dark:text-slate-200">每日打卡任务</span>
@@ -577,9 +639,9 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
     </div>
 
-    <!-- Monster Card (Enhanced with ShieldBarCanvas) -->
+    <!-- Monster Card -->
     <div v-if="!isPure && stageInfo" class="mx-4 mt-4 relative z-10" id="guide-monster">
-      <!-- 技能图标 (保持不变) -->
+      <!-- 技能图标 -->
       <div v-if="raceSkill"
            class="absolute -top-3 -right-2 z-30 flex flex-col items-center"
            @click="handleSkillClick">
@@ -600,22 +662,19 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
                   fill="none" stroke="currentColor" stroke-width="4" />
           </svg>
         </div>
+        <!-- 标签颜色调整 -->
         <div class="mt-1 bg-white/90 dark:bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[9px] text-slate-700 dark:text-white font-bold whitespace-nowrap shadow-sm border border-slate-200 dark:border-transparent"
              :class="skillStatus.active ? 'text-yellow-600 dark:text-yellow-300' : ''">
           {{ skillStatus.active ? '生效中' : raceSkill.name }}
         </div>
       </div>
 
-      <!-- [Mod] 卡片容器：移除强制渐变和 pulse 动画，改为自适应背景 -->
+      <!-- [Color Change] 移除怪物卡片背景渐变，改为纯色背景 -->
       <div class="rounded-3xl p-5 shadow-xl relative overflow-hidden border-2 transition-all duration-300"
            :class="[
              stageInfo.isOverloaded ? 'bg-red-50 dark:bg-red-900/10 border-red-500 shadow-red-500/50 animate-pulse-slow' :
-             'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'
+             'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
            ]">
-
-        <!-- [Fix] 背景纹理仅在深色模式下显示明显，且移除了 animate-pulse-slow 修复闪屏 -->
-        <div class="absolute inset-0 opacity-0 dark:opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none"></div>
-        <div class="absolute inset-0 bg-gradient-to-br from-white/50 to-slate-100/50 dark:from-slate-800/30 dark:to-slate-900/30 z-0 pointer-events-none"></div>
 
         <div v-if="comboState.count > 1" class="absolute top-2 left-2 z-20 flex flex-col items-start anim-combo-pop">
           <div class="text-xs font-bold italic text-yellow-500 dark:text-yellow-300 tracking-wider">COMBO</div>
@@ -653,7 +712,7 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
                 {{ stageInfo.currentObj?.data?.name || '未知敌人' }}
               </div>
               <div class="text-[10px] mt-1 flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-mono font-bold">
+                <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-mono font-bold border border-slate-200 dark:border-slate-600">
                   {{ stageInfo.isBoss ? 'FINAL' : `WAVE ${stageInfo.currentIndex + 1}` }}
                 </span>
                 <span class="px-2 py-0.5 rounded border text-[10px] font-bold tracking-wide truncate" :class="weaknessColor">
@@ -664,9 +723,6 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
           </div>
         </div>
 
-        <!-- [New] 集成 ShieldBarCanvas 护盾血条 -->
-        <!-- [Fix] 使用 safeCurrentHp 和 safeMaxHp 确保数值稳定 -->
-        <!-- [Fix] 修正 theme 属性绑定 -->
         <div class="w-full max-w-[480px] mx-auto h-16 relative z-10 mb-2">
           <ShieldBarCanvas
             :current-hp="safeCurrentHp"
@@ -689,25 +745,18 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
 
           <div class="flex gap-3 text-[9px] font-bold font-mono cursor-pointer relative group">
             <div class="absolute -top-4 right-0 text-[8px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">点击查看说明</div>
-
-            <!-- [Mod] 新增：实际摄入卡路里 (绿色) -->
             <div class="flex items-center text-green-600 dark:text-green-400">
               <i class="fas fa-utensils mr-1 text-[8px]"></i>
               <span>{{ todayMacros.cals }}</span>
             </div>
-
-            <!-- 原有：运动消耗 (橙色) -->
             <div class="flex items-center text-orange-500 dark:text-orange-400">
               <i class="fas fa-fire-alt mr-1"></i>
               <span>-{{ logStore.todayBurn }}</span>
             </div>
-
-            <!-- 原有：造成伤害 (红色) -->
             <div class="flex items-center text-red-500 dark:text-red-400">
               <i class="fas fa-fist-raised mr-1"></i>
               <span>{{ store.todayDamage }}</span>
             </div>
-
             <i class="fas fa-question-circle text-[8px] text-slate-400 ml-1"></i>
           </div>
         </div>
@@ -722,7 +771,7 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
     </div>
 
-    <!-- 纯净模式：数据看板 -->
+    <!-- 纯净模式：数据看板 (Color Change) -->
     <div v-else class="mx-4 mt-4 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 relative z-10" id="guide-monster">
       <div class="flex justify-between items-end mb-3">
         <span class="text-sm text-slate-600 dark:text-slate-500 font-bold">今日热量摄入</span>
@@ -750,28 +799,34 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
     </div>
 
+    <!-- 标题栏 (Color Change: purple -> sky/blue) -->
     <div class="px-4 mt-6 mb-2 flex justify-between items-center relative z-10" id="guide-meals">
       <h3 class="font-bold text-slate-800 dark:text-slate-300 text-sm">{{ isPure ? '饮食记录' : '冒险行动' }}</h3>
-      <button @click="store.setModal('npcGuide', true)" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-purple-700 dark:text-purple-400 px-2 py-1 rounded-full border border-slate-300 dark:border-slate-700 active:scale-95 transition flex items-center">
+      <button @click="store.setModal('npcGuide', true)" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-sky-700 dark:text-sky-400 px-2 py-1 rounded-full border border-slate-300 dark:border-slate-700 active:scale-95 transition flex items-center hover:bg-sky-50 dark:hover:bg-sky-900/20">
         <i class="fas fa-comment-dots mr-1"></i> {{ isPure ? '使用帮助' : '导师通讯' }}
       </button>
     </div>
 
+    <!-- [Icon/Color Fix] 饮食入口：使用 FontAwesome 和新配色 -->
     <div class="px-4 grid grid-cols-2 gap-3 mb-6 relative z-10">
       <div v-for="m in rpgMeals" :key="m.key"
            @click="openAddFood(m.key as MealType)"
-           class="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-slate-200 dark:border-slate-700 transition cursor-pointer hover:border-purple-400 dark:hover:border-purple-700"
+           class="rounded-2xl p-3.5 flex items-center gap-3 shadow-sm border transition cursor-pointer active:scale-95 hover:shadow-md"
            :class="[
-             (!isPure && heroStore.user.heroCurrentHp <= 0) ? 'opacity-50 grayscale cursor-not-allowed' : 'active:scale-95'
+             m.color,
+             (!isPure && heroStore.user.heroCurrentHp <= 0) ? 'opacity-50 grayscale cursor-not-allowed' : ''
            ]">
-        <div class="text-2xl bg-slate-100 dark:bg-slate-700 w-10 h-10 flex items-center justify-center rounded-lg">{{ m.icon }}</div>
+        <div class="text-xl w-10 h-10 flex items-center justify-center rounded-lg bg-white/60 dark:bg-black/20 backdrop-blur-sm shadow-sm">
+          <i :class="m.icon"></i>
+        </div>
         <div>
-          <div class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ isPure ? m.label : m.rpgName }}</div>
-          <div v-if="!isPure" class="text-[10px] text-slate-500 dark:text-slate-400">{{ m.label }}</div>
+          <div class="text-sm font-bold opacity-90">{{ isPure ? m.label : m.rpgName }}</div>
+          <div v-if="!isPure" class="text-[10px] opacity-70">{{ m.label }}</div>
         </div>
       </div>
     </div>
 
+    <!-- 记录列表 (Color Change) -->
     <div class="bg-white dark:bg-slate-800 rounded-t-3xl min-h-[300px] p-5 pb-20 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] border-t border-slate-100 dark:border-slate-700 relative z-10" id="guide-logs">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-slate-800 dark:text-slate-300 text-sm">{{ isPure ? '今日记录' : '战斗记录' }}</h3>
@@ -791,9 +846,21 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
                }"
                @click="openLogDetail(log)">
             <div class="flex items-center gap-3 relative z-10">
-              <div class="text-2xl w-10 h-10 bg-slate-50 dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm relative">
-                {{ log.icon }}
-                <div v-if="log.comboCount && log.comboCount > 1 && !isPure" class="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 text-slate-900 rounded-full text-[9px] flex items-center justify-center font-black border border-white dark:border-slate-900">
+              <!-- Symbol图标实现 -->
+              <div class="w-14 h-14 bg-slate-50 dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm relative shrink-0">
+                <template v-if="getIconDisplay(log).isImage">
+                  <img :src="getIconDisplay(log).content" class="w-full h-full object-contain rounded-lg" />
+                </template>
+                <template v-else-if="getIconDisplay(log).isSymbol">
+                  <svg class="icon text-4xl" aria-hidden="true">
+                    <use :xlink:href="'#' + getIconDisplay(log).content"></use>
+                  </svg>
+                </template>
+                <template v-else>
+                  <span class="text-4xl">{{ getIconDisplay(log).content }}</span>
+                </template>
+
+                <div v-if="log.comboCount && log.comboCount > 1 && !isPure" class="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 text-slate-900 rounded-full text-[10px] flex items-center justify-center font-black border border-white dark:border-slate-900">
                   {{ log.comboCount }}
                 </div>
               </div>
@@ -801,8 +868,9 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
                 <div class="font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center">
                   {{ log.name }}
                   <span v-if="log.mealType === 'EXERCISE'" class="ml-2 text-[8px] px-1 rounded bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 font-bold border border-green-200 dark:border-green-700">运动</span>
-                  <span v-if="log.skillEffect && !isPure" class="ml-2 text-[8px] px-1 rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-700">✨天赋</span>
-                  <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-700">复合</span>
+                  <!-- 替换紫色标签为青色/Teal -->
+                  <span v-if="log.skillEffect && !isPure" class="ml-2 text-[8px] px-1 rounded bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 font-bold border border-teal-200 dark:border-teal-700">✨天赋</span>
+                  <span v-if="log.isComposite" class="ml-2 text-[8px] px-1 rounded bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 font-bold border border-sky-200 dark:border-sky-700">复合</span>
                   <span v-if="log.fastingHours && log.fastingHours > 12" class="ml-2 text-[8px] px-1 rounded bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 font-bold border border-yellow-200 dark:border-yellow-700">⚡蓄力</span>
                 </div>
                 <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5" v-if="log.mealType === 'EXERCISE'">
@@ -850,10 +918,22 @@ const lightParticles = Array.from({ length: 15 }).map((_, i) => ({
       </div>
     </div>
 
+    <!-- [Fix] 将 QuestBoard 放在最后 -->
+    <ModalQuestBoard />
+
   </div>
 </template>
 
 <style scoped>
+/* Iconfont Symbol 通用样式 */
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }

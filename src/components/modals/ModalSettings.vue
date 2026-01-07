@@ -174,7 +174,7 @@ const onFileSelected = async (event: Event) => {
       title: localState.isPureMode ? '导入备份' : '读取神谕 (导入存档)',
       message: '⚠️ 导入将覆盖当前所有进度！确定要继续吗？',
       confirmButtonText: '确定覆盖',
-      confirmButtonColor: '#7c3aed'
+      confirmButtonColor: '#10b981'
     }).then(() => {
       const success = store.importSaveDataObj(data);
       if (success) {
@@ -201,86 +201,94 @@ const onFileSelected = async (event: Event) => {
     class="dark:bg-slate-900"
     closeable
   >
-    <div class="p-6 flex flex-col h-full bg-white dark:bg-slate-900">
-      <h3 class="text-xl font-black text-center mb-6 dark:text-white flex items-center justify-center">
+    <!-- 主容器：移除紫色系，使用 Slate/Gray 营造干净的健康感 -->
+    <div class="p-6 flex flex-col h-full bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+
+      <!-- 标题栏：简洁化 -->
+      <h3 class="text-lg font-bold text-center mb-6 flex items-center justify-center">
         <i class="fas fa-cog text-slate-400 mr-2"></i> {{ localState.isPureMode ? '设置' : '系统设置' }}
       </h3>
 
       <div class="flex-1 overflow-y-auto space-y-6 custom-scrollbar pb-10">
 
         <!-- 区域 1: 模式配置 -->
-        <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
-          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
+        <div class="rounded-xl p-4 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 shadow-sm">
+          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center">
+            <i class="fas fa-sliders-h mr-1.5 opacity-70"></i>
             {{ localState.isPureMode ? '显示偏好' : '模式配置' }}
           </div>
 
           <!-- 暗黑模式开关 -->
-          <div class="flex items-center justify-between mb-2 p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.isDarkMode = !localState.isDarkMode">
+          <div class="flex items-center justify-between mb-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer" @click="localState.isDarkMode = !localState.isDarkMode">
             <div class="flex items-center">
-              <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center mr-3 border border-indigo-200 dark:border-indigo-800">
+              <!-- 图标容器：使用 Slate/Neutral 色系 -->
+              <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mr-3">
                 <i class="fas fa-moon text-lg"></i>
               </div>
               <div>
-                <div class="font-bold text-sm dark:text-slate-200">深色模式</div>
+                <div class="font-bold text-sm">深色模式</div>
                 <div class="text-[10px] text-slate-400">Dark Mode</div>
               </div>
             </div>
-            <van-switch :model-value="localState.isDarkMode" @update:model-value="localState.isDarkMode = $event" size="24px" active-color="#7c3aed" @click.stop />
+            <!-- 使用健康绿 -->
+            <van-switch :model-value="localState.isDarkMode" @update:model-value="localState.isDarkMode = $event" size="24px" active-color="#10b981" inactive-color="#e2e8f0" @click.stop />
           </div>
 
           <!-- 纯净模式开关 -->
-          <div class="flex items-center justify-between p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.isPureMode = !localState.isPureMode">
+          <div class="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer" @click="localState.isPureMode = !localState.isPureMode">
             <div class="flex items-center">
-              <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center mr-3 border border-emerald-200 dark:border-emerald-800">
+              <div class="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center mr-3">
                 <i class="fas fa-leaf text-lg"></i>
               </div>
               <div>
-                <div class="font-bold text-sm dark:text-slate-200">纯净模式</div>
+                <div class="font-bold text-sm">纯净模式</div>
                 <div class="text-[10px] text-slate-400">仅保留数据，隐藏RPG元素</div>
               </div>
             </div>
-            <van-switch :model-value="localState.isPureMode" @update:model-value="localState.isPureMode = $event" size="24px" active-color="#10b981" @click.stop />
+            <van-switch :model-value="localState.isPureMode" @update:model-value="localState.isPureMode = $event" size="24px" active-color="#10b981" inactive-color="#e2e8f0" @click.stop />
           </div>
         </div>
 
         <!-- 区域 2: 视觉特效 [New] -->
-        <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
-          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
+        <div class="rounded-xl p-4 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 shadow-sm">
+          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center">
+            <i class="fas fa-magic mr-1.5 opacity-70"></i>
             {{ localState.isPureMode ? '界面效果' : '视觉特效' }}
           </div>
 
           <!-- 天气特效开关 -->
-          <div class="flex items-center justify-between mb-2 p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.enableWeather = !localState.enableWeather">
+          <div class="flex items-center justify-between mb-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer" @click="localState.enableWeather = !localState.enableWeather">
             <div class="flex items-center">
-              <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center mr-3 border border-blue-200 dark:border-blue-800">
+              <div class="w-10 h-10 rounded-full bg-sky-50 dark:bg-sky-900/20 text-sky-600 flex items-center justify-center mr-3">
                 <i class="fas fa-cloud-sun-rain text-lg"></i>
               </div>
               <div>
-                <div class="font-bold text-sm dark:text-slate-200">{{ localState.isPureMode ? '天气背景' : '环境特效' }}</div>
+                <div class="font-bold text-sm">{{ localState.isPureMode ? '天气背景' : '环境特效' }}</div>
                 <div class="text-[10px] text-slate-400">雨雪、云雾等动态效果</div>
               </div>
             </div>
-            <van-switch :model-value="localState.enableWeather" @update:model-value="localState.enableWeather = $event" size="24px" active-color="#3b82f6" @click.stop />
+            <van-switch :model-value="localState.enableWeather" @update:model-value="localState.enableWeather = $event" size="24px" active-color="#0ea5e9" inactive-color="#e2e8f0" @click.stop />
           </div>
 
           <!-- 开屏动画开关 -->
-          <div class="flex items-center justify-between p-2 active:bg-slate-200 dark:active:bg-slate-700 rounded-lg transition-colors" @click="localState.enableSplash = !localState.enableSplash">
+          <div class="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer" @click="localState.enableSplash = !localState.enableSplash">
             <div class="flex items-center">
-              <div class="w-10 h-10 rounded-full bg-pink-100 dark:bg-pink-900/30 text-pink-600 flex items-center justify-center mr-3 border border-pink-200 dark:border-pink-800">
-                <i class="fas fa-magic text-lg"></i>
+              <div class="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center mr-3">
+                <i class="fas fa-film text-lg"></i>
               </div>
               <div>
-                <div class="font-bold text-sm dark:text-slate-200">开屏动画</div>
+                <div class="font-bold text-sm">开屏动画</div>
                 <div class="text-[10px] text-slate-400">启动时的加载动画</div>
               </div>
             </div>
-            <van-switch :model-value="localState.enableSplash" @update:model-value="localState.enableSplash = $event" size="24px" active-color="#ec4899" @click.stop />
+            <van-switch :model-value="localState.enableSplash" @update:model-value="localState.enableSplash = $event" size="24px" active-color="#f59e0b" inactive-color="#e2e8f0" @click.stop />
           </div>
         </div>
 
         <!-- 区域 3: 档案修改 -->
-        <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
-          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
+        <div class="rounded-xl p-4 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 shadow-sm">
+          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center">
+            <i class="fas fa-id-card mr-1.5 opacity-70"></i>
             {{ localState.isPureMode ? '个人信息' : '冒险者档案' }}
           </div>
 
@@ -290,10 +298,10 @@ const onFileSelected = async (event: Event) => {
               <label class="text-[10px] text-slate-500 block mb-1 font-bold">
                 {{ localState.isPureMode ? '昵称' : '冒险者代号' }}
               </label>
-              <div class="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 flex items-center focus-within:border-purple-500 transition-colors">
+              <div class="bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 flex items-center focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
                 <i class="fas fa-user-edit text-slate-400 mr-2 text-xs"></i>
                 <input v-model="localState.nickname"
-                       class="w-full bg-transparent text-sm font-bold dark:text-white outline-none"
+                       class="w-full bg-transparent text-sm font-bold dark:text-white outline-none placeholder-slate-400"
                        placeholder="输入名字" />
               </div>
             </div>
@@ -303,46 +311,47 @@ const onFileSelected = async (event: Event) => {
               <label class="text-[10px] text-slate-500 block mb-2 font-bold">性别 (影响BMR计算)</label>
               <div class="flex gap-3">
                 <div @click="localState.gender = 'MALE'"
-                     class="flex-1 py-3 rounded-xl border-2 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-sm"
-                     :class="localState.gender === 'MALE' ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-900/30' : 'bg-white border-slate-200 text-slate-400 dark:bg-slate-700 dark:border-slate-600'">
-                  <i class="fas fa-mars text-lg"></i> <span class="font-bold">男</span>
+                     class="flex-1 py-2.5 rounded-lg border flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 select-none"
+                     :class="localState.gender === 'MALE' ? 'bg-sky-50 border-sky-500 text-sky-600 dark:bg-sky-900/20' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700'">
+                  <i class="fas fa-mars"></i> <span class="font-bold text-sm">男</span>
                 </div>
                 <div @click="localState.gender = 'FEMALE'"
-                     class="flex-1 py-3 rounded-xl border-2 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-sm"
-                     :class="localState.gender === 'FEMALE' ? 'bg-pink-50 border-pink-500 text-pink-600 dark:bg-pink-900/30' : 'bg-white border-slate-200 text-slate-400 dark:bg-slate-700 dark:border-slate-600'">
-                  <i class="fas fa-venus text-lg"></i> <span class="font-bold">女</span>
+                     class="flex-1 py-2.5 rounded-lg border flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 select-none"
+                     :class="localState.gender === 'FEMALE' ? 'bg-rose-50 border-rose-500 text-rose-500 dark:bg-rose-900/20' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700'">
+                  <i class="fas fa-venus"></i> <span class="font-bold text-sm">女</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 区域 4: 数据管理 (原高级设置) -->
-        <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
-          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider">
-            数据管理
+        <!-- 区域 4: 数据管理 -->
+        <div class="rounded-xl p-4 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 shadow-sm">
+          <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center">
+            <i class="fas fa-database mr-1.5 opacity-70"></i> 数据管理
           </div>
 
           <!-- 数据管理 -->
           <div>
             <label class="text-[10px] text-slate-500 block mb-2 font-bold">数据备份与迁移</label>
             <div class="flex gap-3 mb-3">
-              <button @click="handleFileExport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm flex items-center justify-center">
-                <i class="fas fa-file-download mr-1.5"></i> 导出存档
+              <button @click="handleFileExport" class="flex-1 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2.5 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 flex items-center justify-center font-medium">
+                <i class="fas fa-file-download mr-1.5 text-slate-400"></i> 导出存档
               </button>
-              <button @click="triggerFileImport" class="flex-1 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 shadow-sm flex items-center justify-center">
-                <i class="fas fa-file-upload mr-1.5"></i> 导入存档
+              <button @click="triggerFileImport" class="flex-1 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2.5 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 flex items-center justify-center font-medium">
+                <i class="fas fa-file-upload mr-1.5 text-slate-400"></i> 导入存档
               </button>
               <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
             </div>
           </div>
         </div>
 
-        <button @click="handleSave" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-purple-500/30 active:scale-95 transition-all mt-2 text-base flex items-center justify-center">
+        <!-- 保存按钮：去除渐变，使用纯色 Emerald -->
+        <button @click="handleSave" class="w-full bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-sm hover:shadow active:scale-95 transition-all mt-4 text-sm flex items-center justify-center tracking-wide">
           <i class="fas fa-check-circle mr-2"></i> {{ localState.isPureMode ? '保存设置' : '确认并生效' }}
         </button>
 
-        <div class="text-center text-[10px] text-slate-400 opacity-60 pt-2">
+        <div class="text-center text-[10px] text-slate-300 dark:text-slate-600 pt-4 font-mono">
           Health RPG v4.8 · {{ localState.isPureMode ? 'Pure Edition' : 'Standard Edition' }}
         </div>
 
@@ -352,7 +361,9 @@ const onFileSelected = async (event: Event) => {
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+/* 滚动条美化：更细更淡 */
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
 </style>

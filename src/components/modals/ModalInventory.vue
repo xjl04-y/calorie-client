@@ -34,24 +34,66 @@ const handleUse = (item: typeof SHOP_ITEMS[0]) => {
     confirmButtonText: '使用',
     confirmButtonColor: '#7c3aed'
   }).then(() => {
-    // 执行使用逻辑
-    if (item.effect === 'HEAL' && item.value) {
-      // 治疗药水
-      store.heroStore.heal(item.value);
+    // === 核心逻辑分支：处理不同道具的生效逻辑 ===
+
+    // 1. 特殊功能道具 (ID 优先匹配)
+    if (item.id === 'item_skill_reset') {
+      store.heroStore.resetSkills();
       store.heroStore.consumeItem(item.id, 1, item.name);
-      showToast(`${item.name}：HP +${item.value}`);
-    } else if (item.effect === 'EXP' && item.value) {
-      // 经验卷轴
+      return;
+    }
+
+    if (item.id.includes('blind_box')) {
+      const type = item.id.includes('rare') ? 'RARE' : 'COMMON';
+      store.heroStore.openBlindBox(type);
+      store.heroStore.consumeItem(item.id, 1, item.name);
+      return;
+    }
+
+    if (item.id === 'item_purify_water') {
+      store.heroStore.clearDebuffs();
+      store.heroStore.consumeItem(item.id, 1, item.name);
+      return;
+    }
+
+    if (item.id === 'item_shield_pack') {
+      store.heroStore.addShield(200);
+      store.heroStore.consumeItem(item.id, 1, item.name);
+      showToast('护盾已激活 (+200)');
+      return;
+    }
+
+    if (item.id === 'item_energy_drink') {
+      store.heroStore.clearDebuffs(); // 复用净化逻辑恢复力竭
+      store.heroStore.consumeItem(item.id, 1, item.name);
+      return;
+    }
+
+    // 2. 通用效果道具 (Effect 匹配)
+    if (item.effect === 'HEAL' && item.value) {
+      if (item.value > 2000) {
+        // 全能药剂 (value=9999)
+        store.heroStore.heal(store.heroStore.realMaxHp); // 补满
+        showToast('状态完全恢复！');
+      } else {
+        store.heroStore.heal(item.value);
+        showToast(`${item.name}：HP +${item.value}`);
+      }
+      store.heroStore.consumeItem(item.id, 1, item.name);
+    }
+    else if (item.effect === 'EXP' && item.value) {
       store.heroStore.addExp(item.value, `${item.name}效果`, 'ITEM_USE');
       store.heroStore.consumeItem(item.id, 1, item.name);
       showToast(`${item.name}：经验 +${item.value}`);
-    } else if (item.effect === 'REBIRTH') {
-      // 转生药水 - 打开转生界面
+    }
+    else if (item.effect === 'REBIRTH') {
+      // 转生药水 - 打开转生界面，不在背包直接消耗，而是在转生确认时消耗
       systemStore.setModal('inventory', false);
       systemStore.setModal('rebirth', true);
-    } else {
-      // 其他道具（时光怀表、时光沙漏等）自动使用
-      showToast(`${item.name} 将在需要时自动生效`);
+    }
+    else {
+      // 被动道具（时光怀表、沙漏等）
+      showToast(`${item.name} 将在需要时自动生效，无需手动使用`);
     }
   }).catch(() => {});
 };
@@ -67,11 +109,11 @@ const getRarityClass = (price: number) => {
 <template>
   <van-popup v-model:show="show" position="bottom" round :style="{ height: '75%' }" class="dark:bg-slate-900">
     <div class="flex flex-col h-full bg-slate-50 dark:bg-slate-900">
-      
+
       <!-- 标题栏 -->
       <div class="p-4 bg-white dark:bg-slate-800 border-b dark:border-slate-700 sticky top-0 z-10 flex justify-between items-center shadow-sm">
         <h2 class="text-xl font-rpg text-slate-800 dark:text-white flex items-center">
-          <i class="fas fa-bag-shopping text-purple-600 mr-2"></i> 
+          <i class="fas fa-bag-shopping text-purple-600 mr-2"></i>
           {{ systemStore.isPureMode ? '我的物品' : '冒险背包' }}
         </h2>
         <van-icon name="cross" size="20" class="text-slate-400 cursor-pointer" @click="show = false" />
@@ -90,8 +132,8 @@ const getRarityClass = (price: number) => {
 
         <!-- 道具列表 -->
         <div v-else class="space-y-3">
-          <div 
-            v-for="item in inventoryItems" 
+          <div
+            v-for="item in inventoryItems"
             :key="item.id"
             class="rounded-xl border-2 p-4 flex items-center shadow-sm hover:shadow-md transition-all relative overflow-hidden"
             :class="getRarityClass(item.price)"
@@ -117,14 +159,14 @@ const getRarityClass = (price: number) => {
                 {{ item.desc }}
               </div>
               <!-- 效果预览 -->
-              <div v-if="item.value" class="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
-                <template v-if="item.effect === 'HEAL'">💚 恢复 {{ item.value }} HP</template>
+              <div v-if="item.value && (item.effect === 'HEAL' || item.effect === 'EXP')" class="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
+                <template v-if="item.effect === 'HEAL'">💚 恢复 {{ item.value > 2000 ? '100%' : item.value }} HP</template>
                 <template v-else-if="item.effect === 'EXP'">✨ 获得 {{ item.value }} 经验</template>
               </div>
             </div>
 
             <!-- 右侧：使用按钮 -->
-            <button 
+            <button
               @click="handleUse(item)"
               class="shrink-0 ml-2 px-4 py-2 rounded-lg font-bold text-sm transition-all active:scale-95 bg-purple-600 hover:bg-purple-700 text-white shadow-md"
             >
