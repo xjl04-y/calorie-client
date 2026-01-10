@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { RACES } from '@/constants/gameData';
@@ -20,9 +20,9 @@ const AnimState = {
   BAR_STACK: 'BAR_STACK',   // 收缩成钢笔/条状
   FLY: 'FLY',               // 飞出
   ORBIT: 'ORBIT'            // 3D 环绕 (此时表单出现)
-};
+} as const;
 type AnimStateType = keyof typeof AnimState;
-const animState = ref<AnimStateType>(AnimState.SELECTION);
+const animState = ref<AnimStateType>('SELECTION');
 const isFormVisible = ref(false); // 控制 Step 3 表单面板的显隐动画
 
 // 表单数据 (保持原有类型定义)
@@ -68,16 +68,16 @@ watch(show, (val) => {
       !systemStore.isPureMode;
 
     if (isFromPureToRpg) {
-      // 回填旧数据
-      formData.nickname = store.user.nickname;
-      formData.gender = store.user.gender;
-      formData.height = store.user.height;
-      formData.weight = store.user.weight;
-      formData.age = store.user.age;
-      // 直接跳到种族选择
-      step.value = 2;
-      animState.value = AnimState.SELECTION;
-    }
+    // 回填旧数据
+    formData.nickname = store.user.nickname;
+    formData.gender = store.user.gender;
+    formData.height = store.user.height;
+    formData.weight = store.user.weight;
+    formData.age = store.user.age;
+    // 直接跳到种族选择
+    step.value = 2;
+    animState.value = 'SELECTION';
+  }
   } else {
     resetFlow(true); // 关闭时完全重置
   }
@@ -87,7 +87,7 @@ watch(show, (val) => {
 
 const resetFlow = (fullReset = false) => {
   step.value = 1;
-  animState.value = AnimState.SELECTION;
+  animState.value = 'SELECTION';
   isFormVisible.value = false;
   if (fullReset) {
     formData.nickname = '';
@@ -103,21 +103,21 @@ const selectMode = (isPure: boolean) => {
     // 纯净模式：跳过种族选择动画，直接进入表单态
     // 我们让 3D 背景直接进入 ORBIT 状态作为装饰
     step.value = 3;
-    animState.value = AnimState.ORBIT;
+    animState.value = 'ORBIT';
     setTimeout(() => {
       isFormVisible.value = true;
     }, 100);
   } else {
     // RPG 模式：进入 3D 选人界面
     step.value = 2;
-    animState.value = AnimState.SELECTION;
+    animState.value = 'SELECTION';
   }
 };
 
 // Step 2: 选中某个种族
 const selectRace = (key: string) => {
   // 只有在选择阶段才能点击
-  if (animState.value !== AnimState.SELECTION) return;
+  if (animState.value !== 'SELECTION') return;
   formData.race = key as RaceType;
 };
 
@@ -129,17 +129,17 @@ const confirmRaceAndFly = () => {
   }
 
   // 1. 收缩 (Gathering/Stack)
-  animState.value = AnimState.BAR_STACK;
+  animState.value = 'BAR_STACK';
 
   // 2. 飞出 (Fly)
   setTimeout(() => {
     step.value = 3; // 逻辑进入 Step 3
-    animState.value = AnimState.FLY;
+    animState.value = 'FLY';
   }, 800);
 
   // 3. 变成 3D 环绕 (Orbit)
   setTimeout(() => {
-    animState.value = AnimState.ORBIT;
+    animState.value = 'ORBIT';
   }, 1600);
 
   // 4. 表单浮现
@@ -187,6 +187,9 @@ const finish = () => {
       store.setModal('npcGuide', true);
     } else {
       store.setModal('onboarding', false);
+      // [Fix] 纯净模式不进入NpcGuide，直接标记引导完成
+      systemStore.hasCompletedGuide = true;
+      console.log('[🎯 Onboarding] 纯净模式，设置 hasCompletedGuide = true');
       showToast({ type: 'success', message: '✅ 账号创建成功！' });
     }
   }
@@ -197,12 +200,12 @@ const backToRaceSelect = () => {
   isFormVisible.value = false;
   setTimeout(() => {
     step.value = 2;
-    animState.value = AnimState.SELECTION;
+    animState.value = 'SELECTION';
   }, 500);
 };
 
 // --- Style Helpers ---
-const getCuboidStyle = (key: string, index: number) => {
+const getCuboidStyle = (key: string) => {
   const keys = Object.keys(RACES);
   const idx = keys.indexOf(key);
 
@@ -294,11 +297,11 @@ const getCuboidStyle = (key: string, index: number) => {
 
         <!-- 4个种族卡牌 (Cuboids) -->
         <div
-          v-for="(race, key, index) in RACES"
+          v-for="(race, key) in RACES"
           :key="key"
           class="cuboid"
           :class="{ 'selected': formData.race === key }"
-          :style="getCuboidStyle(key as string, index)"
+          :style="getCuboidStyle(key as string)"
           @click="selectRace(key as string)"
         >
           <div class="face face-front">

@@ -32,13 +32,13 @@ const currentMaxHp = computed(() => {
   return heroStore.realMaxHp || user.value.heroMaxHp || 200;
 });
 
-const shieldPercent = computed(() => {
+/*const shieldPercent = computed(() => {
   const maxHp = currentMaxHp.value;
   if (maxHp <= 0) return 0;
   return Math.min((user.value.heroShield || 0) / maxHp * 100, 100);
 });
 
-const hasShield = computed(() => (user.value.heroShield || 0) > 0);
+const hasShield = computed(() => (user.value.heroShield || 0) > 0);*/
 
 // [经验条] 计算经验百分比
 const expPercent = computed(() => {

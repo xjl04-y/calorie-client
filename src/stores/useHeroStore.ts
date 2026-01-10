@@ -482,12 +482,15 @@ export const useHeroStore = defineStore('hero', () => {
     user.activeSkillCd = 0;
     user.race = newRace;
 
-    showNotify({
-      type: 'success',
-      message: `✨ 转生成功！化身为 ${RACES[newRace].name}！\n返还 ${totalRefundSP} 点技能点。`,
-      duration: 3000,
-      background: '#7c3aed'
-    });
+    const raceData = RACES[newRace];
+    if (raceData) {
+      showNotify({
+        type: 'success',
+        message: `✨ 转生成功！化身为 ${raceData.name}！\n返还 ${totalRefundSP} 点技能点。`,
+        duration: 3000,
+        background: '#7c3aed'
+      });
+    }
   }
 
   function _calculateRecommendedBMR(weight: number, height: number, age: number, gender: string, activityLevel: number, goal: string): number {
@@ -863,8 +866,10 @@ export const useHeroStore = defineStore('hero', () => {
     const seed = yesterdayStr.split('').reduce((a, b, i) => a + (b.charCodeAt(0) * (i + 1)), 0);
     const monster = MONSTERS[seed % MONSTERS.length] || MONSTERS[0];
 
-    addExp(expGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
-    addGold(goldGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
+    if (monster) {
+      addExp(expGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
+      addGold(goldGained, `昨日结算-${monster.name}`, 'CHECKIN_BONUS');
+    }
     recoverStamina(100);
 
     if (!systemStore.isPureMode) {
@@ -902,7 +907,7 @@ export const useHeroStore = defineStore('hero', () => {
         status,
         expGained,
         goldGained,
-        monsterName: monster.name,
+        monsterName: monster ? monster.name : '未知生物',
         loginStreak: user.loginStreak,
         items: allItems.length > 0 ? allItems : undefined
       };
@@ -967,12 +972,14 @@ export const useHeroStore = defineStore('hero', () => {
         let spentPoints = 0;
         if (user.learnedSkills) {
           const currentTree = RACE_SKILL_TREES[user.race] || RACE_SKILL_TREES['HUMAN'];
-          currentTree.forEach(node => {
-            const level = user.learnedSkills[node.id] || 0;
-            if (level > 0) {
-              spentPoints += level * node.cost;
-            }
-          });
+          if (currentTree) {
+            currentTree.forEach(node => {
+              const level = user.learnedSkills[node.id] || 0;
+              if (level > 0) {
+                spentPoints += level * node.cost;
+              }
+            });
+          }
         }
 
         const totalEarned = (user.level || 1) - 1;

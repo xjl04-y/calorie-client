@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
+import type { FoodLog } from '@/types';
 
 const store = useGameStore();
 // Remove storeToRefs
@@ -13,7 +14,7 @@ const show = computed({
 
 // 筛选所有受伤或闪避的日志
 const hpLogs = computed(() => {
-  const allLogs: any[] = [];
+  const allLogs: FoodLog[] = [];
   Object.values(store.logs).forEach(dayLogs => {
     dayLogs.forEach(log => {
       if (log.damageTaken !== undefined || log.dodged) {

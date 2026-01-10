@@ -237,8 +237,8 @@ class HexCell {
   draw(ctx: CanvasRenderingContext2D, isHit: boolean) {
     if (this.life <= 0) return;
     const r = CONFIG.hexRadius - 1;
-    const currentColor = CONFIG.colors.shieldMain;
-    const hitColor = CONFIG.colors.shieldHit;
+    const currentColor = CONFIG.colors.shieldMain || '#00eaff';
+    const hitColor = CONFIG.colors.shieldHit || '#ffffff';
 
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -397,12 +397,12 @@ class ShieldSystem {
 
     // --- 背景层 ---
     ctx.save();
-    if (C.shadow !== 'transparent') {
+    if (C.shadow && C.shadow !== 'transparent') {
       ctx.shadowColor = C.shadow;
       ctx.shadowBlur = 15;
       ctx.shadowOffsetY = 3;
     }
-    ctx.fillStyle = C.bgOuter;
+    ctx.fillStyle = C.bgOuter || 'rgba(20, 25, 30, 0.8)';
     drawRoundRect(ctx, bx - 4, by - 4, CONFIG.barWidth + 8, CONFIG.barHeight + 8, cornerRadius);
     ctx.fill();
 
@@ -417,7 +417,7 @@ class ShieldSystem {
     ctx.restore();
 
     // --- 内层槽位 ---
-    ctx.fillStyle = C.bgInner;
+    ctx.fillStyle = C.bgInner || 'rgba(15, 20, 25, 0.9)';
     drawRoundRect(ctx, bx, by, CONFIG.barWidth, CONFIG.barHeight, cornerRadius - 2);
     ctx.fill();
 
@@ -429,13 +429,13 @@ class ShieldSystem {
       drawRoundRect(ctx, bx, by, CONFIG.barWidth, CONFIG.barHeight, cornerRadius - 2);
       ctx.clip();
       const grad = ctx.createLinearGradient(bx, by, bx, by + CONFIG.barHeight);
-      grad.addColorStop(0, C.hpStart);
-      grad.addColorStop(0.5, C.hpEnd);
-      grad.addColorStop(1, C.hpStart);
+      grad.addColorStop(0, C.hpStart || '#dc2626');
+      grad.addColorStop(0.5, C.hpEnd || '#f87171');
+      grad.addColorStop(1, C.hpStart || '#dc2626');
       ctx.fillStyle = grad;
       ctx.fillRect(bx, by, hpW, CONFIG.barHeight);
       const glossGrad = ctx.createLinearGradient(bx, by, bx, by + CONFIG.barHeight * 0.5);
-      glossGrad.addColorStop(0, C.gloss);
+      glossGrad.addColorStop(0, C.gloss || 'rgba(255, 255, 255, 0.25)');
       glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = glossGrad;
       ctx.fillRect(bx, by, hpW, CONFIG.barHeight * 0.5);
@@ -443,7 +443,7 @@ class ShieldSystem {
     }
 
     // --- 边框 ---
-    ctx.strokeStyle = C.border;
+    ctx.strokeStyle = C.border || 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1.5;
     drawRoundRect(ctx, bx, by, CONFIG.barWidth, CONFIG.barHeight, cornerRadius - 2);
     ctx.stroke();
@@ -461,7 +461,7 @@ class ShieldSystem {
       if (this.state !== 'SHATTERING') {
         ctx.beginPath(); ctx.rect(bx, by, shieldW, CONFIG.barHeight); ctx.clip();
         if (this.shield > 0 && !isHit) {
-          ctx.fillStyle = C.shieldFaint;
+          ctx.fillStyle = C.shieldFaint || 'rgba(0, 234, 255, 0.05)';
           ctx.fillRect(bx, by, shieldW, CONFIG.barHeight);
         }
       }
@@ -479,7 +479,7 @@ class ShieldSystem {
         if (absSweepX > bx && absSweepX < bx + shieldW) {
           const grad = ctx.createLinearGradient(absSweepX, by, absSweepX + 40, by);
           grad.addColorStop(0, 'rgba(255,255,255,0)');
-          grad.addColorStop(0.2, C.sweep);
+          grad.addColorStop(0.2, C.sweep || 'rgba(0, 255, 255, 0.2)');
           grad.addColorStop(1, 'rgba(255,255,255,0)');
           ctx.fillStyle = grad; ctx.fillRect(absSweepX, by, 40, CONFIG.barHeight);
         }
@@ -489,8 +489,9 @@ class ShieldSystem {
       ctx.globalCompositeOperation = 'source-over';
       for (let i = this.impactRings.length - 1; i >= 0; i--) {
         const ring = this.impactRings[i];
+        if (!ring) continue;
         ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
-        ctx.strokeStyle = ring.width > 2 ? C.shieldHit : C.shieldMain;
+        ctx.strokeStyle = ring.width > 2 ? (C.shieldHit || '#ffffff') : (C.shieldMain || '#00eaff');
         ctx.globalAlpha = ring.alpha;
         ctx.lineWidth = ring.width; ctx.stroke();
         ctx.globalAlpha = 1.0;
@@ -505,7 +506,7 @@ class ShieldSystem {
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.font = 'bold 10px "Segoe UI", sans-serif';
-    ctx.fillStyle = C.textHpLabel;
+    ctx.fillStyle = C.textHpLabel || 'rgba(255, 107, 107, 0.7)';
     if (props.theme === 'dark') {
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 2;
@@ -515,14 +516,14 @@ class ShieldSystem {
 
     if (this.shield > 0) {
       ctx.textAlign = 'right';
-      ctx.fillStyle = C.textShieldLabel;
+      ctx.fillStyle = C.textShieldLabel || 'rgba(0, 234, 255, 0.7)';
       ctx.fillText('🛡️ SHIELD', bx + CONFIG.barWidth, labelY);
     }
 
     const valueY = by - 12;
     ctx.textAlign = 'left';
     ctx.font = 'bold 18px "Segoe UI", -apple-system, sans-serif';
-    ctx.fillStyle = C.textHpValue;
+    ctx.fillStyle = C.textHpValue || '#ffffff';
     if (props.theme === 'dark') {
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 5;
@@ -533,9 +534,9 @@ class ShieldSystem {
     if (this.shield > 0) {
       ctx.textAlign = 'right';
       ctx.font = 'bold 18px "Segoe UI", -apple-system, sans-serif';
-      ctx.fillStyle = C.textShieldValue;
+      ctx.fillStyle = C.textShieldValue || '#00E5FF';
       if (props.theme === 'dark') {
-        ctx.shadowColor = C.textShieldValue;
+        ctx.shadowColor = C.textShieldValue || '#00E5FF';
         ctx.shadowBlur = 10;
       } else {
         ctx.shadowColor = 'rgba(0,0,0,0.1)';

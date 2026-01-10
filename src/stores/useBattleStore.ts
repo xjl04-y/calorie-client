@@ -3,7 +3,8 @@ import { defineStore } from 'pinia';
 import { reactive, computed } from 'vue';
 import type { FoodLog, FoodItem, EnvironmentEffect, MealType } from '@/types';
 import { MONSTERS, RACES } from '@/constants/gameData';
-import { showToast, showNotify } from 'vant';
+import { showToast, showNotify } from 'vant'; // 保持引用
+import type { NotifyOptions } from 'vant'; // 保持类型引用
 import { getLocalDateStr, isSameDay } from '@/utils/dateUtils';
 import { generateId, safeVibrate } from '@/utils/gameUtils';
 
@@ -11,6 +12,32 @@ import { useSystemStore } from './useSystemStore';
 import { useHeroStore } from './useHeroStore';
 import { useCollectionStore } from './useCollectionStore';
 import { useLogStore } from './useLogStore';
+
+// [Fix UI] 封装一个带安全区域的 Notify 函数
+// 优化方案：之前的 padding 可能因样式隔离未生效。
+// 现改为使用 showToast 居中显示，彻底避开顶部状态栏遮挡问题。
+function showSafeNotify(options: string | NotifyOptions) {
+  const msg = typeof options === 'string' ? options : options.message;
+  const type = typeof options !== 'string' ? options.type : undefined;
+  const duration = typeof options !== 'string' ? options.duration : 2000;
+
+  // 映射 Notify 类型到 Toast 的类型
+  // Vant Toast 支持: 'text' | 'loading' | 'success' | 'fail' | 'html'
+  let toastType: 'text' | 'success' | 'fail' = 'text';
+
+  if (type === 'success') toastType = 'success';
+  if (type === 'danger') toastType = 'fail';
+  // warning 和 primary 类型在 Toast 中没有直接对应，使用默认 text (消息中通常自带 Emoji)
+
+  showToast({
+    message: msg,
+    type: toastType,
+    position: 'middle', // [关键] 强制居中显示，不再出现在顶部
+    duration: duration,
+    forbidClick: false, // 允许用户在提示出现时继续操作
+    wordBreak: 'break-all'
+  });
+}
 
 // [Fix] 扩充小怪池，让战斗前期的怪物更加多样化，覆盖所有弱点类型
 const MINIONS_POOL = [
@@ -314,7 +341,7 @@ export const useBattleStore = defineStore('battle', () => {
     return hasReset;
   }
 
-  function calculateCombo(tags: string[], timestamp: number) {
+  function calculateCombo(tags: string[]) {
     const todayStr = getLocalDateStr();
     const systemDate = systemStore.currentDate;
 
@@ -356,7 +383,8 @@ export const useBattleStore = defineStore('battle', () => {
       // [V4.8 Feature] 连击保护逻辑
       if (newCombo > 1 && heroStore.consumeItem('item_combo_shield', 1)) {
         comboMsg = '⏳ 时光倒流！连击保护生效！';
-        setTimeout(() => showNotify({ type: 'success', message: '✨ 使用了时光沙漏，连击未中断！', background: '#7c3aed' }), 500);
+        // [Optimization] 使用 showSafeNotify
+        setTimeout(() => showSafeNotify({ type: 'success', message: '✨ 使用了时光沙漏，连击未中断！', background: '#7c3aed' }), 500);
       } else {
         newCombo = isGoodFood ? 1 : 0;
         comboMsg = isGoodFood ? '⚡ 连击开始' : '⏱️ 连击超时';
@@ -430,8 +458,8 @@ export const useBattleStore = defineStore('battle', () => {
     // [工单02] "僵尸英雄"禁入战场 - HP为0时禁止战斗
     // [UI欺诈修复] 必须给用户明确的反馈,不能静默拒绝
     if (!systemStore.isPureMode && heroStore.user.heroCurrentHp <= 0) {
-      // 使用showNotify而不showToast, 提供更明显的视觉反馈
-      showNotify({
+      // 使用 showSafeNotify 替换 showNotify
+      showSafeNotify({
         type: 'warning',
         message: '⚠️ 你已经精疲力尽，请先休息（回血）！',
         background: '#f59e0b',
@@ -454,7 +482,7 @@ export const useBattleStore = defineStore('battle', () => {
         generatedExp: 0
       };
 
-      const savedLog = logStore.addLog(exerciseLog);
+      logStore.addLog(exerciseLog);
 
       // 运动效果
       const healAmt = 50 + Math.floor((item.calories || 0) / 10);
@@ -470,7 +498,7 @@ export const useBattleStore = defineStore('battle', () => {
         if (!systemStore.isPureMode) {
           systemStore.triggerHealEffect();
           spawnFloatingText(`+${healAmt}`, 'HEAL');
-          showNotify({ type: 'success', message: `🏋️ 运动恢复：HP +${healAmt}` });
+          showSafeNotify({ type: 'success', message: `🏋️ 运动恢复：HP +${healAmt}` });
         }
       } else {
         // 2. 溢出：先补满血，剩余转护盾/金币
@@ -493,7 +521,7 @@ export const useBattleStore = defineStore('battle', () => {
             if (missingHp > 0) spawnFloatingText(`+${missingHp}`, 'HEAL');
             setTimeout(() => spawnFloatingText(`+${shieldGain}`, 'BLOCK'), 200); // 蓝色护盾飘字
 
-            showNotify({
+            showSafeNotify({
               type: 'primary',
               message: `🛡️ 状态绝佳！获得 ${shieldGain} 点护盾！`,
               background: '#0ea5e9',
@@ -519,7 +547,7 @@ export const useBattleStore = defineStore('battle', () => {
           exerciseLog.generatedGold = goldBonus; // [指令1] 记录运动产出的金币
           if (!systemStore.isPureMode) {
             spawnFloatingText(`+${goldBonus}G`, 'EXP');
-            showNotify({
+            showSafeNotify({
               type: 'warning',
               message: `💪 巅峰状态！溢出的活力转化为 ${goldBonus} 金币！`,
               background: '#f59e0b',
@@ -536,7 +564,6 @@ export const useBattleStore = defineStore('battle', () => {
     }
 
     // ... (Existing tag logic) ...
-    const tags = item.tags || [];
     const c = Number(item.c)||0, f = Number(item.f)||0, p = Number(item.p)||0;
     const grams = Number(item.grams)||100;
     const calories = Number(item.calories)||0;
@@ -574,7 +601,7 @@ export const useBattleStore = defineStore('battle', () => {
       ...item,
       name: displayName,
       tags: Array.from(newTags),
-      mealType: forcedMealType || systemStore.temp.activeMealType || 'SNACK',
+      mealType: (forcedMealType || systemStore.temp.activeMealType || 'SNACK') as MealType,
       timestamp: new Date().toISOString()
     };
 
@@ -585,7 +612,7 @@ export const useBattleStore = defineStore('battle', () => {
     }
 
     // Hydration Logic
-    if (battleItem.mealType === 'HYDRATION') {
+    if (battleItem.mealType === 'HYDRATION' as MealType) {
       const savedLog = logStore.addLog(battleItem);
       collectionStore.checkDailyQuests(savedLog);
       checkAchievements(false);
@@ -657,7 +684,7 @@ export const useBattleStore = defineStore('battle', () => {
       }
       // 5. 水怪 (荒芜旱怪等)
       else if (type === '水' || type === 'WATER') {
-        if (battleItem.mealType === 'HYDRATION' || newTags.has('水')) {
+        if (battleItem.mealType === 'HYDRATION' as MealType || newTags.has('水')) {
           multiplier *= 2.0; // 水属性暴击
         } else if (battleItem.mealType === 'SNACK') {
           multiplier *= 0.5; // 干粮效果差
@@ -671,7 +698,7 @@ export const useBattleStore = defineStore('battle', () => {
       }
     }
 
-    const { newCombo, comboMultiplier, comboMsg } = calculateCombo(battleItem.tags || [], Date.now());
+    const { newCombo, comboMultiplier } = calculateCombo(battleItem.tags || []);
 
     // [Fix] 立即更新 ComboState 确保状态同步
     if (systemStore.currentDate === getLocalDateStr()) {
@@ -709,21 +736,21 @@ export const useBattleStore = defineStore('battle', () => {
 
     // Toast/Notify Logic
     if (systemStore.isPureMode) {
-      showNotify({ type: 'success', message: `✅ 已记录: ${battleItem.name} (${calories} kcal)`, duration: 1500 });
+      showSafeNotify({ type: 'success', message: `✅ 已记录: ${battleItem.name} (${calories} kcal)`, duration: 1500 });
     } else {
       if (activeSkill?.effectType === 'DOUBLE_EXP' && activeSkill.id === 'HUMAN_PRAYER') {
         const healAmt = Math.floor(calories * 0.5);
         heroStore.heal(healAmt);
         spawnFloatingText(`+${healAmt}`, 'HEAL');
         systemStore.triggerHealEffect(); // [V4.3]
-        showNotify({ type: 'success', message: `🙏 圣光转化：恢复 ${healAmt} HP`, duration: 2000 });
+        showSafeNotify({ type: 'success', message: `🙏 圣光转化：恢复 ${healAmt} HP`, duration: 2000 });
       }
       else if (isResist || isBossOverloaded) {
         // ... (Keep Resist Logic) ...
         const hasComboProtection = newCombo > 1;
 
         if (hasComboProtection) {
-          showNotify({ type: 'success', message: '⚡ 极速连击！闪避了反击！', duration: 2000 });
+          showSafeNotify({ type: 'success', message: '⚡ 极速连击！闪避了反击！', duration: 2000 });
           spawnFloatingText('DODGE!', 'BLOCK');
           battleItem.dodged = true;
         } else {
@@ -743,16 +770,16 @@ export const useBattleStore = defineStore('battle', () => {
             if (Math.random() < stats.dodgeChance) {
               battleItem.dodged = true;
               spawnFloatingText('MISS', 'BLOCK');
-              showNotify({ type: 'success', message: '⚡ 装备生效！完美闪避！', duration: 2000 });
+              showSafeNotify({ type: 'success', message: '⚡ 装备生效！完美闪避！', duration: 2000 });
             } else {
               heroStore.damage(damage); // [Updated] Use new damage logic (shield first)
               battleItem.damageTaken = damage;
               battleItem.blocked = stats.blockValue;
               spawnFloatingText(`-${damage}`, 'DAMAGE');
-              showNotify({ type: 'danger', message: `💔 ${resistReason || '受到反击'} (-${damage} HP)`, duration: 3000 });
+              showSafeNotify({ type: 'danger', message: `💔 ${resistReason || '受到反击'} (-${damage} HP)`, duration: 3000 });
             }
           } else {
-            showNotify({ type: 'primary', message: '🍺 酒仙护体！格挡了反击！', duration: 2000 });
+            showSafeNotify({ type: 'primary', message: '🍺 酒仙护体！格挡了反击！', duration: 2000 });
             spawnFloatingText('BLOCK!', 'BLOCK');
             battleItem.blocked = 999;
           }
@@ -766,7 +793,7 @@ export const useBattleStore = defineStore('battle', () => {
 
         if (activeSkill?.id === 'ORC_RAGE') {
           heroStore.damage(50);
-          showNotify({ type: 'warning', message: '🩸 血祭：自身扣除 50 HP', duration: 2000 });
+          showSafeNotify({ type: 'warning', message: '🩸 血祭：自身扣除 50 HP', duration: 2000 });
         }
 
         let msg = `✅ 已记录：${battleItem.name}`;
@@ -793,7 +820,7 @@ export const useBattleStore = defineStore('battle', () => {
         if (env.type === 'BUFF') msg += ` | ${env.icon}环境加成`;
         if (fastingBonus > 0) msg += ` | 🕒 蓄力一击!`; // [New]
 
-        showNotify({ type: 'success', message: msg, duration: 2000 });
+        showSafeNotify({ type: 'success', message: msg, duration: 2000 });
       }
     }
 
@@ -836,7 +863,7 @@ export const useBattleStore = defineStore('battle', () => {
       const completedCount = quests.filter(q => q.current >= q.target).length;
       if (completedCount === quests.length && quests.length > 0) {
         setTimeout(() => {
-          showNotify({ type: 'success', message: '🎉 今日任务全部完成！', background: '#f59e0b' });
+          showSafeNotify({ type: 'success', message: '🎉 今日任务全部完成！', background: '#f59e0b' });
           safeVibrate(200);
         }, 500);
       }

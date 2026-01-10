@@ -18,7 +18,7 @@ interface SaveData {
   foodDb?: FoodItem[];
   isDarkMode?: boolean;
   isPureMode?: boolean;
-  activeQuests?: any[];
+  activeQuests?: unknown[];
   questPoolDay?: string;
   comboState?: {
     count: number;
@@ -63,8 +63,8 @@ export const useGameStore = defineStore('game', () => {
     const maxHp = 200 + (rawVit * 10);
 
     // [Fix] 格挡和闪避现在也加上技能树的被动加成
-    let blockValue = Math.floor(rawStr * 0.8 * (1 + (bonuses.blockPct || 0)));
-    let dodgeChance = Math.min((rawAgi * 0.003) + (bonuses.dodgeFlat || 0), 0.80);
+    const blockValue = Math.floor(rawStr * 0.8 * (1 + (bonuses.blockPct || 0)));
+    const dodgeChance = Math.min((rawAgi * 0.003) + (bonuses.dodgeFlat || 0), 0.80);
 
     const expContribution = Math.floor(Math.pow(userData.currentExp, 0.45) * 5);
     const levelContribution = userData.level * 100;
@@ -120,7 +120,7 @@ export const useGameStore = defineStore('game', () => {
           if (data.isDarkMode !== undefined) system.isDarkMode = !!data.isDarkMode;
           if (data.isPureMode !== undefined) system.isPureMode = !!data.isPureMode;
 
-          if (data.activeQuests) collection.quests = data.activeQuests;
+          if (data.activeQuests) collection.quests = data.activeQuests as any[];
           if (data.questPoolDay) collection.questPoolDay = data.questPoolDay;
 
           if (data.comboState) {
@@ -149,9 +149,11 @@ export const useGameStore = defineStore('game', () => {
           }
 
           if (data.achievements) {
-            data.achievements.forEach((oldAch: Achievement) => {
-              const e = collection.achievements.find(a => a.id === oldAch.id);
-              if (e) e.unlocked = !!oldAch.unlocked;
+            (data.achievements as Achievement[]).forEach((oldAch: Achievement) => {
+              if (oldAch && oldAch.id) {
+                const e = collection.achievements.find(a => a.id === oldAch.id);
+                if (e) e.unlocked = !!oldAch.unlocked;
+              }
             });
           }
         }
@@ -175,8 +177,8 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  function initUser(formData: any) {
-    hero.initUser(formData);
+  function initUser(formData: unknown) {
+    hero.initUser(formData as any);
     collection.initFoodDb(hero.user.race || 'HUMAN', true);
     system.setModal('onboarding', false);
     forceSave();
@@ -228,7 +230,7 @@ export const useGameStore = defineStore('game', () => {
     claimQuest: collection.claimQuest,
 
     commitLog: (item: FoodItem, mealType?: MealType) => { battle.battleCommit(item, mealType); saveState(); },
-    deleteLog: (log: FoodLog) => { battle.deleteLog(log); saveState(); },
+    deleteLog: (log: FoodLog) => { const ok = battle.deleteLog(log); saveState(); return ok; },
     battleCommit: (item: FoodItem, mealType?: MealType) => { battle.battleCommit(item, mealType); saveState(); },
 
     getTacticalSuggestion: battle.getTacticalSuggestion,
@@ -239,6 +241,6 @@ export const useGameStore = defineStore('game', () => {
     initUser,
     equipItem: (item: Achievement) => { hero.user.equipped[item.slot] = item.id; saveState(); },
     getExportData: () => { _performSave(); return JSON.parse(localStorage.getItem('health_rpg_save_v2') || '{}'); },
-    importSaveDataObj: (data: any) => { localStorage.setItem('health_rpg_save_v2', JSON.stringify(data)); loadState(); return true; }
+    importSaveDataObj: (data: unknown) => { localStorage.setItem('health_rpg_save_v2', JSON.stringify(data)); loadState(); return true; }
   };
 });

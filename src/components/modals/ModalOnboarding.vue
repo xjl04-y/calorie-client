@@ -26,9 +26,9 @@ const CardState = {
   RISING_RUSH: 'RISING_RUSH',       // 从底部快速冲上来
   SPINNING_EXPAND: 'SPINNING_EXPAND', // 在中心旋转展开
   ORBIT: 'ORBIT'            // 3D 环绕 (档案填写背景)
-};
+} as const;
 type CardStateType = keyof typeof CardState;
-const cardState = ref<CardStateType>(CardState.ENTERING);
+const cardState = ref<CardStateType>('ENTERING');
 const selectedRaceForDetail = ref<RaceType | null>(null);
 const isFormVisible = ref(false); // 控制档案填写表单的显隐动画
 
@@ -111,7 +111,7 @@ watch(show, (val) => {
   } else {
     // 关闭时重置
     step.value = 1;
-    cardState.value = CardState.ENTERING;
+    cardState.value = 'ENTERING';
     selectedRaceForDetail.value = null;
     isFormVisible.value = false;
     // [Fix Bug2] 关闭时清除来源标记
@@ -133,22 +133,22 @@ watch(step, (newStep, oldStep) => {
 
     // 只有第一次进入步骤 2 (从步骤 1 或初始打开) 时才播放入场动画
     // 进入种族选择步骤，启动卡牌入场动画
-    cardState.value = CardState.ENTERING;
+    cardState.value = 'ENTERING';
     selectedRaceForDetail.value = null;
 
     // 从底部升起 → 堆叠 → 蓄力收缩 → 爆开
     // 使用 requestAnimationFrame 确保初始状态已渲染
     requestAnimationFrame(() => {
       setTimeout(() => {
-        cardState.value = CardState.INTRO;
+        cardState.value = 'INTRO';
       }, 100); // 给足够时间让 ENTERING 状态渲染
 
       setTimeout(() => {
-        cardState.value = CardState.CHARGING; // 蓄力收缩
+        cardState.value = 'CHARGING'; // 蓄力收缩
       }, 1600); // 升起动画 1.5s
 
       setTimeout(() => {
-        cardState.value = CardState.IDLE; // 爆开！
+        cardState.value = 'IDLE'; // 爆开！
       }, 2000); // 蓄力 0.4s
     });
   }
@@ -274,7 +274,7 @@ const getCardStyle = (index: number) => {
   const angle = stackAngles[index % 4];
 
   // 0. 从底部进入状态 - 所有卡牌从底部升起
-  if (cardState.value === CardState.ENTERING) {
+  if (cardState.value === 'ENTERING') {
     return {
       transform: `translateX(-50%) translateY(150%) scale(0.8) rotate(${angle}deg)`,
       left: '50%',
@@ -285,7 +285,7 @@ const getCardStyle = (index: number) => {
   }
 
   // 1. 入场堆叠状态 - 升到中间堆叠
-  else if (cardState.value === CardState.INTRO) {
+  else if (cardState.value === 'INTRO') {
     return {
       transform: `translateX(-50%) translateY(-50%) scale(0.8) rotate(${angle}deg)`,
       left: '50%',
@@ -296,9 +296,10 @@ const getCardStyle = (index: number) => {
   }
 
   // 2. 蓄力收缩状态 - 向内收缩并微微旋转，准备爆开
-  else if (cardState.value === CardState.CHARGING) {
+  else if (cardState.value === 'CHARGING') {
+    const safeAngle = angle || 0;
     return {
-      transform: `translateX(-50%) translateY(-50%) scale(0.65) rotate(${angle * 1.5}deg)`,
+      transform: `translateX(-50%) translateY(-50%) scale(0.65) rotate(${safeAngle * 1.5}deg)`,
       left: '50%',
       top: '50%',
       zIndex: index,
@@ -307,7 +308,7 @@ const getCardStyle = (index: number) => {
   }
 
   // 3. 正常悬浮 - 2x2 网格
-  else if (cardState.value === CardState.IDLE) {
+  else if (cardState.value === 'IDLE') {
     const col = index % 2;
     const row = Math.floor(index / 2);
     // [Visual Tune] 稍微拉大一点间距，适应新卡牌尺寸
@@ -326,9 +327,9 @@ const getCardStyle = (index: number) => {
   }
 
   // 4. 离场下沉状态 - 收缩并沉入底部
-  else if (cardState.value === CardState.LEAVING) {
+  else if (cardState.value === 'LEAVING') {
     return {
-      transform: `translateX(-50%) translateY(150%) scale(0.6) rotate(${angle * 2}deg)`,
+      transform: `translateX(-50%) translateY(150%) scale(0.6) rotate(${(angle || 0) * 2}deg)`,
       left: '50%',
       top: '50%',
       zIndex: index,
@@ -337,9 +338,9 @@ const getCardStyle = (index: number) => {
   }
 
   // 5. 聚合/详情状态
-  else if (cardState.value === CardState.GATHERING || cardState.value === CardState.DETAIL) {
+  else if (cardState.value === 'GATHERING' || cardState.value === 'DETAIL') {
     return {
-      transform: `translateX(-50%) translateY(20%) scale(0.85) rotate(${angle}deg)`,
+      transform: `translateX(-50%) translateY(20%) scale(0.85) rotate(${angle || 0}deg)`,
       left: '50%',
       top: '50%',
       zIndex: index,
@@ -348,9 +349,9 @@ const getCardStyle = (index: number) => {
   }
 
   // 6. 向下坠落叠在一起 (新增) - 强调坠落感
-  else if (cardState.value === CardState.FALLING_STACK) {
+  else if (cardState.value === 'FALLING_STACK') {
     return {
-      transform: `translateX(-50%) translateY(140%) scale(0.7) rotate(${angle * 0.8}deg)`,
+      transform: `translateX(-50%) translateY(140%) scale(0.7) rotate(${(angle || 0) * 0.8}deg)`,
       left: '50%',
       top: '50%',
       zIndex: 4 - index, // 反向层级，最后一张在最上面
@@ -359,7 +360,7 @@ const getCardStyle = (index: number) => {
   }
 
   // 7. 从底部平滑上升到中心聚集 (修复瞬移)
-  else if (cardState.value === CardState.RISING_RUSH) {
+  else if (cardState.value === 'RISING_RUSH') {
     return {
       transform: `translateX(-50%) translateY(-50%) scale(0.9) rotate(0deg)`,
       left: '50%',
@@ -370,7 +371,7 @@ const getCardStyle = (index: number) => {
   }
 
   // 8. 在中心旋转展开 (新增) - 3D立体扇形展开
-  else if (cardState.value === CardState.SPINNING_EXPAND) {
+  else if (cardState.value === 'SPINNING_EXPAND') {
     // 每张卡片在中心位置进行3D旋转，形成立体扇形
     const rotations = [
       { rotY: -45, rotX: 20, offsetX: -60, offsetY: -30 },
@@ -379,6 +380,7 @@ const getCardStyle = (index: number) => {
       { rotY: 30, rotX: -15, offsetX: 60, offsetY: 30 }
     ];
     const rot = rotations[index];
+    if (!rot) return {};
     return {
       transform: `translateX(calc(-50% + ${rot.offsetX}px)) translateY(calc(-50% + ${rot.offsetY}px)) rotateY(${rot.rotY}deg) rotateX(${rot.rotX}deg) translateZ(30px) scale(1.05)`,
       left: '50%',
@@ -389,7 +391,7 @@ const getCardStyle = (index: number) => {
   }
 
   // 9. 3D 环绕背景状态 - 散开到四周形成立体环绕
-  else if (cardState.value === CardState.ORBIT) {
+  else if (cardState.value === 'ORBIT') {
     const orbitPositions = [
       { x: -200, y: -60, z: -150, rotY: 65, rotX: 20 },
       { x: 200, y: -60, z: -150, rotY: -65, rotX: 20 },
@@ -397,6 +399,7 @@ const getCardStyle = (index: number) => {
       { x: 120, y: 120, z: -250, rotY: -85, rotX: -25 }
     ];
     const pos = orbitPositions[index];
+    if (!pos) return {};
     return {
       transform: `translateX(-50%) translateY(-50%) translate3d(${pos.x}px, ${pos.y}px, ${pos.z}px) rotateY(${pos.rotY}deg) rotateX(${pos.rotX}deg) scale(0.95)`,
       left: '50%',
@@ -412,50 +415,52 @@ const getCardStyle = (index: number) => {
 
 // 点击卡牌查看详情
 const showRaceDetail = (race: RaceType) => {
-  if (cardState.value !== CardState.IDLE) {
+  if (cardState.value !== 'IDLE') {
     return;
   }
   selectedRaceForDetail.value = race;
-  cardState.value = CardState.GATHERING;
+  cardState.value = 'GATHERING';
   setTimeout(() => {
-    cardState.value = CardState.DETAIL;
+    cardState.value = 'DETAIL';
   }, 700);
 };
 
 // 选择种族并继续
 const selectRaceAndContinue = (race: RaceType) => {
   formData.race = race;
-  showToast({ type: 'success', message: `已选择 ${RACES[race].name}` });
+  const raceInfo = RACES[race];
+  if (!raceInfo) return;
+  showToast({ type: 'success', message: `已选择 ${raceInfo.name}` });
 
   // 先隐藏详情面板
-  cardState.value = CardState.GATHERING;
+  cardState.value = 'GATHERING';
   selectedRaceForDetail.value = null;
 
   // 播放从底部升起的动画
   setTimeout(() => {
-    cardState.value = CardState.ENTERING;
+    cardState.value = 'ENTERING';
   }, 500);
 
   requestAnimationFrame(() => {
     setTimeout(() => {
-      cardState.value = CardState.INTRO;
+      cardState.value = 'INTRO';
     }, 600);
 
     setTimeout(() => {
-      cardState.value = CardState.CHARGING; // 蓄力收缩
+      cardState.value = 'CHARGING'; // 蓄力收缩
     }, 2100); // 升起动画 1.5s
 
     setTimeout(() => {
-      cardState.value = CardState.IDLE; // 爆开！
+      cardState.value = 'IDLE'; // 爆开！
     }, 2500); // 蓄力 0.4s
   });
 };
 
 // 返回卡牌选择
 const backToCards = () => {
-  cardState.value = CardState.GATHERING;
+  cardState.value = 'GATHERING';
   setTimeout(() => {
-    cardState.value = CardState.IDLE;
+    cardState.value = 'IDLE';
     selectedRaceForDetail.value = null;
   }, 600);
 };
@@ -468,7 +473,7 @@ const goToNextStep = () => {
   }
 
   // 1. 向下坠落叠在一起 (700ms 动画)
-  cardState.value = CardState.FALLING_STACK;
+  cardState.value = 'FALLING_STACK';
 
   // 2. 等待坠落完成后，切换到 Step 3，并立即开始上升 (800ms，0.7s 动画 + 100ms 缓冲)
   setTimeout(() => {
@@ -476,18 +481,18 @@ const goToNextStep = () => {
 
     // 立即开始从底部平滑上升到中心 (800ms 平滑上升)
     requestAnimationFrame(() => {
-      cardState.value = CardState.RISING_RUSH;
+      cardState.value = 'RISING_RUSH';
     });
   }, 800);
 
   // 3. 等待上升完成后，在中心位置3D旋转展开 (1100ms，0.8s 动画 + 300ms 缓冲)
   setTimeout(() => {
-    cardState.value = CardState.SPINNING_EXPAND;
+    cardState.value = 'SPINNING_EXPAND';
   }, 1900);
 
   // 4. 等待旋转展开完成后，散开到四周形成3D环绕 (1000ms，0.7s 动画 + 300ms 缓冲)
   setTimeout(() => {
-    cardState.value = CardState.ORBIT;
+    cardState.value = 'ORBIT';
   }, 2900);
 
   // 5. 等待环绕完成后，表单浮现 (1200ms，0.9s 动画 + 300ms 缓冲)
@@ -504,12 +509,12 @@ const goToPrevStep = () => {
 
     // 2. ORBIT → SPINNING_EXPAND (等待 400ms 表单淡出)
     setTimeout(() => {
-      cardState.value = CardState.SPINNING_EXPAND;
+      cardState.value = 'SPINNING_EXPAND';
     }, 400);
 
     // 3. SPINNING_EXPAND → RISING_RUSH (等待 800ms)
     setTimeout(() => {
-      cardState.value = CardState.RISING_RUSH;
+      cardState.value = 'RISING_RUSH';
     }, 1200);
 
     // 4. RISING_RUSH → IDLE (等待 800ms)
@@ -518,7 +523,7 @@ const goToPrevStep = () => {
 
       // 在下一帧设置为 IDLE，卡牌从中心堆叠直接飞向各自位置
       requestAnimationFrame(() => {
-        cardState.value = CardState.IDLE;
+        cardState.value = 'IDLE';
       });
     }, 2000);
 
@@ -537,14 +542,14 @@ const goToPrevStep = () => {
       systemStore.temp.isFromSettings = false;
     } else {
       // 其他情况，先让卡牌离场
-      cardState.value = CardState.LEAVING;
+      cardState.value = 'LEAVING';
       setTimeout(() => {
         step.value--;
       }, 800);
     }
   } else {
     // 其他情况，先让卡牌离场
-    cardState.value = CardState.LEAVING;
+    cardState.value = 'LEAVING';
     setTimeout(() => {
       step.value--;
     }, 800);

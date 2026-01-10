@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useLogStore } from '@/stores/useLogStore';
-import type { FoodLog } from '@/types';
+
 
 const systemStore = useSystemStore();
 const logStore = useLogStore();
@@ -18,7 +18,7 @@ const currentLog = computed(() => systemStore.temp.selectedLog);
 // 删除记录
 const deleteLog = () => {
   if (!currentLog.value) return;
-  
+
   const removed = logStore.removeLog(currentLog.value.id);
   if (removed) {
     show.value = false;
@@ -27,10 +27,10 @@ const deleteLog = () => {
 </script>
 
 <template>
-  <van-popup 
-    v-model:show="show" 
-    position="bottom" 
-    round 
+  <van-popup
+    v-model:show="show"
+    position="bottom"
+    round
     :style="{ height: 'auto', maxHeight: '80%' }"
     class="dark:bg-slate-900 pb-safe"
   >

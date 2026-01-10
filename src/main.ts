@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'; // [工单01] Pinia持久化插件
 import { App as CapApp } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { showToast } from 'vant'; // [双击退出] 导入Toast提示
 import App from './App.vue';
 import router from './router';
 
@@ -55,12 +56,15 @@ router.isReady().then(() => {
   // 当 Vue 挂载完成后，手动关闭启动图，实现平滑过渡
   try {
     SplashScreen.hide();
-  } catch (e) {
+  } catch {
     console.warn('非 Capacitor 环境，跳过 SplashScreen 调用');
   }
 
   // B. 安卓物理返回键监听 (Back Button)
-  // 逻辑：如果有上一页 -> 返回；如果在首页 -> 退出 App
+  // [双击退出] 优化逻辑：首页双击退出，非首页直接返回
+  let lastBackPressTime = 0; // 记录上次按返回键的时间
+  const BACK_PRESS_INTERVAL = 2000; // 2秒内双击有效
+
   try {
     CapApp.addListener('backButton', ({ canGoBack }) => {
       const currentRoute = router.currentRoute.value;
@@ -68,12 +72,28 @@ router.isReady().then(() => {
       // 如果当前 URL 不是首页 ('/') 且 history 有记录，则后退
       if (canGoBack && currentRoute.path !== '/') {
         router.back();
+        console.log('[返回键] 执行页面后退');
       } else {
-        // 如果在首页，直接退出 App
-        CapApp.exitApp();
+        // 在首页：实现双击退出逻辑
+        const now = Date.now();
+        
+        if (now - lastBackPressTime < BACK_PRESS_INTERVAL) {
+          // 2秒内第二次按下，退出应用
+          console.log('[返回键] 双击确认，退出应用');
+          CapApp.exitApp();
+        } else {
+          // 第一次按下，显示提示
+          lastBackPressTime = now;
+          console.log('[返回键] 首次按下，显示提示');
+          showToast({
+            message: '再按一次退出应用',
+            position: 'bottom',
+            duration: 1500,
+          });
+        }
       }
     });
-  } catch (e) {
+  } catch {
     console.warn('非 Capacitor 环境，跳过 App 插件调用');
   }
 });

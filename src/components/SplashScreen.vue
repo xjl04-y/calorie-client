@@ -153,8 +153,7 @@ onMounted(async () => {
       ease: "power3.out",
       stagger: {
         amount: 0.8,
-        from: "random", // 随机触发
-        grid: null
+        from: "random" // 随机触发
       },
       onComplete: () => {
         // 动画结束，恢复滚动，并通知父组件销毁

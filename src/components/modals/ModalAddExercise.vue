@@ -10,7 +10,7 @@ import { ref, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { DEFAULT_EXERCISES } from '@/constants/gameData';
-import { showToast, showNotify } from 'vant';
+import { showToast } from 'vant';
 import type { FoodItem } from '@/types';
 
 const store = useGameStore();

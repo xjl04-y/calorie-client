@@ -195,10 +195,10 @@ export const useLogStore = defineStore('log', () => {
     };
 
     // 将运动记录添加到 logs 中（注意：这里将 ExerciseLog 存为 FoodLog 的特殊类型）
-    logs[dateKey].unshift(newLog as any);
+    logs[dateKey].unshift(newLog as unknown as FoodLog);
 
     // 保存到数据库
-    _saveLogToDb(newLog as any, dateKey).catch(err => {
+    _saveLogToDb(newLog as unknown as FoodLog, dateKey).catch(err => {
       console.error('[LogStore] 保存运动记录到数据库失败:', err);
     });
 
@@ -213,7 +213,7 @@ export const useLogStore = defineStore('log', () => {
 
     const idx = dayLogs.findIndex(l => l.id === logId);
     if (idx !== -1) {
-      const removed = dayLogs[idx] as any as ExerciseLog;
+      const removed = dayLogs[idx] as unknown as ExerciseLog;
 
       // [优先级二修复] 回滚运动奖励
       // 扣除金币
@@ -258,10 +258,10 @@ export const useLogStore = defineStore('log', () => {
       timestamp: new Date().toISOString()
     };
 
-    logs[dateKey].unshift(newLog as any);
+    logs[dateKey].unshift(newLog as unknown as FoodLog);
 
     // 保存到数据库
-    _saveLogToDb(newLog as any, dateKey).catch(err => {
+    _saveLogToDb(newLog as unknown as FoodLog, dateKey).catch(err => {
       console.error('[LogStore] 保存补水记录到数据库失败:', err);
     });
 
@@ -275,7 +275,7 @@ export const useLogStore = defineStore('log', () => {
 
     const idx = dayLogs.findIndex(l => l.id === logId);
     if (idx !== -1) {
-      const removed = dayLogs[idx] as any as HydrationLog;
+      const removed = dayLogs[idx] as unknown as HydrationLog;
       dayLogs.splice(idx, 1);
 
       // 从数据库删除
@@ -292,14 +292,14 @@ export const useLogStore = defineStore('log', () => {
   const allTodayExercise = computed(() => {
     const dateKey = systemStore.currentDate || getLocalDateStr();
     const dayLogs = logs[dateKey] || [];
-    return dayLogs.filter(l => (l as any).logType === 'EXERCISE') as any as ExerciseLog[];
+    return dayLogs.filter(l => (l as unknown as { logType?: string }).logType === 'EXERCISE') as unknown as ExerciseLog[];
   });
 
   // [New] Computed - 获取今日所有补水记录
   const allTodayHydration = computed(() => {
     const dateKey = systemStore.currentDate || getLocalDateStr();
     const dayLogs = logs[dateKey] || [];
-    return dayLogs.filter(l => (l as any).logType === 'HYDRATION') as any as HydrationLog[];
+    return dayLogs.filter(l => (l as unknown as { logType?: string }).logType === 'HYDRATION') as unknown as HydrationLog[];
   });
 
   // [New] Computed - 今日补水量统计
@@ -317,13 +317,13 @@ export const useLogStore = defineStore('log', () => {
   // 保存日志到数据库
   async function _saveLogToDb(log: FoodLog | ExerciseLog | HydrationLog, dateKey: string) {
     try {
-      const logType = (log as any).logType || 'FOOD';
+      const logType = (log as unknown as { logType?: string }).logType || 'FOOD';
       await sqliteLogService.saveLog({
         id: String(log.id),
         type: logType,
         date: dateKey,
         timestamp: new Date(log.timestamp).getTime(),
-        data: log // 注意：这里把 log 对象存到了 data 字段
+        data: log as unknown as Record<string, unknown>
       });
       console.log(`[LogStore] 日志已保存到数据库: ${log.id}`);
     } catch (error) {
@@ -343,8 +343,9 @@ export const useLogStore = defineStore('log', () => {
       Object.keys(logs).forEach(key => delete logs[key]);
 
       // 按日期重新组织日志（按时间戳降序排列）
-      dbLogs.forEach((row: any) => {
-        const dateKey = row.date || getLocalDateStr();
+      dbLogs.forEach((row: unknown) => {
+        const dbRow = row as { date?: string; id?: string; timestamp?: number; data?: unknown };
+        const dateKey = dbRow.date || getLocalDateStr();
         if (!logs[dateKey]) logs[dateKey] = [];
 
         // [修复核心Bug] 从数据库记录中解包 data 字段
@@ -352,20 +353,20 @@ export const useLogStore = defineStore('log', () => {
         // 我们需要的是 data 里面的内容
         let logItem = null;
 
-        if (row.data) {
+        if (dbRow.data) {
           try {
             // 如果 data 是字符串(JSON)，则解析；如果是对象则直接用
-            logItem = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+            logItem = typeof dbRow.data === 'string' ? JSON.parse(dbRow.data) : dbRow.data;
 
             // 确保 id 和 timestamp 存在 (以数据库外层字段为准，覆盖内部可能过时的数据)
             if (logItem) {
-              if (row.id && !logItem.id) logItem.id = row.id;
+              if (dbRow.id && !(logItem as { id?: string }).id) (logItem as { id?: string }).id = dbRow.id;
               // 某些情况下 logItem.timestamp 可能是旧的，这里不强制覆盖，但可以保留 row.timestamp 作为参考
             }
           } catch (e) {
             console.error('[LogStore] 解析日志数据失败:', e, row);
             // 降级：如果解析失败，尝试直接使用 row.data 或 row 本身
-            logItem = row.data || row;
+            logItem = dbRow.data || row;
           }
         } else {
           // 兼容旧数据或异常数据
@@ -373,13 +374,15 @@ export const useLogStore = defineStore('log', () => {
         }
 
         if (logItem) {
-          logs[dateKey].push(logItem);
+          logs[dateKey].push(logItem as FoodLog);
         }
       });
 
       // 每个日期的日志按时间戳降序排序
       Object.keys(logs).forEach(dateKey => {
-        logs[dateKey].sort((a, b) => {
+        const dayLogs = logs[dateKey];
+        if (!dayLogs) return;
+        dayLogs.sort((a, b) => {
           const timeA = new Date(a.timestamp).getTime();
           const timeB = new Date(b.timestamp).getTime();
           return timeB - timeA; // 降序排列，最新的在前面

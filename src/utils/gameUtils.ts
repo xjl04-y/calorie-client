@@ -1,4 +1,4 @@
-import { RACES } from '@/constants/gameData';
+// import { RACES } from '@/constants/gameData'; // 未使用的导入
 import { v4 as uuidv4 } from 'uuid'; // [技术工单02] UUID库导入
 
 // [指令5] ID升级 - 直接使用UUID字符串,绝对防止ID冲突
@@ -18,16 +18,16 @@ export const safeVibrate = (pattern: number | number[] = 200) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     try {
       navigator.vibrate(pattern);
-    } catch (e) {
+    } catch {
       // 忽略不支持的情况
     }
   }
 };
 
 // --- 工具函数：防抖 ---
-export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): (...args: Parameters<T>) => void {
+export function debounce<T extends (...args: unknown[]) => unknown>(fn: T, delay: number): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  return function(this: any, ...args: Parameters<T>) {
+  return function(this: unknown, ...args: Parameters<T>) {
     if (timeoutId) clearTimeout(timeoutId);
     timeoutId = setTimeout(() => {
       fn.apply(this, args);
@@ -43,8 +43,8 @@ export const encodeSaveData = (data: unknown): string => {
     const uriEncoded = encodeURIComponent(jsonStr);
     const base64 = btoa(uriEncoded);
     return `RPG_V2$${base64}$END`;
-  } catch (e) {
-    console.error('Save encoding failed', e);
+  } catch (error) {
+    console.error('Save encoding failed', error);
     return '';
   }
 };
@@ -56,8 +56,8 @@ export const decodeSaveData = <T = unknown>(saveStr: string): T | null => {
     const uriEncoded = atob(base64);
     const jsonStr = decodeURIComponent(uriEncoded);
     return JSON.parse(jsonStr) as T;
-  } catch (e) {
-    console.error('Save decoding failed', e);
+  } catch (error) {
+    console.error('Save decoding failed', error);
     return null;
   }
 };
@@ -78,8 +78,8 @@ export const downloadJsonFile = (filename: string, data: unknown) => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     return true;
-  } catch (e) {
-    console.error('File download failed', e);
+  } catch (error) {
+    console.error('File download failed', error);
     return false;
   }
 };
@@ -92,7 +92,7 @@ export const readJsonFile = (file: File): Promise<unknown> => {
         const text = e.target?.result as string;
         const data = JSON.parse(text);
         resolve(data);
-      } catch (err) {
+      } catch {
         reject(new Error('Invalid JSON file'));
       }
     };
@@ -227,7 +227,7 @@ const FOOD_NAME_MAPPING: Record<string, {
 
 // --- 食物命名逻辑 ---
 export const formatRpgFoodName = (foodName: string, raceKey: string, originalName?: string): string => {
-  const race = RACES[raceKey] || RACES.HUMAN;
+  // const race = RACES[raceKey] || RACES.HUMAN; // 未使用的变量
 
   // 如果已经是RPG格式，直接返回
   if (foodName && foodName.includes('(') && foodName.includes(')')) return foodName;
@@ -240,7 +240,7 @@ export const formatRpgFoodName = (foodName: string, raceKey: string, originalNam
   const lowerName = realOrigin.toLowerCase();
 
   // 先尝试从预定义映射中查找（按关键词精确度排序）
-  const matchedMapping = Object.entries(FOOD_NAME_MAPPING).find(([_, mapping]) => {
+  const matchedMapping = Object.entries(FOOD_NAME_MAPPING).find(([, mapping]) => {
     const sortedKeywords = mapping.keywords.sort((a, b) => b.length - a.length);
     return sortedKeywords.some(keyword => {
       const lowerKeyword = keyword.toLowerCase();

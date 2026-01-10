@@ -2,7 +2,7 @@ import { computed, toRaw } from 'vue';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useHeroStore } from '@/stores/useHeroStore'; // [Refactor] Use HeroStore directly
 import { useBattleStore } from '@/stores/useBattleStore';
-import { showToast, showNotify } from 'vant';
+import { showNotify } from 'vant';
 import type { FoodItem } from '@/types';
 import { formatRpgFoodName } from '@/utils/gameUtils';
 
@@ -107,7 +107,7 @@ export function useCooking(closeModal: () => void) {
     // 5. 先关闭弹窗，清理篮子
     resetBasket();
     closeModal();
-    
+
     // 6. 延迟提交，确保回到首页后再播放动画
     setTimeout(() => {
       battleStore.battleCommit(compositeLog);

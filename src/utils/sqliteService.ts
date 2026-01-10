@@ -10,8 +10,10 @@
  * 此文件保留作为向后兼容的统一导出接口
  */
 
-export { sqliteLogService, LogEntry } from './sqliteLogService';
-export { sqliteFoodService, FoodLibraryItem } from './sqliteFoodService';
+export { sqliteLogService } from './sqliteLogService';
+export type { LogEntry } from './sqliteLogService';
+export { sqliteFoodService } from './sqliteFoodService';
+export type { FoodLibraryItem } from './sqliteFoodService';
 
 // 保留旧的导出以确保向后兼容
 export { sqliteLogService as sqliteService } from './sqliteLogService';

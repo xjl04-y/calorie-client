@@ -55,7 +55,16 @@ export const useCollectionStore = defineStore('collection', () => {
       const defaultFoods = RACE_DEFAULT_FOODS[safeRace];
       if (defaultFoods && defaultFoods.length > 0) {
         foodDb.value = defaultFoods.map((f, index) => ({
-          ...f, id: Date.now() + index, usageCount: 0
+          ...f,
+          id: Date.now() + index,
+          name: f.name || '未知食物',
+          icon: f.icon || '🍽️',
+          calories: f.calories || 0,
+          p: f.p || 0,
+          c: f.c || 0,
+          f: f.f || 0,
+          grams: f.grams || 100,
+          usageCount: 0
         }));
       }
       return;
@@ -64,6 +73,13 @@ export const useCollectionStore = defineStore('collection', () => {
     foodDb.value = initialFoods.map((f, index) => ({
       ...f,
       id: f.id || `food_${Date.now()}_${index}`,
+      name: f.name || '未知食物',
+      icon: f.icon || '🍽️',
+      calories: f.calories || 0,
+      p: f.p || 0,
+      c: f.c || 0,
+      f: f.f || 0,
+      grams: f.grams || 100,
       usageCount: 0
     })) as FoodItem[];
   }
@@ -201,7 +217,7 @@ export const useCollectionStore = defineStore('collection', () => {
       rarity: rarity,
       target: target,
       current: 0,
-      type: type as any,
+      type: type as Quest['type'],
       rewardExp: rewardExp,
       status: 'ACCEPTED'
     };
@@ -267,7 +283,7 @@ export const useCollectionStore = defineStore('collection', () => {
 
   function sellItem(itemId: string, price: number): boolean {
     const heroStore = useHeroStore();
-    const isEquipped = Object.values(heroStore.user.equipped).includes(itemId as any);
+    const isEquipped = Object.values(heroStore.user.equipped).includes(Number(itemId));
     if (isEquipped) {
       showToast('请先卸下装备再出售');
       return false;

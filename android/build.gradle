@@ -1,18 +1,20 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    
     repositories {
-        // 使用阿里云镜像加速
+        // --- 1. 添加阿里云镜像 (加速下载) ---
         maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
         maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+
+        // --- 2. 原有源作为兜底 ---
         google()
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.7.2'
-        classpath 'com.google.gms:google-services:4.4.2'
+        // 保留你原本的版本号设置
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -23,10 +25,12 @@ apply from: "variables.gradle"
 
 allprojects {
     repositories {
-        // 使用阿里云镜像加速
+        // --- 1. 同样添加阿里云镜像 ---
         maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
         maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+
+        // --- 2. 原有源作为兜底 ---
         google()
         mavenCentral()
     }

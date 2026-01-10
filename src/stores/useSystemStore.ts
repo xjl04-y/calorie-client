@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { reactive, ref, computed } from 'vue';
 import { getLocalDateStr } from '@/utils/dateUtils';
 import { showNotify } from 'vant';
-import type { SystemTempState, ModalState, FoodItem, DailyStreak } from '@/types';
+import type { SystemTempState, ModalState, DailyStreak } from '@/types';
 
 export const useSystemStore = defineStore('system', () => {
   // --- State: 基础设置 ---
@@ -11,6 +11,7 @@ export const useSystemStore = defineStore('system', () => {
   const enableSplashAnimation = ref(true); // [开屏动画] 全局开关
   const hasEnteredRPGMode = ref(false); // [Fix] 标记用户是否进入过RPG模式
   const hasSeenPureGuide = ref(false); // [纯净模式] 标记是否已查看过纯净模式引导
+  const hasCompletedGuide = ref(false); // [Fix] 标记用户是否完成新手教程（包括Onboarding和NpcGuide）
   const currentDate = ref(getLocalDateStr());
   const analysisRefDate = ref(getLocalDateStr());
 
@@ -56,12 +57,12 @@ export const useSystemStore = defineStore('system', () => {
     }, 1000);
   }
 
-  function stopHeartbeat() {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
-  }
+  // function stopHeartbeat() {
+  //   if (timerInterval) {
+  //     clearInterval(timerInterval);
+  //     timerInterval = null;
+  //   }
+  // }
 
   // 启动心跳
   startHeartbeat();
@@ -176,10 +177,10 @@ export const useSystemStore = defineStore('system', () => {
       // 首次登录
       streak.value.currentStreak = 1;
     } else {
-      const oneDay = 24 * 60 * 60 * 1000;
-      const lastTime = new Date(lastLogin).getTime();
-      const thisTime = new Date(today).getTime();
-      const diff = thisTime - lastTime;
+      // const oneDay = 24 * 60 * 60 * 1000; // 未使用的变量
+      // const lastTime = new Date(lastLogin).getTime(); // 未使用的变量
+      // const thisTime = new Date(today).getTime(); // 未使用的变量
+      // const diff = thisTime - lastTime; // 未使用的变量
 
       // 允许 48 小时内的登录算作“连续”（容错1天）
       // 比如：昨天没登，今天登了，如果时间差在合理范围内，可以通过道具补签（道具逻辑在 HeroStore），
@@ -264,6 +265,7 @@ export const useSystemStore = defineStore('system', () => {
     enableSplashAnimation, // [开屏动画] 导出开关
     hasEnteredRPGMode, // [Fix] 导出RPG模式标记
     hasSeenPureGuide, // [纯净模式] 导出纯净模式引导标记
+    hasCompletedGuide, // [Fix] 导出引导完成标记
     currentDate,
     analysisRefDate,
     analysisActiveTab,

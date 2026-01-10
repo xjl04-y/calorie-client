@@ -278,6 +278,11 @@ export interface FoodItem {
   p: number;
   c: number;
   f: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
+  price?: number;
   grams: number;
   unit?: string;
   category?: string;
@@ -288,6 +293,7 @@ export interface FoodItem {
   usageCount?: number;
   ingredients?: FoodItem[];
   isExercise?: boolean;
+  imgUrl?: string;
 }
 
 export interface FoodLog extends FoodItem {
@@ -412,7 +418,7 @@ export interface SystemTempState {
 }
 
 export interface FloatingText {
-  id: number;
+  id: string | number;
   text: string;
   type: 'DAMAGE' | 'HEAL' | 'CRIT' | 'BLOCK' | 'EXP';
   x: number;

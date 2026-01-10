@@ -155,9 +155,8 @@ const getEffectDescription = (node: SkillNode) => {
     return node.desc;
   }
 
-  const current = node.effectParams.base + (currentLv > 0 ? (currentLv - 1) * node.effectParams.scale : 0);
   const next = node.effectParams.base + (nextLv - 1) * node.effectParams.scale;
-  const increase = next - (currentLv > 0 ? current : 0); // 这里的增量显示逻辑稍微简化
+  // const increase = next - (currentLv > 0 ? current : 0); // 这里的增量显示逻辑稍微简化
 
   // 直接显示下一级的总效果通常更直观
   return formatSkillEffect(node.effectParams.target, next);

@@ -30,10 +30,11 @@ const isFoodLog = computed(() => {
 // ==========================================
 // [Core Logic] Symbol 图标显示逻辑
 // ==========================================
-const getIconDisplay = (item: any) => {
+const getIconDisplay = (item: unknown) => {
+  const typedItem = item as { icon?: string; name?: string; tags?: string[] };
   if (!item) return { isSymbol: false, isImage: false, content: '' };
 
-  let iconRaw = item.icon || '';
+  let iconRaw = typedItem.icon || '';
 
   // 1. 脏数据清洗
   if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
@@ -58,11 +59,11 @@ const getIconDisplay = (item: any) => {
   }
 
   // 4. Runtime Hot-fix (兜底)
-  const effectiveTags = (item.tags && item.tags.length > 0)
-    ? item.tags
-    : inferTags(item.name || '');
+  const effectiveTags = (typedItem.tags && typedItem.tags.length > 0)
+    ? typedItem.tags
+    : inferTags(typedItem.name || '');
 
-  const assigned = assignIcon(item.name || '', effectiveTags);
+  const assigned = assignIcon(typedItem.name || '', effectiveTags);
 
   if (assigned) {
     return { isSymbol: true, isImage: false, content: assigned };

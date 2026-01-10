@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { showToast } from 'vant';
-import { getLocalDateStr, isSameDay } from '@/utils/dateUtils';
+import { getLocalDateStr } from '@/utils/dateUtils';
 
 const store = useGameStore();
 
@@ -10,7 +10,7 @@ const showCalendar = ref(false);
 
 // 日期显示格式化
 const dateText = computed(() => {
-  const [y, m, d] = store.currentDate.split('-').map(Number);
+  const [ m, d] = store.currentDate.split('-').map(Number);
   return `${m}月${d}日`;
 });
 

@@ -9,8 +9,8 @@ import type { FoodLog } from '@/types';
 import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper';
 
 // 创建类型守卫函数
-function isFullFoodLog(log: any): log is FoodLog & { damageTaken: number; healed: number; blocked: number } {
-  return log && typeof log === 'object' && 'mealType' in log && 'damageTaken' in log;
+function isFullFoodLog(log: unknown): log is FoodLog & { damageTaken: number; healed: number; blocked: number } {
+  return !!(log && typeof log === 'object' && 'mealType' in log && 'damageTaken' in log);
 }
 
 const router = useRouter();
@@ -46,12 +46,14 @@ const macroRatios = computed(() => {
 // ==========================================
 // [DEBUG版本] 图标处理逻辑
 // ==========================================
-const getIconDisplay = (item: any) => {
-  const DEBUG_PREFIX = `[IconDebug - ${item?.name || 'Unknown'}]:`;
+const getIconDisplay = (item: unknown) => {
+  // 类型断言为包含必要属性的对象
+  const typedItem = item as { name?: string; icon?: string; tags?: string[] };
+  const DEBUG_PREFIX = `[IconDebug - ${typedItem?.name || 'Unknown'}]:`;
 
   if (!item) return { isSymbol: false, isImage: false, content: '' };
 
-  let iconRaw = (item.icon || '').trim(); // 去除首尾空格
+  let iconRaw = (typedItem.icon || '').trim(); // 去除首尾空格
 
   // 1. 脏数据清洗
   if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
@@ -86,11 +88,11 @@ const getIconDisplay = (item: any) => {
   }
 
   // 4. 兜底逻辑 (尝试重新分配)
-  const effectiveTags = (item.tags && item.tags.length > 0)
-    ? item.tags
-    : inferTags(item.name || '');
+  const effectiveTags = (typedItem.tags && typedItem.tags.length > 0)
+    ? typedItem.tags
+    : inferTags(typedItem.name || '');
 
-  const assigned = assignIcon(item.name || '', effectiveTags);
+  const assigned = assignIcon(typedItem.name || '', effectiveTags);
   console.log(`${DEBUG_PREFIX} Fallback assigned: ${assigned}`);
 
   if (assigned) {
@@ -139,10 +141,10 @@ const startEdit = () => {
   isEditing.value = true;
 };
 
-const saveEdit = () => {
-  showToast('编辑功能正在开发中');
-  isEditing.value = false;
-};
+// const saveEdit = () => {
+//   showToast('编辑功能正在开发中');
+//   isEditing.value = false;
+// };
 </script>
 
 <template>

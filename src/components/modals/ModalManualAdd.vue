@@ -94,7 +94,7 @@ const selectedPortionIdx = ref(2);
 
 const currentPortionOptions = computed(() => {
   const type = FOOD_TYPES[selectedTypeIdx.value];
-  return type.isDrink ? PORTION_DRINK : PORTION_FOOD;
+  return type?.isDrink ? PORTION_DRINK : PORTION_FOOD;
 });
 
 // 监听输入名称，智能推断类型和图标
@@ -112,26 +112,34 @@ watch(() => form.name, (newName) => {
   const foundTypeIdx = FOOD_TYPES.findIndex(t => t.keys.some(k => newName.includes(k)));
   if (foundTypeIdx !== -1 && foundTypeIdx !== selectedTypeIdx.value) {
     selectedTypeIdx.value = foundTypeIdx;
-    form.tags = [...FOOD_TYPES[foundTypeIdx].tags];
-    applyEstimate();
+    const foundType = FOOD_TYPES[foundTypeIdx];
+    if (foundType) {
+      form.tags = [...foundType.tags];
+      applyEstimate();
+    }
   }
 });
 
 const onTypeChange = (idx: number) => {
   selectedTypeIdx.value = idx;
   const type = FOOD_TYPES[idx];
-  form.icon = type.icon;
-  form.tags = [...type.tags];
-  applyEstimate();
+  if (type) {
+    form.icon = type.icon;
+    form.tags = [...type.tags];
+    applyEstimate();
+  }
 };
 
 const applyEstimate = () => {
   if (activeTab.value !== 'QUICK') return;
 
   const type = FOOD_TYPES[selectedTypeIdx.value];
+  if (!type) return;
+
   const portionOptions = type.isDrink ? PORTION_DRINK : PORTION_FOOD;
   const pIdx = Math.min(selectedPortionIdx.value, portionOptions.length - 1);
   const portion = portionOptions[pIdx];
+  if (!portion) return;
 
   let estimatedCals = Math.round(type.baseCal * portion.val);
 
@@ -164,19 +172,19 @@ watch(selectedPortionIdx, () => {
 
 const submit = () => {
   const trimmedName = form.name.trim();
-  
+
   // 校验名称
   if (!trimmedName) {
     showToast('请给食物起个名字');
     return;
   }
-  
+
   // 校验不能只是数字
   if (/^\d+$/.test(trimmedName)) {
     showToast('食物名称不能只是数字，请输入有意义的名称');
     return;
   }
-  
+
   // 校验热量
   const cals = Number(form.calories);
   if (isNaN(cals) || cals <= 0) {
@@ -199,7 +207,7 @@ const submit = () => {
     originalName: trimmedName, // 保存原始名称
     tips: activeTab.value === 'QUICK' ? '基于经验估值' : '手动精确录入'
   };
-  
+
   // 如果是RPG模式，为自定义食物应用RPG名称格式
   if (!isPure.value) {
     const rpgFormatted = formatRpgFoodName(trimmedName, heroStore.user.race, trimmedName);
@@ -214,7 +222,7 @@ const submit = () => {
     // 关闭弹窗先回到首页
     show.value = false;
     store.setModal('addFood', false);
-    
+
     // 延迟执行战斗逻辑
     setTimeout(() => {
       store.battleCommit(newItem);

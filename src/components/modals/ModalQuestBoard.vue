@@ -21,14 +21,14 @@ const isPure = computed(() => systemStore.isPureMode);
 const popupProps = computed(() => {
   if (isPure.value) {
     return {
-      position: 'bottom',
+      position: 'bottom' as const,
       style: { height: '100%', width: '100%' },
       class: 'bg-slate-50 dark:bg-slate-900',
       closeable: false
     }
   }
   return {
-    position: 'bottom',
+    position: 'bottom' as const,
     style: { height: '90%' },
     round: true,
     class: 'dark:bg-slate-900 overflow-hidden'
@@ -48,7 +48,10 @@ const customForm = reactive({
   target: 5
 });
 
-const activeTemplate = computed(() => CUSTOM_QUEST_TEMPLATES.find(t => t.type === customForm.type) || CUSTOM_QUEST_TEMPLATES[0]);
+const activeTemplate = computed(() => {
+  const template = CUSTOM_QUEST_TEMPLATES.find(t => t.type === customForm.type) || CUSTOM_QUEST_TEMPLATES[0];
+  return template || { label: '', unit: '', min: 1, max: 100, type: 'WATER' };
+});
 
 const filteredHallQuests = computed(() => {
   if (activeRank.value === 'ALL') return hallQuests.value;

@@ -82,7 +82,7 @@ function selectPreset(id: string) {
 
 // 快速补水
 function handleQuickDrink() {
-  store.quickDrink(selectedPresetId.value);
+  hydrationStore.quickDrink(selectedPresetId.value);
   showToast({ type: 'success', message: `💧 +${selectedPreset.value.defaultAmount}ml` });
 }
 

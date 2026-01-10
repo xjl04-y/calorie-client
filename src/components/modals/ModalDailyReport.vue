@@ -46,7 +46,13 @@ const statusIcon = computed(() => {
 });
 
 // [物资清单] 图标显示逻辑（与HomeView/AnalysisView保持一致）
-const getIconDisplay = (item: any) => {
+interface IconDisplayItem {
+  icon?: string;
+  name?: string;
+  tags?: string[];
+}
+
+const getIconDisplay = (item: IconDisplayItem | null) => {
   if (!item) return { isSymbol: false, isImage: false, content: '' };
 
   let iconRaw = item.icon || '';
@@ -156,7 +162,7 @@ const getIconDisplay = (item: any) => {
             <span>📦</span>
             <span class="ml-2">物资清单</span>
           </div>
-          
+
           <div class="grid grid-cols-4 gap-2">
             <div v-for="(item, i) in report.items" :key="i"
                  class="flex flex-col items-center p-2 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 transition-colors">
@@ -174,12 +180,12 @@ const getIconDisplay = (item: any) => {
                   <span class="text-2xl">{{ getIconDisplay(item).content }}</span>
                 </template>
               </div>
-              
+
               <!-- 名称 -->
               <span class="text-[9px] text-slate-300 truncate w-full text-center font-bold leading-tight">
                 {{ item.name }}
               </span>
-              
+
               <!-- 热量 -->
               <span class="text-[8px] text-slate-500 font-mono mt-0.5">
                 {{ item.calories }}

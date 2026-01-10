@@ -2,8 +2,9 @@
 /**
  * ModalAddFood.vue
  * 专注食物录入 (单一职责)
- * - V7.7 Update:
- * 1. 纯净模式下隐藏 AI 结果的 RPG Tips
+ * - V7.8 Update:
+ * 1. [Fix] 彻底修复补水记录出现在历史列表的问题 (检查 logType)
+ * 2. [Filter] 增强关键词过滤，屏蔽各类基础水
  */
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useGameStore } from '@/stores/counter';
@@ -29,7 +30,7 @@ const show = computed({
 });
 
 // 使用烹饪组合式函数
-const { isBuilding, basket, resetBasket, addToBasket, removeFromBasket, commitBasket } = useCooking(() => {
+const { isBuilding, basket, resetBasket, removeFromBasket, commitBasket } = useCooking(() => {
   show.value = false;
 });
 
@@ -127,12 +128,25 @@ const resetLocalState = () => {
 const historyList = computed(() => {
   const allLogs: FoodLog[] = [];
   const logEntries = Object.entries(store.logs).sort((a, b) => b[0].localeCompare(a[0]));
-  for (const [date, logs] of logEntries.slice(0, 7)) {
+  for (const [, logs] of logEntries.slice(0, 7)) {
     allLogs.push(...logs);
   }
   const uniqueMap = new Map<string, FoodLog>();
+
   allLogs.forEach(log => {
-    if (log.mealType === 'HYDRATION' || log.mealType === 'EXERCISE') return;
+    // [CRITICAL FIX] 同时检查 mealType 和 logType
+    // 之前只检查 mealType，导致新的补水记录(只有logType='HYDRATION')没被过滤
+    if (
+      log.mealType === 'HYDRATION' ||
+      (log as any).logType === 'HYDRATION' ||
+      log.mealType === 'EXERCISE' ||
+      (log as any).logType === 'EXERCISE'
+    ) return;
+
+    // [Fix] 增加针对系统自动生成名称的过滤 (解决“净化之泉”出现在历史列表的问题)
+    const name = (log.name || '').trim();
+    if (name === '净化之泉' || name === '补水') return;
+
     const key = log.originalName || log.name;
     if (!uniqueMap.has(key)) {
       uniqueMap.set(key, log);
@@ -161,6 +175,35 @@ const fullFilteredList = computed(() => {
   } else {
     result = rawList;
   }
+
+  // [PM Request] 强力过滤：隐藏所有基础水类目
+  // 避免与快捷补水功能重复
+  result = result.filter(item => {
+    const n = (item.name || '').toLowerCase();
+    const t = (item.tags || []).join('');
+
+    // 黑名单关键词
+    if (
+      n === 'water' ||
+      n === '水' ||
+      n === '纯净水' ||
+      n === '矿泉水' ||
+      n === '白开水' ||
+      n === '温开水' ||
+      n === '凉白开' ||
+      n === '净化之泉' || // [Fix] 过滤 RPG 模式下的水
+      n === '补水'       // [Fix] 过滤 纯净 模式下的水
+    ) return false;
+
+    // 如果名字包含水，且热量为0，且没有味道标签，大概率是纯水
+    if (n.includes('水') && (!item.calories || item.calories <= 1)) {
+      if (!t.includes('甜') && !t.includes('味') && !n.includes('果') && !n.includes('茶') && !n.includes('咖')) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   if (query.value.trim()) {
     const q = query.value.toLowerCase().trim();
@@ -265,7 +308,7 @@ const onTextSearch = async () => {
     const res = await AiService.estimateText(query.value, store.user.race);
     if (Array.isArray(res) && res.length > 0) aiSuggestions.value = res;
     else if (res && !Array.isArray(res)) aiResult.value = res as FoodItem;
-  } catch (e) {
+  } catch {
     showToast({ type: 'fail', message: '服务正忙' });
   } finally {
     loading.value = false;
@@ -282,7 +325,7 @@ const onImageUpload = async (items: UploaderFileListItem | UploaderFileListItem[
     const res = await AiService.identifyImage(file.content || '', store.user.race);
     if (Array.isArray(res) && res.length > 0) aiSuggestions.value = res;
     else if (res && !Array.isArray(res)) aiResult.value = res as FoodItem;
-  } catch (e) {
+  } catch {
     showToast({ type: 'fail', message: '图像解析失败' });
   } finally {
     loading.value = false;

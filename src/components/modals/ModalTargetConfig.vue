@@ -139,7 +139,7 @@ const save = () => {
       <!-- 模式切换 -->
       <div class="bg-white dark:bg-slate-800 p-1 rounded-xl flex mb-6 border border-slate-200 dark:border-slate-700">
         <button
-          v-for="m in ['AUTO', 'MANUAL']" :key="m"
+          v-for="m in ['AUTO' as const, 'MANUAL' as const]" :key="m"
           @click="localConfig.mode = m"
           class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
           :class="localConfig.mode === m ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500'"
@@ -156,7 +156,7 @@ const save = () => {
           <div class="text-xs font-bold text-slate-400 mb-2 uppercase">当前战术目标</div>
           <div class="grid grid-cols-3 gap-3">
             <div v-for="g in GOALS" :key="g.val"
-                 @click="localConfig.goal = g.val"
+                 @click="localConfig.goal = g.val as DietGoal"
                  class="p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center gap-1"
                  :class="localConfig.goal === g.val
                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
@@ -173,7 +173,7 @@ const save = () => {
           <div class="text-xs font-bold text-slate-400 mb-2 uppercase">日常活动强度</div>
           <div class="grid grid-cols-2 gap-2">
             <div v-for="lvl in ACTIVITY_LEVELS" :key="lvl.val"
-                 @click="localConfig.activityLevel = lvl.val"
+                 @click="localConfig.activityLevel = lvl.val as ActivityLevel"
                  class="px-4 py-3 bg-white dark:bg-slate-800 rounded-xl border-2 cursor-pointer flex justify-between items-center"
                  :class="localConfig.activityLevel === lvl.val ? 'border-blue-500 ring-1 ring-blue-500' : 'border-transparent'">
               <div class="font-bold text-sm text-slate-700 dark:text-slate-200">{{ lvl.label }}</div>

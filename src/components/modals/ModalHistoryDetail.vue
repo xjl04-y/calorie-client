@@ -15,7 +15,7 @@ const logs = computed(() => date.value ? (store.logs[date.value] || []) : []);
 
 const dateDisplay = computed(() => {
   if(!date.value) return '';
-  const [y, m, d] = date.value.split('-');
+  const [, m, d] = date.value.split('-');
   return `${m}月${d}日 战斗记录`;
 });
 

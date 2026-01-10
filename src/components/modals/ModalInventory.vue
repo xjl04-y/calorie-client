@@ -22,8 +22,8 @@ const inventoryItems = computed(() => {
       const itemDef = SHOP_ITEMS.find(i => i.id === itemId);
       return itemDef ? { ...itemDef, count } : null;
     })
-    .filter(item => item !== null && item.count > 0)
-    .sort((a, b) => b!.price - a!.price); // 按价格排序
+    .filter((item): item is NonNullable<typeof item> => item !== null && item.count > 0)
+    .sort((a, b) => (b.price || 0) - (a.price || 0)); // 按价格排序
 });
 
 // 使用道具

@@ -105,10 +105,10 @@ const AppState = {
   IDLE: 'IDLE',           // 正常：散开 + 浮动
   GATHERING: 'GATHERING', // 离场：下沉聚合
   CONTENT: 'CONTENT'      // 内容：翻转展示
-};
+} as const;
 
 // 定义当前状态类型
-type AppStateType = keyof typeof AppState;
+type AppStateType = (typeof AppState)[keyof typeof AppState];
 
 // 初始状态设为 INTRO，让它们一开始就叠在一起
 const appState = ref<AppStateType>(AppState.INTRO);

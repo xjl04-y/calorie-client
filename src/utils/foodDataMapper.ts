@@ -9,8 +9,10 @@ import type { FoodItem } from '@/types';
 // 用于：处理图标映射、标签推断、安全数值转换
 // ==========================================
 
-const PREFIX = (iconfontData as any).css_prefix_text || 'icon-';
-const ALL_ICONS = (iconfontData as any).glyphs || [];
+type IconGlyph = { name?: string; font_class?: string };
+
+const PREFIX = (iconfontData as { css_prefix_text?: string }).css_prefix_text || 'icon-';
+const ALL_ICONS: IconGlyph[] = (iconfontData as { glyphs?: IconGlyph[] }).glyphs || [];
 
 // 【新增】坏图标黑名单
 // 如果 iconfont.json 里有，但网页上显示为空，请把该图标的 font_class (不带 icon- 前缀) 加到这里
@@ -19,15 +21,15 @@ const BROKEN_ICONS = [
   'tianpin2',  // 预留位置
 ];
 
-// 简化的哈希函数
-const stringHash = (str: string): number => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return Math.abs(hash);
-};
+// 简化的哈希函数 (暂时注释掉，未使用)
+// const stringHash = (str: string): number => {
+//   let hash = 0;
+//   for (let i = 0; i < str.length; i++) {
+//     hash = ((hash << 5) - hash) + str.charCodeAt(i);
+//     hash = hash & hash;
+//   }
+//   return Math.abs(hash);
+// };
 
 /**
  * [验证] 图标是否存在于当前的 iconfont 库中
@@ -45,7 +47,7 @@ export const isValidIcon = (iconClass: string): boolean => {
   }
 
   // 2. 检查 iconfont.json 是否包含
-  return ALL_ICONS.some((i: any) => i.font_class === target);
+  return ALL_ICONS.some((i) => i.font_class === target);
 };
 
 // 简化的前端标签推断 (当 JSON 缺少 tags 时使用)
@@ -66,14 +68,18 @@ export const assignIcon = (foodName: string, tags: string[] = []): string => {
   const target = foodName.trim();
 
   // 1. 尝试精准匹配
-  const exact = ALL_ICONS.find((i: any) => i.name === target || i.font_class === target);
-  if (exact && !BROKEN_ICONS.includes(exact.font_class)) {
+  const exact = ALL_ICONS.find((i) => i.name === target || i.font_class === target);
+  if (exact?.font_class && !BROKEN_ICONS.includes(exact.font_class)) {
     return `${PREFIX}${exact.font_class}`;
   }
 
   // 2. 尝试模糊匹配 (排除黑名单)
-  const fuzzy = ALL_ICONS.find((i: any) => target.includes(i.name) && i.name.length > 1 && !BROKEN_ICONS.includes(i.font_class));
-  if (fuzzy) return `${PREFIX}${fuzzy.font_class}`;
+  const fuzzy = ALL_ICONS.find((i) => {
+    const name = i.name || '';
+    const fontClass = i.font_class || '';
+    return target.includes(name) && name.length > 1 && !BROKEN_ICONS.includes(fontClass);
+  });
+  if (fuzzy?.font_class) return `${PREFIX}${fuzzy.font_class}`;
 
   // 3. 类别兜底 (确保这些图标是存在的)
   if (tags.includes('DRINK')) return `${PREFIX}drink`;
@@ -88,7 +94,7 @@ export const assignIcon = (foodName: string, tags: string[] = []): string => {
 /**
  * 安全数值解析工具
  */
-const safeNumber = (...values: any[]): number => {
+const safeNumber = (...values: unknown[]): number => {
   for (const val of values) {
     if (typeof val === 'number' && !isNaN(val)) return val;
     if (typeof val === 'string') {
@@ -110,10 +116,11 @@ export const getInitialFoods = (): FoodItem[] => {
     return [];
   }
 
-  return sourceData.map((item: any, index: number) => {
+  return sourceData.map((item: Record<string, unknown>) => {
     // [Fix] 预先清洗图标
-    let cleanIcon = item.icon;
-    if (cleanIcon && typeof cleanIcon === 'string') {
+    const rawIcon = typeof item.icon === 'string' ? item.icon : '';
+    let cleanIcon: string | null = rawIcon;
+    if (cleanIcon) {
       const match = cleanIcon.match(/icon-[a-zA-Z0-9-_]+/);
       if (match) {
         const iconId = match[0];
@@ -123,7 +130,10 @@ export const getInitialFoods = (): FoodItem[] => {
       }
     }
 
-    const tags = Array.isArray(item.tags) ? item.tags : inferTags(item.name || '');
+    const name = typeof item.name === 'string' ? item.name : 'Unknown';
+    const tags = Array.isArray(item.tags)
+      ? (item.tags as unknown[]).filter((t): t is string => typeof t === 'string')
+      : inferTags(name);
 
     // 解析数值
     const price = safeNumber(item.price, item.Price, item.cost);
@@ -141,31 +151,27 @@ export const getInitialFoods = (): FoodItem[] => {
     const fiber = safeNumber(item.fiber, item.Fiber, item.fibre, item.Fibre, item.fiber_g, item.Fiber_g, item['Fiber(g)']);
 
     return {
-      ...item,
-      id: item.id || `food_${Math.random().toString(36).substr(2, 9)}`,
-      name: item.name || 'Unknown',
-
-      price,
+      id:
+        typeof item.id === 'string' || typeof item.id === 'number'
+          ? item.id
+          : `food_${Math.random().toString(36).slice(2, 11)}`,
+      name,
+      icon: cleanIcon || `iconfont ${assignIcon(name, tags)}`,
       calories,
-
-      // [FIX] 关键修复：同时提供全称和简写
-      // UI 组件 (ModalQuantity 等) 使用 p, c, f
-      protein,
       p: protein,
-
-      fat,
-      f: fat,
-
-      carbs,
       c: carbs,
-
+      f: fat,
+      protein,
+      carbs,
+      fat,
       fiber,
-
-      tags: tags,
-      category: item.category || 'DISH',
-
-      icon: cleanIcon || `iconfont ${assignIcon(item.name || '', tags)}`,
-      imgUrl: item.imgUrl || ''
+      price,
+      grams: safeNumber(item.grams, item.Grams, item.weight, item.Weight, 100) || 100,
+      unit: typeof item.unit === 'string' ? item.unit : undefined,
+      category: typeof item.category === 'string' ? item.category : 'DISH',
+      tags,
+      tips: typeof item.tips === 'string' ? item.tips : undefined,
+      imgUrl: typeof item.imgUrl === 'string' ? item.imgUrl : ''
     };
   });
 };

@@ -82,10 +82,11 @@ const MEAL_LABELS: Record<string, string> = {
 // ==========================================
 // [核心逻辑] 智能图标处理
 // ==========================================
-const getIconDisplay = (item: any) => {
+const getIconDisplay = (item: unknown) => {
+  const typedItem = item as { icon?: string; name?: string; tags?: string[] };
   if (!item) return { isSymbol: false, isImage: false, content: '' };
 
-  let iconRaw = (item.icon || '').trim();
+  let iconRaw = (typedItem.icon || '').trim();
 
   // 1. 脏数据清洗
   if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
@@ -109,11 +110,11 @@ const getIconDisplay = (item: any) => {
   }
 
   // 4. 兜底逻辑 (尝试重新分配)
-  const effectiveTags = (item.tags && item.tags.length > 0)
-    ? item.tags
-    : inferTags(item.name || '');
+  const effectiveTags = (typedItem.tags && typedItem.tags.length > 0)
+    ? typedItem.tags
+    : inferTags(typedItem.name || '');
 
-  let assigned = assignIcon(item.name || '', effectiveTags);
+  let assigned = assignIcon(typedItem.name || '', effectiveTags);
 
   // [强制兜底] 绝不返回空，如果失败，强制给一个默认图标
   if (!assigned || assigned === 'undefined' || assigned === 'null') {

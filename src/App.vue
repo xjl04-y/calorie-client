@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, computed, ref, defineAsyncComponent } from 'vue
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useBattleStore } from '@/stores/useBattleStore';
-import AppHud from '@/components/AppHud.vue';
+// import AppHud from '@/components/AppHud.vue';
 import SplashScreen from '@/components/SplashScreen.vue';
 
 // --- 全局模态框引入 (Modals) ---
@@ -63,7 +63,7 @@ const safeCheckDailyStreak = () => {
   if (!store.user.isInitialized) return;
 
   const now = new Date();
-  const lastLogin = new Date(store.user.lastLoginAt || 0);
+  const lastLogin = new Date(store.user.lastLoginDate || 0);
 
   // 1. 如果上次登录时间就是今天，说明已经处理过，直接跳过
   // 这能解决“刷新页面导致连击数暴涨”的问题
@@ -163,7 +163,7 @@ onMounted(() => {
     } else {
       fabPos.value = defaultPos;
     }
-  } catch (e) {
+  } catch  {
     fabPos.value = defaultPos;
   }
 });

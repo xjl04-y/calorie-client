@@ -1,7 +1,7 @@
 /**
  * useExerciseStore - 独立运动状态管理
  * [New V6.0] 将运动相关逻辑从 BattleStore 中分离
- * 
+ *
  * 职责:
  * - 运动记录的 CRUD 操作
  * - 运动 RPG 效果计算 (治疗、护盾、金币转化)
@@ -51,7 +51,7 @@ export const useExerciseStore = defineStore('exercise', () => {
   // --- State ---
   // 自定义运动库 (用户添加的运动)
   const customExercises = reactive<ExercisePreset[]>([]);
-  
+
   // 临时表单状态 (用于 Modal/Page)
   const formState = reactive({
     selectedPresetId: '' as string,
@@ -80,14 +80,14 @@ export const useExerciseStore = defineStore('exercise', () => {
     if (formState.useManualCalories) {
       return formState.manualCalories;
     }
-    
+
     const preset = selectedPreset.value;
     if (!preset) return 0;
-    
+
     const userWeight = heroStore.user.weight || 60;
     const weightFactor = userWeight / 60; // 以60kg为基准
     const intensityMult = INTENSITY_MULTIPLIERS[formState.intensity];
-    
+
     return Math.round(
       preset.baseCaloriesPerMin * formState.duration * weightFactor * intensityMult
     );
@@ -107,25 +107,25 @@ export const useExerciseStore = defineStore('exercise', () => {
   const estimatedRpgEffects = computed(() => {
     const calories = estimatedCalories.value;
     const healAmt = 50 + Math.floor(calories / 10);
-    
+
     const currentHp = heroStore.user.heroCurrentHp;
     const maxHp = heroStore.user.heroMaxHp;
     const missingHp = maxHp - currentHp;
-    
+
     let actualHeal = 0;
     let shieldGained = 0;
     let goldGained = 0;
-    
+
     if (healAmt <= missingHp) {
       actualHeal = healAmt;
     } else {
       actualHeal = missingHp;
       const overflow = healAmt - missingHp;
-      
+
       const shieldCap = maxHp;
       const currentShield = heroStore.user.heroShield || 0;
       const shieldSpace = shieldCap - currentShield;
-      
+
       if (shieldSpace > 0) {
         shieldGained = Math.min(overflow, shieldSpace);
         const remainingOverflow = overflow - shieldGained;
@@ -136,12 +136,12 @@ export const useExerciseStore = defineStore('exercise', () => {
         goldGained = Math.floor(overflow * 0.5);
       }
     }
-    
+
     return { healAmount: actualHeal, shieldGained, goldGained };
   });
 
   // --- Actions ---
-  
+
   /**
    * 重置表单状态
    */
@@ -205,16 +205,16 @@ export const useExerciseStore = defineStore('exercise', () => {
     const baseExerciseId = options?.baseExerciseId || formState.selectedPresetId;
     const tags = options?.tags || (preset?.tags as unknown as string[]) || [];
     const tips = options?.tips;
-    
+
     const userWeight = heroStore.user.weight || 60;
-    
+
     // RPG 模式效果计算
     const healAmt = 50 + Math.floor(caloriesBurned / 10);
-    
+
     const currentHp = heroStore.user.heroCurrentHp;
     const maxHp = heroStore.user.heroMaxHp;
     const missingHp = maxHp - currentHp;
-    
+
     let actualHeal = 0;
     let shieldGained = 0;
     let goldGained = 0;
@@ -274,7 +274,7 @@ export const useExerciseStore = defineStore('exercise', () => {
       if (actualHeal > 0) _spawnFloatingText(`+${actualHeal}`, 'HEAL');
       if (shieldGained > 0) setTimeout(() => _spawnFloatingText(`+${shieldGained}`, 'BLOCK'), 200);
       if (goldGained > 0) setTimeout(() => _spawnFloatingText(`+${goldGained}G`, 'EXP'), 400);
-      
+
       // 显示通知
       if (actualHeal > 0) {
         showNotify({ type: 'success', message: `🏋️ 运动恢复：HP +${actualHeal}` });
@@ -299,10 +299,10 @@ export const useExerciseStore = defineStore('exercise', () => {
       // 纯净模式简单提示
       showToast(`运动记录成功，消耗 ${caloriesBurned} kcal`);
     }
-    
+
     // 重置表单
     resetForm();
-    
+
     return {
       log: savedLog,
       effects: { healAmount: actualHeal, shieldGained, goldGained }
@@ -334,7 +334,7 @@ export const useExerciseStore = defineStore('exercise', () => {
       intensity: exercise.intensity || 'MEDIUM' as const,
       tags: exercise.tags || []
     };
-    customExercises.push(newExercise as ExercisePreset);
+    customExercises.push(newExercise as unknown as ExercisePreset);
     return newExercise;
   }
 
@@ -372,18 +372,18 @@ export const useExerciseStore = defineStore('exercise', () => {
     // State
     formState,
     customExercises,
-    
+
     // Getters
     allExercises,
     selectedPreset,
     estimatedCalories,
     todayStats,
     estimatedRpgEffects,
-    
+
     // 常量导出
     EXERCISE_PRESETS,
     INTENSITY_MULTIPLIERS,
-    
+
     // Actions
     resetForm,
     selectPreset,

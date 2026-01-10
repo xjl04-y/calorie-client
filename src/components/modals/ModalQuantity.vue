@@ -84,9 +84,9 @@ const calcMacros = computed(() => {
   const baseGrams = item.value.grams || 100;
   const ratio = currentGrams.value / baseGrams;
 
-  const baseP = Number(item.value.p ?? item.value.protein ?? 0);
-  const baseC = Number(item.value.c ?? item.value.carbs ?? 0);
-  const baseF = Number(item.value.f ?? item.value.fat ?? 0);
+  const baseP = Number(item.value.p ?? 0);
+  const baseC = Number(item.value.c ?? 0);
+  const baseF = Number(item.value.f ?? 0);
 
   return {
     p: Math.round(baseP * ratio),
@@ -101,9 +101,9 @@ const displayTags = computed(() => {
   const tags = new Set(currentItem.tags || []);
   const name = currentItem.name || '';
 
-  const c = Number(currentItem.c ?? currentItem.carbs ?? 0);
-  const f = Number(currentItem.f ?? currentItem.fat ?? 0);
-  const p = Number(currentItem.p ?? currentItem.protein ?? 0);
+  const c = Number(currentItem.c ?? 0);
+  const f = Number(currentItem.f ?? 0);
+  const p = Number(currentItem.p ?? 0);
   const grams = Number(currentItem.grams) || 100;
   const calories = Number(currentItem.calories) || 0;
 

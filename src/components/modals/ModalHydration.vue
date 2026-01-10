@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { showToast, showNotify } from 'vant';
-import type { FoodItem, MealType } from '@/types';
+import type { FoodItem } from '@/types';
 
 const store = useGameStore();
 const systemStore = useSystemStore();

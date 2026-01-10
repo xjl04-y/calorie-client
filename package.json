@@ -13,7 +13,13 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "cap:add:android": "cap add android",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:build:android": "npm run build && cap sync android",
+    "android:build": "npm run build && cap sync android && cd android && .\\gradlew assembleDebug",
+    "android:run": "npm run build && cap sync android && cap run android"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^7.0.2",

@@ -2,7 +2,6 @@
 import { computed, reactive, watch, ref, nextTick } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
-import { useHeroStore } from '@/stores/useHeroStore'; // [Fix] 导入 HeroStore 用于检查角色初始化
 import { showToast, Dialog } from 'vant';
 // [Fix] 修正导入路径：getLocalDateStr 位于 dateUtils
 import { downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
@@ -11,7 +10,6 @@ import type { Gender } from '@/types';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
-const heroStore = useHeroStore(); // [Fix] 初始化 HeroStore
 
 const show = computed({
   get: () => systemStore.modals.settings,
@@ -186,7 +184,7 @@ const onFileSelected = async (event: Event) => {
     }).catch(() => {
       if (fileInput.value) fileInput.value.value = '';
     });
-  } catch (e) {
+  } catch {
     showToast('文件格式错误');
   }
 };
