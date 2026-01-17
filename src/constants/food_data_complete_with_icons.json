@@ -111,9 +111,9 @@
     "carbs": 13.52,
     "fiber": 0,
     "tags": [
-      "DRINK"
+      "MEAT"
     ],
-    "category": "DRINK",
+    "category": "MEAT",
     "icon": "iconfont icon-jiweijiu",
     "imgUrl": "https://image.shutterstock.com/image-photo/fresh-cranberry-drink-on-wooden-260nw-178274312.jpg",
     "detailed_category": "酒类"
@@ -5376,9 +5376,9 @@
     "carbs": 17.34,
     "fiber": 3.3,
     "tags": [
-      "MEAT"
+      "VEGETABLE"
     ],
-    "category": "MEAT",
+    "category": "VEGETABLE",
     "icon": "iconfont icon-sharpicons_radish",
     "imgUrl": "https://image.shutterstock.com/image-photo/burdock-roots-isolated-white-backgroundstacked-260nw-722128939.jpg",
     "detailed_category": "其他"
@@ -6745,9 +6745,9 @@
     "carbs": 10.23,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "DRINK"
     ],
-    "category": "MEAT",
+    "category": "DRINK",
     "icon": "iconfont icon-weishiji1",
     "imgUrl": "https://image.shutterstock.com/image-vector/bullfighting-260nw-691251268.jpg",
     "detailed_category": "其他"
@@ -7113,9 +7113,9 @@
     "carbs": 9.38,
     "fiber": 0.4,
     "tags": [
-      "MEAT"
+      "DRINK"
     ],
-    "category": "MEAT",
+    "category": "DRINK",
     "icon": "iconfont icon-qiaokeli",
     "imgUrl": "https://image.shutterstock.com/image-vector/milk-boxes-set-vector-realistic-260nw-1355595767.jpg",
     "detailed_category": "蛋奶"
@@ -7334,9 +7334,9 @@
     "carbs": 18.01,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-weishiji",
     "imgUrl": "https://image.shutterstock.com/image-photo/selected-focus-view-fried-chicken-260nw-1832482819.jpg",
     "detailed_category": "调味品"
@@ -7351,9 +7351,9 @@
     "carbs": 0.3,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-weishiji",
     "imgUrl": "https://image.shutterstock.com/image-photo/selected-focus-view-fried-chicken-260nw-1832482819.jpg",
     "detailed_category": "调味品"
@@ -7434,9 +7434,9 @@
     "carbs": 60.34,
     "fiber": 3.0,
     "tags": [
-      "STAPLE"
+      "MEAT"
     ],
-    "category": "STAPLE",
+    "category": "MEAT",
     "icon": "iconfont icon-miantiao",
     "imgUrl": "https://image.shutterstock.com/image-photo/life-hack-rest-wooden-spoon-260nw-1716378622.jpg",
     "detailed_category": "肉类"
@@ -7532,9 +7532,9 @@
     "carbs": 60.23,
     "fiber": 2.9,
     "tags": [
-      "STAPLE"
+      "MEAT"
     ],
-    "category": "STAPLE",
+    "category": "MEAT",
     "icon": "iconfont icon-miantiao",
     "imgUrl": "https://image.shutterstock.com/image-photo/life-hack-rest-wooden-spoon-260nw-1716378622.jpg",
     "detailed_category": "肉类"
@@ -9120,9 +9120,9 @@
     "carbs": 68.92,
     "fiber": 42.5,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-sharpicons_basilico",
     "imgUrl": "https://image.shutterstock.com/image-photo/shot-twig-oregano-plant-known-260nw-1758897146.jpg",
     "detailed_category": "其他"
@@ -9293,9 +9293,9 @@
     "carbs": 80.59,
     "fiber": 53.1,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-weishiji",
     "imgUrl": "https://image.shutterstock.com/image-photo/cinnamon-bark-cassia-260nw-605424227.jpg",
     "detailed_category": "肉类"
@@ -9607,9 +9607,9 @@
     "carbs": 74.3,
     "fiber": 0.4,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-weishiji",
     "imgUrl": "https://image.shutterstock.com/image-photo/hands-serving-hearty-breakfast-hot-260nw-1068080465.jpg",
     "detailed_category": "肉类"
@@ -9901,9 +9901,9 @@
     "carbs": 53.0,
     "fiber": 2.3,
     "tags": [
-      "STAPLE"
+      "EGG"
     ],
-    "category": "STAPLE",
+    "category": "EGG",
     "icon": "iconfont icon-mianbao",
     "imgUrl": "https://image.shutterstock.com/image-vector/set-pies-flour-products-bakery-260nw-148055591.jpg",
     "detailed_category": "蛋奶"
@@ -9952,9 +9952,9 @@
     "carbs": 71.27,
     "fiber": 3.3,
     "tags": [
-      "STAPLE"
+      "EGG"
     ],
-    "category": "STAPLE",
+    "category": "EGG",
     "icon": "iconfont icon-miantiao",
     "imgUrl": "https://image.shutterstock.com/image-photo/vegetarian-schezwan-noodles-vegetable-hakka-260nw-1510951508.jpg",
     "detailed_category": "蛋奶"
@@ -10450,8 +10450,10 @@
     "fat": 13.13,
     "carbs": 24.69,
     "fiber": 2.0,
-    "tags": [],
-    "category": "OTHER",
+    "tags": [
+      "MEAT"
+    ],
+    "category": "MEAT",
     "icon": "iconfont icon-pisa",
     "imgUrl": "https://image.shutterstock.com/image-photo/simple-four-cheese-delivered-pizza-260nw-1723954090.jpg",
     "detailed_category": "肉类"
@@ -10885,9 +10887,9 @@
     "carbs": 4.2,
     "fiber": 0.9,
     "tags": [
-      "MEAT"
+      "VEGETABLE"
     ],
-    "category": "MEAT",
+    "category": "VEGETABLE",
     "icon": "iconfont icon-jitui",
     "imgUrl": "https://image.shutterstock.com/image-photo/chicken-looking-close-floor-isolated-260nw-785947501.jpg",
     "detailed_category": "豆制品"
@@ -10918,8 +10920,10 @@
     "fat": 3.6,
     "carbs": 13.0,
     "fiber": 1.0,
-    "tags": [],
-    "category": "OTHER",
+    "tags": [
+      "VEGETABLE"
+    ],
+    "category": "VEGETABLE",
     "icon": "iconfont icon-shucai",
     "imgUrl": "https://image.shutterstock.com/image-photo/photo-large-intestine-on-mans-260nw-1080392243.jpg",
     "detailed_category": "其他"
@@ -11212,8 +11216,10 @@
     "fat": 13.2,
     "carbs": 4.8,
     "fiber": 0.9,
-    "tags": [],
-    "category": "OTHER",
+    "tags": [
+      "VEGETABLE"
+    ],
+    "category": "VEGETABLE",
     "icon": "iconfont icon-huotui",
     "imgUrl": "https://image.shutterstock.com/image-photo/homemade-spaghetti-carbonara-ham-bacon-260nw-1818803363.jpg",
     "detailed_category": "肉类"
@@ -12365,9 +12371,9 @@
     "carbs": 59.4,
     "fiber": 3.4,
     "tags": [
-      "MEAT"
+      "SNACK"
     ],
-    "category": "MEAT",
+    "category": "SNACK",
     "icon": "iconfont icon-qiaokeli",
     "imgUrl": "https://image.shutterstock.com/image-illustration/chocolate-pieces-falling-on-sauce-260nw-1109332151.jpg",
     "detailed_category": "蛋奶"
@@ -12601,9 +12607,9 @@
     "carbs": 75.4,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "SNACK"
     ],
-    "category": "MEAT",
+    "category": "SNACK",
     "icon": "iconfont icon-tangguo1",
     "imgUrl": "https://image.shutterstock.com/image-photo/small-nougat-pieces-almonds-on-260nw-1692005164.jpg",
     "detailed_category": "坚果"
@@ -12769,9 +12775,9 @@
     "carbs": 13.1,
     "fiber": 3.3,
     "tags": [
-      "VEGETABLE"
+      "INGREDIENT"
     ],
-    "category": "VEG",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-rou",
     "imgUrl": "https://image.shutterstock.com/image-photo/selective-fokus-asian-steamed-bun-260nw-1844865064.jpg",
     "detailed_category": "肉类"
@@ -12884,9 +12890,9 @@
     "carbs": 5.1,
     "fiber": 0.4,
     "tags": [
-      "DRINK"
+      "MEAT"
     ],
-    "category": "DRINK",
+    "category": "MEAT",
     "icon": "iconfont icon-huoji",
     "imgUrl": "https://image.shutterstock.com/image-photo/homemade-gravy-sauce-dish-turkey-260nw-737627827.jpg",
     "detailed_category": "肉类"
@@ -12918,9 +12924,9 @@
     "carbs": 7.16,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-kafei2",
     "imgUrl": "https://image.shutterstock.com/image-photo/life-hack-rest-wooden-spoon-260nw-1716378622.jpg",
     "detailed_category": "蛋奶"
@@ -14357,9 +14363,9 @@
     "carbs": 73.5,
     "fiber": 2.0,
     "tags": [
-      "MEAT"
+      "FRUIT"
     ],
-    "category": "MEAT",
+    "category": "FRUIT",
     "icon": "iconfont icon-guopan",
     "imgUrl": "https://image.shutterstock.com/image-illustration/round-logo-sign-grilled-meat-260nw-1647458005.jpg",
     "detailed_category": "肉类"
@@ -15662,9 +15668,9 @@
     "carbs": 43.7,
     "fiber": 12.9,
     "tags": [
-      "VEGETABLE"
+      "MEAT"
     ],
-    "category": "VEG",
+    "category": "MEAT",
     "icon": "iconfont icon-sharpicons_basilico",
     "imgUrl": "https://image.shutterstock.com/image-photo/morel-mushroom-isolated-on-white-260nw-739428766.jpg",
     "detailed_category": "其他"
@@ -16893,9 +16899,9 @@
     "carbs": 14.0,
     "fiber": 0,
     "tags": [
-      "SEAFOOD"
+      "MEAT"
     ],
-    "category": "SEAFOOD",
+    "category": "MEAT",
     "icon": "iconfont icon-haixian",
     "imgUrl": "https://image.shutterstock.com/image-photo/octopus-swims-aquarium-market-260nw-1711650808.jpg",
     "detailed_category": "海鲜"
@@ -17330,9 +17336,9 @@
     "carbs": 3.1,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "EGG"
     ],
-    "category": "MEAT",
+    "category": "EGG",
     "icon": "iconfont icon-e",
     "imgUrl": "https://image.shutterstock.com/image-photo/brown-eggs-carton-box-broken-260nw-1006671316.jpg",
     "detailed_category": "其他"
@@ -17362,9 +17368,9 @@
     "carbs": 5.8,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "EGG"
     ],
-    "category": "MEAT",
+    "category": "EGG",
     "icon": "iconfont icon-huotuihebaodan1",
     "imgUrl": "https://image.shutterstock.com/image-photo/preserved-egg-260nw-741885331.jpg",
     "detailed_category": "蛋奶"
@@ -17411,9 +17417,9 @@
     "carbs": 5.3,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-huotuihebaodan1",
     "imgUrl": "https://image.shutterstock.com/image-photo/four-various-heaps-protein-powder-260nw-1140242432.jpg",
     "detailed_category": "蛋奶"
@@ -17479,9 +17485,9 @@
     "carbs": 0.72,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "EGG"
     ],
-    "category": "MEAT",
+    "category": "EGG",
     "icon": "iconfont icon-huotuihebaodan1",
     "imgUrl": "https://image.shutterstock.com/image-photo/hen-hatching-egg-coophatching-260nw-1103310314.jpg",
     "detailed_category": "蛋奶"
@@ -17496,9 +17502,9 @@
     "carbs": 11.3,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-huotuihebaodan1",
     "imgUrl": "https://image.shutterstock.com/image-vector/baking-ingredients-set-sugar-salt-260nw-403232668.jpg",
     "detailed_category": "蛋奶"
@@ -17581,9 +17587,9 @@
     "carbs": 14.0,
     "fiber": 0,
     "tags": [
-      "SEAFOOD"
+      "MEAT"
     ],
-    "category": "SEAFOOD",
+    "category": "MEAT",
     "icon": "iconfont icon-haixian",
     "imgUrl": "https://image.shutterstock.com/image-photo/octopus-swims-aquarium-market-260nw-1711650808.jpg",
     "detailed_category": "海鲜"
@@ -18339,9 +18345,9 @@
     "carbs": 1.1,
     "fiber": 0,
     "tags": [
-      "SEAFOOD"
+      "MEAT"
     ],
-    "category": "SEAFOOD",
+    "category": "MEAT",
     "icon": "iconfont icon-haixian",
     "imgUrl": "https://image.shutterstock.com/image-photo/crab-meat-isolated-shadow-on-260nw-1320888074.jpg",
     "detailed_category": "肉类"
@@ -19217,9 +19223,9 @@
     "carbs": 15.0,
     "fiber": 0.5,
     "tags": [
-      "SEAFOOD"
+      "MEAT"
     ],
-    "category": "SEAFOOD",
+    "category": "MEAT",
     "icon": "iconfont icon-haixian",
     "imgUrl": "https://image.shutterstock.com/image-photo/delicious-fresh-emperor-crab-260nw-1142415749.jpg",
     "detailed_category": "肉类"
@@ -20026,9 +20032,9 @@
     "carbs": 73.5,
     "fiber": 2.0,
     "tags": [
-      "MEAT"
+      "FRUIT"
     ],
-    "category": "MEAT",
+    "category": "FRUIT",
     "icon": "iconfont icon-guopan",
     "imgUrl": "https://image.shutterstock.com/image-illustration/round-logo-sign-grilled-meat-260nw-1647458005.jpg",
     "detailed_category": "肉类"
@@ -22359,9 +22365,9 @@
     "carbs": 9.38,
     "fiber": 0.4,
     "tags": [
-      "MEAT"
+      "DRINK"
     ],
-    "category": "MEAT",
+    "category": "DRINK",
     "icon": "iconfont icon-qiaokeli",
     "imgUrl": "https://image.shutterstock.com/image-vector/milk-boxes-set-vector-realistic-260nw-1355595767.jpg",
     "detailed_category": "蛋奶"
@@ -22425,9 +22431,9 @@
     "carbs": 10.23,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "DRINK"
     ],
-    "category": "MEAT",
+    "category": "DRINK",
     "icon": "iconfont icon-weishiji1",
     "imgUrl": "https://image.shutterstock.com/image-vector/bullfighting-260nw-691251268.jpg",
     "detailed_category": "其他"
@@ -22961,9 +22967,9 @@
     "carbs": 60.23,
     "fiber": 2.9,
     "tags": [
-      "STAPLE"
+      "MEAT"
     ],
-    "category": "STAPLE",
+    "category": "MEAT",
     "icon": "iconfont icon-miantiao",
     "imgUrl": "https://image.shutterstock.com/image-photo/life-hack-rest-wooden-spoon-260nw-1716378622.jpg",
     "detailed_category": "肉类"
@@ -22978,9 +22984,9 @@
     "carbs": 18.01,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-weishiji",
     "imgUrl": "https://image.shutterstock.com/image-photo/selected-focus-view-fried-chicken-260nw-1832482819.jpg",
     "detailed_category": "调味品"
@@ -23010,9 +23016,9 @@
     "carbs": 0.3,
     "fiber": 0,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-weishiji",
     "imgUrl": "https://image.shutterstock.com/image-photo/selected-focus-view-fried-chicken-260nw-1832482819.jpg",
     "detailed_category": "调味品"
@@ -23196,9 +23202,9 @@
     "carbs": 60.34,
     "fiber": 3.0,
     "tags": [
-      "STAPLE"
+      "MEAT"
     ],
-    "category": "STAPLE",
+    "category": "MEAT",
     "icon": "iconfont icon-miantiao",
     "imgUrl": "https://image.shutterstock.com/image-photo/life-hack-rest-wooden-spoon-260nw-1716378622.jpg",
     "detailed_category": "肉类"
@@ -24618,9 +24624,9 @@
     "carbs": 68.92,
     "fiber": 42.5,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-sharpicons_basilico",
     "imgUrl": "https://image.shutterstock.com/image-photo/shot-twig-oregano-plant-known-260nw-1758897146.jpg",
     "detailed_category": "其他"
@@ -24635,9 +24641,9 @@
     "carbs": 80.59,
     "fiber": 53.1,
     "tags": [
-      "MEAT"
+      "INGREDIENT"
     ],
-    "category": "MEAT",
+    "category": "INGREDIENT",
     "icon": "iconfont icon-weishiji",
     "imgUrl": "https://image.shutterstock.com/image-photo/cinnamon-bark-cassia-260nw-605424227.jpg",
     "detailed_category": "肉类"
@@ -25646,8 +25652,10 @@
     "fat": 13.13,
     "carbs": 24.69,
     "fiber": 2.0,
-    "tags": [],
-    "category": "OTHER",
+    "tags": [
+      "MEAT"
+    ],
+    "category": "MEAT",
     "icon": "iconfont icon-pisa",
     "imgUrl": "https://image.shutterstock.com/image-photo/simple-four-cheese-delivered-pizza-260nw-1723954090.jpg",
     "detailed_category": "肉类"
@@ -26022,9 +26030,9 @@
     "carbs": 8.53,
     "fiber": 6.7,
     "tags": [
-      "FRUIT"
+      "MEAT"
     ],
-    "category": "FRUIT",
+    "category": "MEAT",
     "icon": "iconfont icon-sharpicons_avocado",
     "imgUrl": "https://image.shutterstock.com/image-photo/fresh-half-sliced-avocado-isolated-260nw-1721629897.jpg",
     "detailed_category": "水果"

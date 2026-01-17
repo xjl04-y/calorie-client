@@ -36,7 +36,7 @@ const selectedPreset = computed(() => {
 const estimatedCalories = computed(() => {
   if (useManualCalories.value) return manualCalories.value;
   if (!selectedPreset.value) return 0;
-  
+
   return exerciseStore.calculateCalories(
     selectedPreset.value.baseCaloriesPerMin,
     duration.value,
@@ -48,25 +48,25 @@ const estimatedCalories = computed(() => {
 const rpgEffects = computed(() => {
   const calories = estimatedCalories.value;
   const healAmt = 50 + Math.floor(calories / 10);
-  
+
   const currentHp = store.user.heroCurrentHp;
   const maxHp = store.user.heroMaxHp;
   const missingHp = maxHp - currentHp;
-  
+
   if (healAmt <= missingHp) {
     return { heal: healAmt, shield: 0, gold: 0 };
   }
-  
+
   const overflow = healAmt - missingHp;
   const currentShield = store.user.heroShield || 0;
   const shieldSpace = maxHp - currentShield;
-  
+
   if (shieldSpace > 0) {
     const shieldGained = Math.min(overflow, shieldSpace);
     const goldGained = Math.floor((overflow - shieldGained) * 0.5);
     return { heal: missingHp, shield: shieldGained, gold: goldGained };
   }
-  
+
   return { heal: missingHp, shield: 0, gold: Math.floor(overflow * 0.5) };
 });
 
@@ -89,12 +89,12 @@ function handleSubmit() {
     showToast('请选择或输入运动类型');
     return;
   }
-  
+
   if (duration.value <= 0) {
     showToast('请输入运动时长');
     return;
   }
-  
+
   exerciseStore.commitExercise({
     name: customName.value || selectedPreset.value?.name || '运动',
     icon: selectedPreset.value?.icon || '🏃',
@@ -104,7 +104,7 @@ function handleSubmit() {
     baseExerciseId: selectedPresetId.value,
     tags: selectedPreset.value?.tags as unknown as string[]
   });
-  
+
   showToast('运动记录成功！');
   router.back();
 }
@@ -129,7 +129,7 @@ const intensityLabels = {
     </div>
 
     <div class="flex-1 overflow-y-auto p-4 space-y-6">
-      
+
       <!-- 今日统计卡片 -->
       <div class="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-4 text-white">
         <div class="flex items-center justify-between">
@@ -153,11 +153,19 @@ const intensityLabels = {
             :key="preset.id"
             @click="selectPreset(preset.id)"
             class="flex flex-col items-center p-3 rounded-xl border-2 transition-all"
-            :class="selectedPresetId === preset.id 
-              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' 
+            :class="selectedPresetId === preset.id
+              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30'
               : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'"
           >
-            <span class="text-2xl mb-1">{{ preset.icon }}</span>
+            <!-- Icon 渲染逻辑修改 Start -->
+            <div class="w-8 h-8 mb-1 flex items-center justify-center">
+              <svg v-if="preset.icon && preset.icon.startsWith('icon-')" class="w-full h-full fill-current text-emerald-600 dark:text-emerald-400" aria-hidden="true">
+                <use :xlink:href="'#' + preset.icon"></use>
+              </svg>
+              <span v-else class="text-2xl">{{ preset.icon }}</span>
+            </div>
+            <!-- Icon 渲染逻辑修改 End -->
+
             <span class="text-xs font-medium text-slate-600 dark:text-slate-300 text-center leading-tight">{{ preset.name }}</span>
           </button>
         </div>
@@ -178,7 +186,7 @@ const intensityLabels = {
       <div>
         <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">运动时长 (分钟)</h3>
         <div class="flex items-center gap-3">
-          <button 
+          <button
             @click="duration = Math.max(5, duration - 5)"
             class="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xl active:scale-95 transition"
           >-</button>
@@ -188,15 +196,15 @@ const intensityLabels = {
             min="1"
             class="flex-1 text-center text-2xl font-black py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white outline-none"
           />
-          <button 
+          <button
             @click="duration += 5"
             class="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xl active:scale-95 transition"
           >+</button>
         </div>
         <!-- 快速选择 -->
         <div class="flex gap-2 mt-2">
-          <button 
-            v-for="d in [15, 30, 45, 60]" 
+          <button
+            v-for="d in [15, 30, 45, 60]"
             :key="d"
             @click="duration = d"
             class="flex-1 py-2 rounded-lg text-sm font-medium transition"
@@ -214,8 +222,8 @@ const intensityLabels = {
             :key="key"
             @click="selectedIntensity = key as 'LOW' | 'MEDIUM' | 'HIGH'"
             class="flex-1 py-3 rounded-xl border-2 font-medium transition-all"
-            :class="selectedIntensity === key 
-              ? `border-current ${config.color} ${config.bg}` 
+            :class="selectedIntensity === key
+              ? `border-current ${config.color} ${config.bg}`
               : 'border-slate-100 dark:border-slate-700 text-slate-500'"
           >{{ config.label }}</button>
         </div>
@@ -243,7 +251,7 @@ const intensityLabels = {
       <!-- 预估效果 -->
       <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700">
         <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-4">预估效果</h3>
-        
+
         <div class="text-center mb-4">
           <div class="text-4xl font-black text-emerald-600 dark:text-emerald-400">{{ estimatedCalories }}</div>
           <div class="text-sm text-slate-500">消耗热量 (kcal)</div>
@@ -277,8 +285,8 @@ const intensityLabels = {
         @click="handleSubmit"
         :disabled="!selectedPreset && !customName"
         class="w-full py-4 rounded-2xl font-bold text-lg transition-all active:scale-[0.98]"
-        :class="(selectedPreset || customName) 
-          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30' 
+        :class="(selectedPreset || customName)
+          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30'
           : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'"
       >
         <span v-if="!systemStore.isPureMode">🏋️ 记录运动 (+{{ estimatedCalories }} HP)</span>

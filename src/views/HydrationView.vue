@@ -92,14 +92,14 @@ function handleCustomDrink() {
     showToast('请输入饮水量');
     return;
   }
-  
+
   hydrationStore.commitHydration({
     name: selectedPreset.value.name,
     icon: selectedPreset.value.icon,
     amount: amount.value,
     type: selectedPreset.value.type
   });
-  
+
   showToast({ type: 'success', message: `💧 补水 +${amount.value}ml` });
 }
 
@@ -122,7 +122,7 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
     </div>
 
     <div class="flex-1 overflow-y-auto p-4 space-y-6">
-      
+
       <!-- [Fix V6.1] 目标设置面板 -->
       <div v-if="isSettingsOpen" class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 space-y-5 animate-fade-in">
         <div class="flex items-center justify-between">
@@ -131,19 +131,19 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
             <i class="fas fa-times"></i>
           </button>
         </div>
-        
+
         <div class="space-y-4">
           <!-- 每日目标杯数 -->
           <div>
             <label class="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 block">每日目标 (杯)</label>
             <div class="flex items-center gap-3">
-              <button @click="settingsForm.targetCups = Math.max(1, settingsForm.targetCups - 1)" 
+              <button @click="settingsForm.targetCups = Math.max(1, settingsForm.targetCups - 1)"
                       class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold">-</button>
               <div class="flex-1 text-center">
                 <span class="text-3xl font-black text-blue-600">{{ settingsForm.targetCups }}</span>
                 <span class="text-sm text-slate-400 ml-1">杯</span>
               </div>
-              <button @click="settingsForm.targetCups = Math.min(20, settingsForm.targetCups + 1)" 
+              <button @click="settingsForm.targetCups = Math.min(20, settingsForm.targetCups + 1)"
                       class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold">+</button>
             </div>
             <div class="flex justify-center gap-2 mt-2">
@@ -153,18 +153,18 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
               >{{ n }}杯</button>
             </div>
           </div>
-          
+
           <!-- 单杯容量 -->
           <div>
             <label class="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 block">单杯容量 (ml)</label>
             <div class="flex items-center gap-3">
-              <button @click="settingsForm.cupSize = Math.max(100, settingsForm.cupSize - 50)" 
+              <button @click="settingsForm.cupSize = Math.max(100, settingsForm.cupSize - 50)"
                       class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold">-</button>
               <div class="flex-1 text-center">
                 <span class="text-3xl font-black text-cyan-600">{{ settingsForm.cupSize }}</span>
                 <span class="text-sm text-slate-400 ml-1">ml</span>
               </div>
-              <button @click="settingsForm.cupSize = Math.min(500, settingsForm.cupSize + 50)" 
+              <button @click="settingsForm.cupSize = Math.min(500, settingsForm.cupSize + 50)"
                       class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold">+</button>
             </div>
             <div class="flex justify-center gap-2 mt-2">
@@ -174,14 +174,14 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
               >{{ s }}ml</button>
             </div>
           </div>
-          
+
           <!-- 预计每日摄入 -->
           <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center">
             <div class="text-xs text-slate-500 mb-1">每日目标摄入量</div>
             <div class="text-2xl font-black text-blue-600">{{ settingsForm.targetCups * settingsForm.cupSize }} ml</div>
           </div>
         </div>
-        
+
         <div class="flex gap-3">
           <button @click="isSettingsOpen = false" class="flex-1 py-3 rounded-xl font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
             取消
@@ -191,7 +191,7 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
           </button>
         </div>
       </div>
-      
+
       <!-- 今日进度卡片 -->
       <div class="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-5 text-white">
         <div class="flex items-center justify-between mb-4">
@@ -207,16 +207,16 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
             <div class="text-xs opacity-80">{{ progress.cups }} 杯</div>
           </div>
         </div>
-        
+
         <!-- 进度条 -->
         <div class="h-3 bg-white/20 rounded-full overflow-hidden">
-          <div 
+          <div
             class="h-full transition-all duration-500 rounded-full"
             :class="progressColor"
             :style="{ width: `${Math.min(100, progress.percentage)}%` }"
           ></div>
         </div>
-        
+
         <!-- 完成提示 -->
         <div v-if="progress.isComplete" class="mt-3 text-center">
           <span class="text-lg">🎉 今日目标已达成！继续保持！</span>
@@ -227,7 +227,7 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
       </div>
 
       <!-- 建议提示 -->
-      <div 
+      <div
         class="flex items-center gap-3 p-4 rounded-xl"
         :class="{
           'bg-yellow-50 dark:bg-yellow-900/20': suggestion.type === 'WARN',
@@ -236,7 +236,7 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
         }"
       >
         <span class="text-2xl">{{ suggestion.icon }}</span>
-        <span 
+        <span
           class="text-sm font-medium"
           :class="{
             'text-yellow-700 dark:text-yellow-300': suggestion.type === 'WARN',
@@ -255,8 +255,8 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
             :key="preset.id"
             @click="selectPreset(preset.id)"
             class="flex flex-col items-center p-3 rounded-xl border-2 transition-all"
-            :class="selectedPresetId === preset.id 
-              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+            :class="selectedPresetId === preset.id
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
               : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'"
           >
             <span class="text-2xl mb-1">{{ preset.icon }}</span>
@@ -269,7 +269,7 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
       <div>
         <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">饮水量 (ml)</h3>
         <div class="flex items-center gap-3">
-          <button 
+          <button
             @click="amount = Math.max(50, amount - 50)"
             class="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xl active:scale-95 transition"
           >-</button>
@@ -280,15 +280,15 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
             step="50"
             class="flex-1 text-center text-2xl font-black py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white outline-none"
           />
-          <button 
+          <button
             @click="amount += 50"
             class="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xl active:scale-95 transition"
           >+</button>
         </div>
         <!-- 快速选择 -->
         <div class="flex gap-2 mt-2">
-          <button 
-            v-for="a in [150, 250, 350, 500]" 
+          <button
+            v-for="a in [150, 250, 350, 500]"
             :key="a"
             @click="amount = a"
             class="flex-1 py-2 rounded-lg text-sm font-medium transition"
@@ -301,8 +301,8 @@ const todayLogs = computed(() => hydrationStore.todayLogs);
       <div v-if="todayLogs.length > 0">
         <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3">今日记录</h3>
         <div class="space-y-2">
-          <div 
-            v-for="log in todayLogs.slice(0, 5)" 
+          <div
+            v-for="log in todayLogs.slice(0, 5)"
             :key="log.id"
             class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl"
           >

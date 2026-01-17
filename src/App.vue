@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, defineAsyncComponent } from 'vue';
+import { onMounted, onUnmounted, computed, ref, defineAsyncComponent, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { useBattleStore } from '@/stores/useBattleStore';
-// import AppHud from '@/components/AppHud.vue';
+import { useNotificationStore } from '@/stores/useNotificationStore';
 import SplashScreen from '@/components/SplashScreen.vue';
 
 // --- 全局模态框引入 (Modals) ---
@@ -39,70 +39,102 @@ const ModalInventory = defineAsyncComponent(() => import('@/components/modals/Mo
 const store = useGameStore();
 const systemStore = useSystemStore();
 const battleStore = useBattleStore();
+const notificationStore = useNotificationStore();
 
-// [开屏动画] 控制开屏动画显示
 const showSplash = ref(false);
 
 const FAB_POS_KEY = 'health_rpg_fab_pos';
-
 const fabPos = ref({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 const isFabExpanded = ref(false);
 
-// [辅助函数] 检查两个日期是否是同一天
+const isHistoryStatePushed = ref(false);
+let isPoppingState = false;
+
+const hasOpenModal = computed(() => {
+  if (!systemStore.modals) return false;
+  return Object.values(systemStore.modals).some(isOpen => isOpen === true);
+});
+
+const closeAllModals = () => {
+  if (!systemStore.modals) return;
+  Object.keys(systemStore.modals).forEach(key => {
+    if (systemStore.modals[key]) {
+      systemStore.setModal(key, false);
+    }
+  });
+};
+
+watch(hasOpenModal, (isOpen) => {
+  if (isOpen) {
+    if (!isHistoryStatePushed.value) {
+      window.history.pushState({ modalOpen: true }, '', document.URL);
+      isHistoryStatePushed.value = true;
+    }
+  } else {
+    if (isHistoryStatePushed.value) {
+      if (!isPoppingState) {
+        window.history.back();
+      }
+      isHistoryStatePushed.value = false;
+    }
+    isPoppingState = false;
+  }
+});
+
+const handleGlobalPopState = () => {
+  if (hasOpenModal.value) {
+    isPoppingState = true;
+    closeAllModals();
+  }
+};
+
 const isSameDay = (d1: Date, d2: Date) => {
   return d1.getFullYear() === d2.getFullYear() &&
     d1.getMonth() === d2.getMonth() &&
     d1.getDate() === d2.getDate();
 };
 
-// [核心修复] 安全执行每日检查 (签到 + 连击)
-// 只有在确定今天还没签到的情况下才调用 Store 方法
 const safeCheckDailyStreak = () => {
   if (!store.user.isInitialized) return;
-
   const now = new Date();
   const lastLogin = new Date(store.user.lastLoginDate || 0);
-
-  // 1. 如果上次登录时间就是今天，说明已经处理过，直接跳过
-  // 这能解决“刷新页面导致连击数暴涨”的问题
   if (isSameDay(now, lastLogin)) {
     console.log('[App] 今日已签到，跳过重复检查');
     return;
   }
-
-  // 2. 只有日期不同，才执行签到逻辑
   console.log('[App] 检测到新的一天，执行签到检查...');
   store.heroStore.checkLoginStreak();
 };
 
-// [指令5] 跨天时间同步优化 - 利用visibilitychange事件
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
-    // App从后台切回前台，强制检查日期是否一致
     const updated = store.logStore.checkDateConsistency();
     if (updated) {
       console.log('[午夜修复] 日期已更新，执行跨天逻辑');
-      // 日期确实变了，才尝试签到
       safeCheckDailyStreak();
     } else {
-      // 日期没变，但可能需要刷新一下连击显示（不做数值修改）
       if (battleStore.validateCombo) {
         battleStore.validateCombo();
       }
+      notificationStore.refreshInactivityReminder();
     }
   }
 };
 
 onMounted(() => {
+  window.addEventListener('popstate', handleGlobalPopState);
+  notificationStore.initNotificationChannel();
+  notificationStore.setupListeners();
+  notificationStore.refreshInactivityReminder();
+
   if (systemStore.enableSplashAnimation) {
     showSplash.value = true;
   }
 
   store.loadState();
 
-  // [新增] 从数据库加载日志
   console.log('[App] 开始从数据库加载日志...');
   store.logStore.loadLogsFromDb().then(() => {
     console.log('[App] 数据库日志加载完成');
@@ -110,7 +142,6 @@ onMounted(() => {
     console.error('[App] 加载数据库日志失败:', err);
   });
 
-  // 日期修正逻辑
   const realToday = new Date();
   const currentDateValue = systemStore.currentDate;
   const todayStr = realToday.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
@@ -119,20 +150,14 @@ onMounted(() => {
     systemStore.currentDate = todayStr;
   }
 
-  // [Bug修复] 延迟执行所有状态检查
-  // 1. 防止 store 数据未完全水合
-  // 2. 确保在日期修正逻辑之后执行
-  // 3. 合并签到与连击检查
   setTimeout(() => {
-    // 签到检查 (防御性调用)
     safeCheckDailyStreak();
-
-    // 连击检查 (Battle Combo)
     if (battleStore.validateCombo) {
       battleStore.validateCombo();
     }
   }, 500);
 
+  // 初始化 Dark Mode Class
   if (store.isDarkMode) {
     document.documentElement.classList.add('dark');
   } else {
@@ -170,13 +195,14 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener('popstate', handleGlobalPopState);
 });
 
 const containerClass = computed(() => ({
   'screen-shaking': store.temp.isShaking,
   'mobile-frame': true,
-  'bg-white': true,
-  'dark:bg-slate-900': true,
+  'bg-white': true,       // 默认背景
+  'dark:bg-slate-900': true, // 覆盖背景
   'transition-colors': true
 }));
 
@@ -269,7 +295,12 @@ const handleSplashComplete = () => {
 </script>
 
 <template>
-  <van-config-provider :theme="store.isDarkMode ? 'dark' : 'light'" theme-vars-scope="global">
+  <!-- [Critical Fix]: 增加 key 以强制 ConfigProvider 在主题变更时完全重渲染，杜绝样式残留 -->
+  <van-config-provider
+    :theme="store.isDarkMode ? 'dark' : 'light'"
+    theme-vars-scope="global"
+    :key="store.isDarkMode ? 'dark-provider' : 'light-provider'"
+  >
     <SplashScreen v-if="showSplash" @animation-complete="handleSplashComplete" />
 
     <div :class="containerClass">
@@ -290,7 +321,7 @@ const handleSplashComplete = () => {
         </router-view>
       </div>
 
-      <!-- Tabbar: 根据 Pure/RPG 模式调整高亮颜色 -->
+      <!-- Tabbar -->
       <van-tabbar
         v-if="store.user.isInitialized"
         route fixed placeholder safe-area-inset-bottom
@@ -307,8 +338,8 @@ const handleSplashComplete = () => {
         </van-tabbar-item>
       </van-tabbar>
 
+      <!-- FAB 按钮们 -->
       <!-- 1. 补水按钮 (Hydration) -->
-      <!-- Pure: Sky-500 | RPG: Blue-600 | 拒绝紫色 -->
       <div v-if="store.user.isInitialized"
            class="fixed z-40 pointer-events-none"
            :style="{
@@ -328,7 +359,6 @@ const handleSplashComplete = () => {
       </div>
 
       <!-- 2. 运动按钮 (Exercise) -->
-      <!-- Pure: Emerald-500 | RPG: Teal-600 -->
       <div v-if="store.user.isInitialized"
            class="fixed z-50 flex items-center justify-center cursor-pointer"
            :class="[
@@ -353,7 +383,6 @@ const handleSplashComplete = () => {
       </div>
 
       <!-- 3. 饮食按钮 (Supply) -->
-      <!-- Pure: Amber-500 | RPG: Orange-600 -->
       <div v-if="store.user.isInitialized"
            class="fixed z-50 flex items-center justify-center cursor-pointer"
            :class="[
@@ -378,7 +407,6 @@ const handleSplashComplete = () => {
       </div>
 
       <!-- 4. 主开关按钮 (Main Toggle) -->
-      <!-- 根据 深色/浅色 模式反转黑白，确保对比度 -->
       <div v-if="store.user.isInitialized"
            id="guide-global-supply"
            class="fixed z-[60] transition-transform active:scale-90 cursor-pointer"
@@ -395,9 +423,7 @@ const handleSplashComplete = () => {
         <div class="w-14 h-14 rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.3)] flex flex-col items-center justify-center border-2 transition-all duration-300"
              :class="[
                isFabExpanded
-                 /* 展开状态: 灰色背景，适应深浅模式 */
                  ? (isPure ? 'bg-stone-200 dark:bg-slate-700 text-stone-500 border-stone-300 dark:border-slate-500' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 border-slate-300 dark:border-slate-500') + ' rotate-45 scale-90'
-                 /* 收起状态: 黑白反转，高对比度 */
                  : (isPure ? 'bg-white dark:bg-stone-800 text-stone-800 dark:text-white border-stone-200 dark:border-stone-700' : 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-700 dark:border-slate-300') + ' hover:scale-105'
              ]">
           <div class="text-3xl mb-[-2px] leading-none transition-transform duration-300">+</div>
@@ -466,4 +492,15 @@ const handleSplashComplete = () => {
 
 .crit-active { animation: flash-gold 0.3s ease-out; }
 @keyframes flash-gold { 0% { background-color: rgba(255, 255, 255, 0.8); } 50% { background-color: rgba(250, 204, 21, 0.4); } 100% { background-color: transparent; } }
+</style>
+
+<style>
+/* [Critical Fix]: 全局强制覆盖 Body 背景，防止 Vant 或 浏览器默认样式在橡皮筋效果时露出白底 */
+body {
+  background-color: #f8fafc; /* slate-50 */
+  transition: background-color 0.3s;
+}
+html.dark body {
+  background-color: #0f172a; /* slate-900 */
+}
 </style>

@@ -3,7 +3,6 @@ import { computed, reactive, watch, ref, nextTick } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
 import { showToast, Dialog } from 'vant';
-// [Fix] 修正导入路径：getLocalDateStr 位于 dateUtils
 import { downloadJsonFile, readJsonFile } from '@/utils/gameUtils';
 import { getLocalDateStr } from '@/utils/dateUtils';
 import type { Gender } from '@/types';
@@ -20,8 +19,8 @@ const show = computed({
 const localState = reactive({
   isDarkMode: false,
   isPureMode: false,
-  enableWeather: true, // [New] 天气特效开关
-  enableSplash: true,  // [New] 开屏动画开关
+  enableWeather: true,
+  enableSplash: true,
   nickname: '',
   gender: 'MALE' as Gender
 });
@@ -31,9 +30,9 @@ const fileInput = ref<HTMLInputElement | null>(null);
 // 2. 初始化逻辑
 watch(show, (val) => {
   if (val) {
-    localState.isDarkMode = systemStore.isDarkMode;
+    // 优先读取 gameStore 的深色模式状态
+    localState.isDarkMode = store.isDarkMode || systemStore.isDarkMode;
     localState.isPureMode = systemStore.isPureMode;
-    // [New] 从 LocalStorage 读取设置 (默认为 true)
     localState.enableWeather = localStorage.getItem('app_setting_weather') !== 'false';
     localState.enableSplash = localStorage.getItem('app_setting_splash') !== 'false';
 
@@ -49,84 +48,47 @@ const handleSave = () => {
     return;
   }
 
-  // --- 应用视觉设置 ---
-  const themeChanged = systemStore.isDarkMode !== localState.isDarkMode;
+  const themeChanged = store.isDarkMode !== localState.isDarkMode;
   const modeChanged = systemStore.isPureMode !== localState.isPureMode;
 
-  systemStore.isDarkMode = localState.isDarkMode;
-
-  // [New] 保存新设置到 LocalStorage
-  localStorage.setItem('app_setting_weather', String(localState.enableWeather));
-  localStorage.setItem('app_setting_splash', String(localState.enableSplash));
-
-  // [New] 触发全局事件，通知 HomeView 更新天气状态
-  window.dispatchEvent(new Event('settings-changed'));
-
-  // [Fix] 模式切换守卫：从 Pure 切到 RPG 需要检查角色初始化
-  console.log('🔍 [Settings] handleSave 开始', {
-    modeChanged,
-    localStatePureMode: localState.isPureMode,
-    systemStorePureMode: systemStore.isPureMode
-  });
-
-  if (modeChanged && localState.isPureMode === false && systemStore.isPureMode === true) {
-    // 想要切换到 RPG 模式
-    const hasInitialized = store.user.isInitialized;
-    const hasEnteredRPG = systemStore.hasEnteredRPGMode;
-
-    console.log('🔍 [Settings] 进入模式切换守卫', {
-      hasInitialized,
-      hasEnteredRPG,
-    });
-
-    if (!hasInitialized) {
-      // 完全未初始化 -> 打开完整引导流程
-      console.log('🔍 [Settings] 分支1: 未初始化');
-      show.value = false;
-      systemStore.setModal('onboarding', true);
-      showToast('请先完成角色创建');
-      return;
-    }
-    // 只要进过一次RPG模式，hasEnteredRPG 就会是 true
-    else if (!hasEnteredRPG) {
-      console.log('🔍 [Settings] 分支2: 触发种族选择:', {
-        reason: '从未真正进入过RPG模式',
-        hasEnteredRPG
-      });
-
-      systemStore.isPureMode = false;
-      localState.isPureMode = false;
-      show.value = false;
-      // 设置标记，表示是从设置页面打开的
-      systemStore.temp.isFromSettings = true;
-      console.log('🔍 [Settings] 打开 Onboarding，isFromSettings =', systemStore.temp.isFromSettings);
-
-      nextTick(() => {
-        console.log('🔍 [Settings] nextTick 后 isPureMode =', systemStore.isPureMode);
-        systemStore.setModal('onboarding', true);
-        showToast('请选择您的种族');
-      });
-      return;
-    } else {
-      console.log('🔍 [Settings] 分支3: 已进入过RPG模式，直接切换，无需重选种族');
-    }
-  } else {
-    console.log('🔍 [Settings] 未进入模式切换守卫');
-  }
-
-  // 应用模式切换
-  systemStore.isPureMode = localState.isPureMode;
-
-  // 强制处理暗黑模式 CSS 类
+  // [Critical Fix]: 立即同步 DOM 类名
   if (localState.isDarkMode) {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
   }
 
+  // [Critical Fix]: 双 Store 同步
+  systemStore.isDarkMode = localState.isDarkMode;
+  store.isDarkMode = localState.isDarkMode;
+
+  localStorage.setItem('app_setting_weather', String(localState.enableWeather));
+  localStorage.setItem('app_setting_splash', String(localState.enableSplash));
+  window.dispatchEvent(new Event('settings-changed'));
+
+  // 模式切换守卫
+  if (modeChanged && localState.isPureMode === false && systemStore.isPureMode === true) {
+    const hasInitialized = store.user.isInitialized;
+
+    // [Fix Logic]: 只有在“完全未初始化”时才强制跳转 Onboarding
+    if (!hasInitialized) {
+      show.value = false;
+      systemStore.setModal('onboarding', true);
+      showToast('请先完成角色创建');
+      return;
+    }
+
+    // 如果已经初始化了，直接允许进入 RPG 模式，并补全标记
+    if (!systemStore.hasEnteredRPGMode) {
+      systemStore.hasEnteredRPGMode = true;
+    }
+  }
+
+  // 应用模式切换
+  systemStore.isPureMode = localState.isPureMode;
+
   // --- 应用个人档案 ---
   const profileChanged = (store.user.nickname !== localState.nickname) || (store.user.gender !== localState.gender);
-
   store.user.nickname = localState.nickname;
   if (store.user.gender !== localState.gender) {
     store.user.gender = localState.gender;
@@ -191,24 +153,23 @@ const onFileSelected = async (event: Event) => {
 </script>
 
 <template>
+  <!-- [Critical Fix]: 显式绑定内联样式 backgroundColor。
+       解决 Vant Popup 在主题切换间隙背景色未及时更新导致的白底问题 -->
   <van-popup
     v-model:show="show"
     round
     position="bottom"
-    :style="{ height: '70%' }"
-    class="dark:bg-slate-900"
+    :style="{ height: '70%', backgroundColor: localState.isDarkMode ? '#0f172a' : '#ffffff' }"
+    class="transition-colors duration-300"
     closeable
   >
-    <!-- 主容器：移除紫色系，使用 Slate/Gray 营造干净的健康感 -->
-    <div class="p-6 flex flex-col h-full bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+    <div class="p-6 flex flex-col h-full text-slate-700 dark:text-slate-200" :class="localState.isDarkMode ? 'bg-slate-900' : 'bg-white'">
 
-      <!-- 标题栏：简洁化 -->
       <h3 class="text-lg font-bold text-center mb-6 flex items-center justify-center">
         <i class="fas fa-cog text-slate-400 mr-2"></i> {{ localState.isPureMode ? '设置' : '系统设置' }}
       </h3>
 
       <div class="flex-1 overflow-y-auto space-y-6 custom-scrollbar pb-10">
-
         <!-- 区域 1: 模式配置 -->
         <div class="rounded-xl p-4 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 shadow-sm">
           <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center">
@@ -219,7 +180,6 @@ const onFileSelected = async (event: Event) => {
           <!-- 暗黑模式开关 -->
           <div class="flex items-center justify-between mb-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer" @click="localState.isDarkMode = !localState.isDarkMode">
             <div class="flex items-center">
-              <!-- 图标容器：使用 Slate/Neutral 色系 -->
               <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mr-3">
                 <i class="fas fa-moon text-lg"></i>
               </div>
@@ -228,7 +188,6 @@ const onFileSelected = async (event: Event) => {
                 <div class="text-[10px] text-slate-400">Dark Mode</div>
               </div>
             </div>
-            <!-- 使用健康绿 -->
             <van-switch :model-value="localState.isDarkMode" @update:model-value="localState.isDarkMode = $event" size="24px" active-color="#10b981" inactive-color="#e2e8f0" @click.stop />
           </div>
 
@@ -247,14 +206,13 @@ const onFileSelected = async (event: Event) => {
           </div>
         </div>
 
-        <!-- 区域 2: 视觉特效 [New] -->
+        <!-- 区域 2: 视觉特效 -->
         <div class="rounded-xl p-4 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 shadow-sm">
           <div class="text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center">
             <i class="fas fa-magic mr-1.5 opacity-70"></i>
             {{ localState.isPureMode ? '界面效果' : '视觉特效' }}
           </div>
 
-          <!-- 天气特效开关 -->
           <div class="flex items-center justify-between mb-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer" @click="localState.enableWeather = !localState.enableWeather">
             <div class="flex items-center">
               <div class="w-10 h-10 rounded-full bg-sky-50 dark:bg-sky-900/20 text-sky-600 flex items-center justify-center mr-3">
@@ -268,7 +226,6 @@ const onFileSelected = async (event: Event) => {
             <van-switch :model-value="localState.enableWeather" @update:model-value="localState.enableWeather = $event" size="24px" active-color="#0ea5e9" inactive-color="#e2e8f0" @click.stop />
           </div>
 
-          <!-- 开屏动画开关 -->
           <div class="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer" @click="localState.enableSplash = !localState.enableSplash">
             <div class="flex items-center">
               <div class="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center mr-3">
@@ -291,7 +248,6 @@ const onFileSelected = async (event: Event) => {
           </div>
 
           <div class="space-y-4">
-            <!-- 昵称 -->
             <div>
               <label class="text-[10px] text-slate-500 block mb-1 font-bold">
                 {{ localState.isPureMode ? '昵称' : '冒险者代号' }}
@@ -304,7 +260,6 @@ const onFileSelected = async (event: Event) => {
               </div>
             </div>
 
-            <!-- 性别 -->
             <div>
               <label class="text-[10px] text-slate-500 block mb-2 font-bold">性别 (影响BMR计算)</label>
               <div class="flex gap-3">
@@ -329,22 +284,17 @@ const onFileSelected = async (event: Event) => {
             <i class="fas fa-database mr-1.5 opacity-70"></i> 数据管理
           </div>
 
-          <!-- 数据管理 -->
-          <div>
-            <label class="text-[10px] text-slate-500 block mb-2 font-bold">数据备份与迁移</label>
-            <div class="flex gap-3 mb-3">
-              <button @click="handleFileExport" class="flex-1 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2.5 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 flex items-center justify-center font-medium">
-                <i class="fas fa-file-download mr-1.5 text-slate-400"></i> 导出存档
-              </button>
-              <button @click="triggerFileImport" class="flex-1 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2.5 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 flex items-center justify-center font-medium">
-                <i class="fas fa-file-upload mr-1.5 text-slate-400"></i> 导入存档
-              </button>
-              <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
-            </div>
+          <div class="flex gap-3 mb-3">
+            <button @click="handleFileExport" class="flex-1 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2.5 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 flex items-center justify-center font-medium">
+              <i class="fas fa-file-download mr-1.5 text-slate-400"></i> 导出存档
+            </button>
+            <button @click="triggerFileImport" class="flex-1 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 text-xs py-2.5 rounded-lg transition border border-slate-200 dark:border-slate-600 active:scale-95 flex items-center justify-center font-medium">
+              <i class="fas fa-file-upload mr-1.5 text-slate-400"></i> 导入存档
+            </button>
+            <input type="file" ref="fileInput" accept=".json" class="hidden" @change="onFileSelected" />
           </div>
         </div>
 
-        <!-- 保存按钮：去除渐变，使用纯色 Emerald -->
         <button @click="handleSave" class="w-full bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-sm hover:shadow active:scale-95 transition-all mt-4 text-sm flex items-center justify-center tracking-wide">
           <i class="fas fa-check-circle mr-2"></i> {{ localState.isPureMode ? '保存设置' : '确认并生效' }}
         </button>
@@ -359,7 +309,6 @@ const onFileSelected = async (event: Event) => {
 </template>
 
 <style scoped>
-/* 滚动条美化：更细更淡 */
 .custom-scrollbar::-webkit-scrollbar { width: 3px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }

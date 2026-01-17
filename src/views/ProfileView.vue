@@ -7,13 +7,12 @@ import { ref, reactive, computed } from 'vue'
 import { useGameStore } from '@/stores/counter'
 import { useSystemStore } from '@/stores/useSystemStore'
 import { useHeroStore } from '@/stores/useHeroStore'
-import { showToast } from 'vant'
+import { showToast, showLoadingToast, closeToast } from 'vant' // [修改] 引入更多 Toast 工具
 import { getCombatRank } from '@/utils/gameUtils'
 import type { Achievement } from '@/types'
 import type { UploaderFileListItem } from 'vant'
 import type { SlotType } from '@/types'
 import HeroBackground from '@/components/HeroBackground.vue'
-// [新增] 引入默认头像
 import defaultAvatar from '@/assets/avatar/avatar.jpg'
 
 const store = useGameStore()
@@ -48,10 +47,9 @@ const equipment = computed(() => {
 const showEdit = ref(false)
 const editData = reactive({ height: 0, weight: 0, age: 0 })
 
-// RPG Rank Info (仅RPG模式使用)
+// RPG Rank Info
 const rpgRankInfo = computed(() => getCombatRank(heroStats.value.combatPower))
 
-// RPG Rank Definitions (for modal - RPG Mode Only)
 const rpgRanks = [
   {
     title: '无名之辈',
@@ -119,7 +117,7 @@ const rpgRanks = [
 ]
 
 const nextRankProgress = computed(() => {
-  if (isPure.value) return 0 // 纯净模式不计算Rank进度
+  if (isPure.value) return 0
   if (!rpgRankInfo.value.next) return 100
   return Math.min(100, (heroStats.value.combatPower / rpgRankInfo.value.next) * 100)
 })
@@ -132,16 +130,14 @@ const bmi = computed(() => {
 
 const bmiStatus = computed(() => {
   const val = parseFloat(String(bmi.value))
-  if (val < 18.5) return { text: '偏瘦', color: 'text-blue-500', width: '15%' } // 偏瘦区间
-  if (val < 24) return { text: '正常', color: 'text-green-500', width: '40%' } // 正常区间
-  if (val < 28) return { text: '超重', color: 'text-orange-500', width: '70%' } // 超重区间
-  return { text: '肥胖', color: 'text-red-500', width: '90%' } // 肥胖区间
+  if (val < 18.5) return { text: '偏瘦', color: 'text-blue-500', width: '15%' }
+  if (val < 24) return { text: '正常', color: 'text-green-500', width: '40%' }
+  if (val < 28) return { text: '超重', color: 'text-orange-500', width: '70%' }
+  return { text: '肥胖', color: 'text-red-500', width: '90%' }
 })
 
-// 计算BMI指示条的位置
 const bmiPercent = computed(() => {
   const val = parseFloat(String(bmi.value))
-  // 简单映射：15~35 映射到 0%~100%
   const min = 15
   const max = 35
   const percent = ((val - min) / (max - min)) * 100
@@ -152,24 +148,95 @@ const rankViewMode = ref<'details' | 'list'>('details')
 const showRankDetails = ref(false)
 
 const openRankDetails = () => {
-  if (isPure.value) return // 纯净模式不打开阶位详情
+  if (isPure.value) return
   rankViewMode.value = 'details'
   showRankDetails.value = true
 }
 
-const onAvatarRead = (items: UploaderFileListItem | UploaderFileListItem[]) => {
-  const file = Array.isArray(items) ? items[0] : items
-  if (file && file.content) {
-    store.user.avatarType = 'CUSTOM'
-    store.user.customAvatar = file.content
-    store.saveState()
-    showToast('头像上传成功！')
-  } else {
-    showToast('图片读取失败')
-  }
+// [核心重构] 图片压缩工具函数
+// 将大图压缩至 500px 宽或高，质量 0.7，大幅降低 Base64 体积
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = (event) => {
+      const img = new Image()
+      img.src = event.target?.result as string
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Canvas Context Error'))
+          return
+        }
+
+        // 目标尺寸设置 (最大 500px)
+        const MAX_WIDTH = 500
+        const MAX_HEIGHT = 500
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width
+            width = MAX_WIDTH
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height
+            height = MAX_HEIGHT
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // 导出为 JPEG，质量 0.7
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+        resolve(dataUrl)
+      }
+      img.onerror = (err) => reject(err)
+    }
+    reader.onerror = (err) => reject(err)
+  })
 }
 
-// [移除] 移除了 changeAvatar 函数，不再支持随机生成头像
+// [核心重构] 异步处理头像上传
+const onAvatarRead = async (items: UploaderFileListItem | UploaderFileListItem[]) => {
+  // Vant Uploader 可能会返回数组
+  const item = Array.isArray(items) ? items[0] : items
+
+  // 校验：确保它是文件类型
+  if (!item || !item.file) {
+    showToast('无法读取文件')
+    return
+  }
+
+  // 开启 Loading 防止用户重复操作
+  const toast = showLoadingToast({
+    message: '图像处理中...',
+    forbidClick: true,
+    duration: 0, // 持续展示直到手动关闭
+  })
+
+  try {
+    // 执行压缩
+    const compressedBase64 = await compressImage(item.file)
+
+    // 存入 Store
+    store.user.avatarType = 'CUSTOM'
+    store.user.customAvatar = compressedBase64
+    store.saveState()
+
+    closeToast()
+    showToast({ type: 'success', message: '头像上传成功！' })
+  } catch (error) {
+    console.error('Avatar upload error:', error)
+    closeToast()
+    showToast({ type: 'fail', message: '图片处理失败，请重试' })
+  }
+}
 
 const startEditProfile = () => {
   editData.height = user.value.height
@@ -306,6 +373,7 @@ const openTargetConfig = () => {
         >
           <i class="fas fa-cog mr-1"></i> 设置
         </div>
+        <!-- [修改] 传递 after-read，移除 capture，让用户选择相册或拍照 -->
         <van-uploader :after-read="onAvatarRead">
           <div
             class="px-3 py-1 rounded-full text-xs flex items-center active:scale-95 transition cursor-pointer backdrop-blur border bg-white/60 dark:bg-black/30 text-slate-700 font-bold dark:text-white border-slate-300/50 dark:border-white/20 hover:bg-white/80 dark:hover:bg-black/50"
@@ -340,7 +408,6 @@ const openTargetConfig = () => {
         v-if="!isPure"
         class="absolute inset-0 flex flex-col items-center justify-start z-20 pt-16"
       >
-        <!-- [修改] 移除了点击事件和 cursor-pointer -->
         <div class="relative group mb-3">
           <div
             class="w-24 h-24 rounded-full p-1 relative z-10 overflow-hidden shadow-xl transition-all bg-slate-200 dark:bg-slate-700 border-4 border-white dark:border-slate-800"
@@ -350,7 +417,6 @@ const openTargetConfig = () => {
               :src="user.customAvatar"
               class="w-full h-full rounded-full object-cover"
             />
-            <!-- [修改] 使用本地默认头像 -->
             <img
               v-else
               :src="defaultAvatar"
@@ -401,23 +467,22 @@ const openTargetConfig = () => {
           class="flex items-center justify-center gap-2 text-xs mt-1 font-medium text-slate-600 dark:text-slate-400"
         >
           <span
-            ><i
-              :class="
+          ><i
+            :class="
                 user.gender === 'MALE'
                   ? 'fas fa-mars text-blue-600 dark:text-blue-400'
                   : 'fas fa-venus text-pink-600 dark:text-pink-400'
               "
-            ></i>
+          ></i>
             {{ user.age }}岁</span
           >
           <span>|</span><span>{{ user.height }}cm</span><span>|</span
-          ><span>{{ user.weight }}kg</span>
+        ><span>{{ user.weight }}kg</span>
         </div>
       </div>
 
       <!-- User Card (Pure Style) -->
       <div v-else class="px-6 flex items-center gap-4">
-        <!-- [修改] 移除了点击事件和 cursor-pointer -->
         <div
           class="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-100 dark:border-slate-600 flex-shrink-0"
         >
@@ -426,7 +491,6 @@ const openTargetConfig = () => {
             :src="user.customAvatar"
             class="w-full h-full object-cover"
           />
-          <!-- [修改] 使用本地默认头像 -->
           <img
             v-else
             :src="defaultAvatar"
@@ -460,7 +524,7 @@ const openTargetConfig = () => {
           <div class="flex flex-col">
             <span
               class="text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors"
-              >道具商店</span
+            >道具商店</span
             >
             <span class="text-[10px] text-slate-400">Shop</span>
           </div>
@@ -481,7 +545,7 @@ const openTargetConfig = () => {
           <div class="flex flex-col">
             <span
               class="text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors"
-              >转生洗点</span
+            >转生洗点</span
             >
             <span class="text-[10px] text-slate-400">Rebirth</span>
           </div>
@@ -542,7 +606,7 @@ const openTargetConfig = () => {
           >
             {{ heroStats.rankTitle }}
             <span class="text-sm font-mono font-bold" :class="'text-slate-500 dark:text-slate-500'"
-              >({{ heroStats.combatPower }})</span
+            >({{ heroStats.combatPower }})</span
             >
           </div>
 
@@ -551,11 +615,11 @@ const openTargetConfig = () => {
             :class="'bg-slate-100 dark:bg-black/30 border-slate-200 dark:border-white/5'"
           >
             <span class="font-bold mr-1" :class="'text-yellow-700 dark:text-yellow-500'"
-              >✦ 阶位特权:</span
+            >✦ 阶位特权:</span
             >
             <span class="font-medium" :class="'text-slate-700 dark:text-slate-300'">{{
-              rpgRankInfo.passive
-            }}</span>
+                rpgRankInfo.passive
+              }}</span>
           </div>
 
           <div v-if="rpgRankInfo.next" class="mt-2 px-4">
@@ -605,7 +669,7 @@ const openTargetConfig = () => {
           <div class="space-y-5">
             <div class="flex items-center justify-between">
               <span class="text-xs text-blue-600 dark:text-blue-400 w-16 font-bold"
-                >力量 (STR)</span
+              >力量 (STR)</span
               >
               <div
                 class="flex-1 mx-3 h-2 rounded-full overflow-hidden"
@@ -620,12 +684,12 @@ const openTargetConfig = () => {
               <span
                 class="text-xs font-bold w-12 text-right text-slate-800 dark:text-slate-200"
                 :class="{ 'text-red-500': heroStats.rawStr > heroStats.maxStat }"
-                >{{ heroStats.str }}</span
+              >{{ heroStats.str }}</span
               >
             </div>
             <div class="flex items-center justify-between">
               <span class="text-xs text-green-600 dark:text-green-400 w-16 font-bold"
-                >敏捷 (AGI)</span
+              >敏捷 (AGI)</span
               >
               <div
                 class="flex-1 mx-3 h-2 rounded-full overflow-hidden"
@@ -640,12 +704,12 @@ const openTargetConfig = () => {
               <span
                 class="text-xs font-bold w-12 text-right text-slate-800 dark:text-slate-200"
                 :class="{ 'text-red-500': heroStats.rawAgi > heroStats.maxStat }"
-                >{{ heroStats.agi }}</span
+              >{{ heroStats.agi }}</span
               >
             </div>
             <div class="flex items-center justify-between">
               <span class="text-xs text-orange-600 dark:text-orange-400 w-16 font-bold"
-                >体质 (VIT)</span
+              >体质 (VIT)</span
               >
               <div
                 class="flex-1 mx-3 h-2 rounded-full overflow-hidden"
@@ -660,7 +724,7 @@ const openTargetConfig = () => {
               <span
                 class="text-xs font-bold w-12 text-right text-slate-800 dark:text-slate-200"
                 :class="{ 'text-red-500': heroStats.rawVit > heroStats.maxStat }"
-                >{{ heroStats.vit }}</span
+              >{{ heroStats.vit }}</span
               >
             </div>
           </div>
@@ -686,7 +750,7 @@ const openTargetConfig = () => {
               <i class="fas fa-shield-alt mr-2 text-yellow-600"></i> 英雄装备
             </h3>
             <span class="text-[10px] font-medium" :class="'text-slate-600 dark:text-slate-500'"
-              >点击槽位更换</span
+            >点击槽位更换</span
             >
           </div>
 
@@ -712,7 +776,7 @@ const openTargetConfig = () => {
                 v-if="!slot.item"
                 class="text-[8px] mt-1 font-bold"
                 :class="'text-slate-600 dark:text-slate-600'"
-                >{{ slot.slotName }}</span
+              >{{ slot.slotName }}</span
               >
 
               <div
@@ -722,7 +786,7 @@ const openTargetConfig = () => {
               <span
                 v-if="slot.item"
                 class="text-4xl mb-1 filter drop-shadow-md transform transition-transform group-hover:scale-110"
-                >{{ slot.item.icon }}</span
+              >{{ slot.item.icon }}</span
               >
               <div
                 v-if="slot.item"
@@ -732,7 +796,7 @@ const openTargetConfig = () => {
                 <span
                   class="text-[8px] font-bold block truncate px-1"
                   :class="'text-' + slot.item.rarity"
-                  >{{ slot.item.reward }}</span
+                >{{ slot.item.reward }}</span
                 >
               </div>
             </div>
@@ -751,10 +815,10 @@ const openTargetConfig = () => {
           <div class="flex flex-col">
             <span
               class="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider"
-              >BMI 指数</span
+            >BMI 指数</span
             >
             <span class="text-2xl font-black text-slate-800 dark:text-white mt-0.5"
-              >{{ bmi }}
+            >{{ bmi }}
               <span
                 class="text-xs font-medium px-1.5 py-0.5 rounded ml-1"
                 :class="[
@@ -762,19 +826,19 @@ const openTargetConfig = () => {
                     ? 'bg-green-100 text-green-600'
                     : 'bg-red-100 text-red-600',
                 ]"
-                >{{ bmiStatus.text }}</span
+              >{{ bmiStatus.text }}</span
               ></span
             >
           </div>
           <div class="text-right flex flex-col items-end">
             <span
               class="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider"
-              >每日基础消耗 (BMR)</span
+            >每日基础消耗 (BMR)</span
             >
             <div @click="openTargetConfig" class="flex items-center cursor-pointer group">
               <span class="text-xl font-bold text-slate-700 dark:text-slate-200 mt-0.5">{{
-                currentBMR
-              }}</span>
+                  currentBMR
+                }}</span>
               <span class="text-xs text-slate-400 ml-1">kcal</span>
               <i
                 class="fas fa-edit text-[10px] text-slate-300 ml-1.5 group-hover:text-blue-500 transition-colors"
@@ -904,7 +968,7 @@ const openTargetConfig = () => {
               />
               <span
                 class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400"
-                >cm</span
+              >cm</span
               >
             </div>
           </div>
@@ -942,7 +1006,7 @@ const openTargetConfig = () => {
               />
               <span
                 class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400"
-                >kg</span
+              >kg</span
               >
             </div>
           </div>
@@ -980,7 +1044,7 @@ const openTargetConfig = () => {
               />
               <span
                 class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400"
-                >岁</span
+              >岁</span
               >
             </div>
           </div>
@@ -1040,7 +1104,7 @@ const openTargetConfig = () => {
               <div class="flex justify-between text-xs mb-1.5 font-bold">
                 <span class="text-slate-500 dark:text-slate-400">晋升进度</span>
                 <span class="text-yellow-600 dark:text-yellow-400"
-                  >{{ nextRankProgress.toFixed(1) }}%</span
+                >{{ nextRankProgress.toFixed(1) }}%</span
                 >
               </div>
               <div

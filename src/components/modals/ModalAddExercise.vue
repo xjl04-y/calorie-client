@@ -201,8 +201,17 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
              @click="selectExercise(ex)"
              class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex justify-between items-center active:scale-95 transition cursor-pointer group hover:border-green-400">
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/20 text-2xl flex items-center justify-center group-hover:bg-green-100 dark:group-hover:bg-green-900/40 transition-colors">
-              {{ ex.icon }}
+            <!--
+               [Icon Visibility Fix]
+               深色模式适配：将背景强制设为浅灰色 (dark:bg-slate-200)。
+               这样即使图标是黑色的（如太极、剪影），也能清晰地显示在浅色底板上。
+               这是解决 Symbol 图标“黑底黑字”不可见问题的最稳妥方案。
+            -->
+            <div class="w-12 h-12 rounded-full bg-green-50 dark:bg-slate-200 flex items-center justify-center group-hover:bg-green-100 dark:group-hover:bg-slate-300 transition-colors">
+              <svg v-if="ex.icon && ex.icon.startsWith('icon-')" class="w-8 h-8 fill-current text-green-600 dark:text-slate-700" aria-hidden="true">
+                <use :xlink:href="'#' + ex.icon"></use>
+              </svg>
+              <span v-else class="text-2xl">{{ ex.icon }}</span>
             </div>
             <div>
               <div class="font-bold text-slate-700 dark:text-white">{{ ex.name }}</div>
@@ -225,8 +234,18 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
 
         <!-- 大图标展示 -->
         <div class="flex justify-center my-2">
-          <div class="w-20 h-20 rounded-full bg-white dark:bg-slate-800 border-4 border-slate-100 dark:border-slate-700 flex items-center justify-center text-4xl shadow-lg animate-bounce-slow">
-            {{ mode === 'CALCULATE' ? selectedItem?.icon : '📝' }}
+          <!--
+             [Detail Icon Visibility Fix]
+             同样应用浅色底板策略 (dark:bg-slate-200)
+          -->
+          <div class="w-20 h-20 rounded-full bg-white dark:bg-slate-200 border-4 border-slate-100 dark:border-slate-600 flex items-center justify-center overflow-hidden shadow-lg animate-bounce-slow">
+            <template v-if="mode === 'CALCULATE' && selectedItem?.icon">
+              <svg v-if="selectedItem.icon.startsWith('icon-')" class="w-12 h-12 fill-current text-green-600 dark:text-slate-700" aria-hidden="true">
+                <use :xlink:href="'#' + selectedItem.icon"></use>
+              </svg>
+              <span v-else class="text-4xl">{{ selectedItem.icon }}</span>
+            </template>
+            <span v-else class="text-4xl">📝</span>
           </div>
         </div>
 

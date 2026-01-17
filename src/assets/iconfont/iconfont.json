@@ -6,6 +6,475 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "24810949",
+      "name": "水",
+      "font_class": "shui",
+      "unicode": "e61f",
+      "unicode_decimal": 58911
+    },
+    {
+      "icon_id": "1314979",
+      "name": "保龄球-2",
+      "font_class": "baolingqiu-2",
+      "unicode": "e6e6",
+      "unicode_decimal": 59110
+    },
+    {
+      "icon_id": "2495548",
+      "name": "仰卧推举 健身",
+      "font_class": "yangwotuijujianshen",
+      "unicode": "e60a",
+      "unicode_decimal": 58890
+    },
+    {
+      "icon_id": "3216129",
+      "name": "烹饪",
+      "font_class": "icon--",
+      "unicode": "e738",
+      "unicode_decimal": 59192
+    },
+    {
+      "icon_id": "3747620",
+      "name": "快走",
+      "font_class": "kuaizou",
+      "unicode": "e628",
+      "unicode_decimal": 58920
+    },
+    {
+      "icon_id": "3747626",
+      "name": "做家务",
+      "font_class": "zuojiawu",
+      "unicode": "e62b",
+      "unicode_decimal": 58923
+    },
+    {
+      "icon_id": "3769180",
+      "name": "健身操",
+      "font_class": "jianshencao",
+      "unicode": "e60b",
+      "unicode_decimal": 58891
+    },
+    {
+      "icon_id": "3769182",
+      "name": "慢跑",
+      "font_class": "manpao",
+      "unicode": "e60d",
+      "unicode_decimal": 58893
+    },
+    {
+      "icon_id": "4103524",
+      "name": "骑车",
+      "font_class": "qiche",
+      "unicode": "e9ec",
+      "unicode_decimal": 59884
+    },
+    {
+      "icon_id": "5171361",
+      "name": "搏击",
+      "font_class": "boji",
+      "unicode": "e617",
+      "unicode_decimal": 58903
+    },
+    {
+      "icon_id": "5171888",
+      "name": "跳绳",
+      "font_class": "tiaosheng",
+      "unicode": "e6e8",
+      "unicode_decimal": 59112
+    },
+    {
+      "icon_id": "5171902",
+      "name": "拳击",
+      "font_class": "quanji",
+      "unicode": "e602",
+      "unicode_decimal": 58882
+    },
+    {
+      "icon_id": "5171913",
+      "name": "哑铃",
+      "font_class": "yaling",
+      "unicode": "e606",
+      "unicode_decimal": 58886
+    },
+    {
+      "icon_id": "5393532",
+      "name": "骑行",
+      "font_class": "qihang",
+      "unicode": "e719",
+      "unicode_decimal": 59161
+    },
+    {
+      "icon_id": "5736009",
+      "name": "健身-65",
+      "font_class": "jianshen-",
+      "unicode": "e89c",
+      "unicode_decimal": 59548
+    },
+    {
+      "icon_id": "8362865",
+      "name": "动感单车 (1)",
+      "font_class": "donggandanche",
+      "unicode": "e624",
+      "unicode_decimal": 58916
+    },
+    {
+      "icon_id": "10045111",
+      "name": "椭圆机",
+      "font_class": "tuoyuanji",
+      "unicode": "e6e9",
+      "unicode_decimal": 59113
+    },
+    {
+      "icon_id": "10333140",
+      "name": "壶铃",
+      "font_class": "huling",
+      "unicode": "e605",
+      "unicode_decimal": 58885
+    },
+    {
+      "icon_id": "11080619",
+      "name": "登山",
+      "font_class": "dengshan",
+      "unicode": "e6ea",
+      "unicode_decimal": 59114
+    },
+    {
+      "icon_id": "11080954",
+      "name": "滑冰比赛",
+      "font_class": "huabingbisai",
+      "unicode": "e6eb",
+      "unicode_decimal": 59115
+    },
+    {
+      "icon_id": "11206695",
+      "name": "平板支撑",
+      "font_class": "pingbanzhicheng",
+      "unicode": "e600",
+      "unicode_decimal": 58880
+    },
+    {
+      "icon_id": "11680217",
+      "name": "露营",
+      "font_class": "louying",
+      "unicode": "e615",
+      "unicode_decimal": 58901
+    },
+    {
+      "icon_id": "11830034",
+      "name": "攀岩",
+      "font_class": "panyan-",
+      "unicode": "e614",
+      "unicode_decimal": 58900
+    },
+    {
+      "icon_id": "12685142",
+      "name": "奔跑检测",
+      "font_class": "benpaojiance",
+      "unicode": "e76f",
+      "unicode_decimal": 59247
+    },
+    {
+      "icon_id": "12697588",
+      "name": "单板滑雪",
+      "font_class": "danbanhuaxue",
+      "unicode": "e6ec",
+      "unicode_decimal": 59116
+    },
+    {
+      "icon_id": "13205838",
+      "name": "治愈",
+      "font_class": "zhiyu",
+      "unicode": "e73b",
+      "unicode_decimal": 59195
+    },
+    {
+      "icon_id": "14650669",
+      "name": "引体向上",
+      "font_class": "yintixiangshang",
+      "unicode": "e622",
+      "unicode_decimal": 58914
+    },
+    {
+      "icon_id": "15004500",
+      "name": "走路",
+      "font_class": "zoulu_huabanfuben",
+      "unicode": "e6ed",
+      "unicode_decimal": 59117
+    },
+    {
+      "icon_id": "15866036",
+      "name": "游泳",
+      "font_class": "youyong",
+      "unicode": "e7b3",
+      "unicode_decimal": 59315
+    },
+    {
+      "icon_id": "16167348",
+      "name": "运动类型-跳舞",
+      "font_class": "yundongleixing-tiaowu",
+      "unicode": "e6ee",
+      "unicode_decimal": 59118
+    },
+    {
+      "icon_id": "16326734",
+      "name": "遛狗",
+      "font_class": "liugou",
+      "unicode": "e62e",
+      "unicode_decimal": 58926
+    },
+    {
+      "icon_id": "16327774",
+      "name": "棒球",
+      "font_class": "bangqiu",
+      "unicode": "e636",
+      "unicode_decimal": 58934
+    },
+    {
+      "icon_id": "16327781",
+      "name": "高尔夫",
+      "font_class": "gaoerfu",
+      "unicode": "e638",
+      "unicode_decimal": 58936
+    },
+    {
+      "icon_id": "16327784",
+      "name": "滑雪",
+      "font_class": "huaxue",
+      "unicode": "e639",
+      "unicode_decimal": 58937
+    },
+    {
+      "icon_id": "16327787",
+      "name": "滑板",
+      "font_class": "huaban",
+      "unicode": "e63a",
+      "unicode_decimal": 58938
+    },
+    {
+      "icon_id": "16327789",
+      "name": "卷腹",
+      "font_class": "juanfu",
+      "unicode": "e63b",
+      "unicode_decimal": 58939
+    },
+    {
+      "icon_id": "16327791",
+      "name": "快跑",
+      "font_class": "kuaipao",
+      "unicode": "e63c",
+      "unicode_decimal": 58940
+    },
+    {
+      "icon_id": "16327792",
+      "name": "篮球",
+      "font_class": "lanqiu",
+      "unicode": "e63d",
+      "unicode_decimal": 58941
+    },
+    {
+      "icon_id": "16327794",
+      "name": "乒乓球",
+      "font_class": "pingpangqiu",
+      "unicode": "e63e",
+      "unicode_decimal": 58942
+    },
+    {
+      "icon_id": "16327798",
+      "name": "排球",
+      "font_class": "paiqiu",
+      "unicode": "e63f",
+      "unicode_decimal": 58943
+    },
+    {
+      "icon_id": "16327799",
+      "name": "台球",
+      "font_class": "taiqiu",
+      "unicode": "e640",
+      "unicode_decimal": 58944
+    },
+    {
+      "icon_id": "16327801",
+      "name": "网球",
+      "font_class": "wangqiu",
+      "unicode": "e641",
+      "unicode_decimal": 58945
+    },
+    {
+      "icon_id": "16327803",
+      "name": "羽毛球",
+      "font_class": "yumaoqiu",
+      "unicode": "e642",
+      "unicode_decimal": 58946
+    },
+    {
+      "icon_id": "16327807",
+      "name": "足球",
+      "font_class": "zuqiu",
+      "unicode": "e6ef",
+      "unicode_decimal": 59119
+    },
+    {
+      "icon_id": "16327809",
+      "name": "哑铃",
+      "font_class": "yaling1",
+      "unicode": "e6f0",
+      "unicode_decimal": 59120
+    },
+    {
+      "icon_id": "18750704",
+      "name": "周五大扫除",
+      "font_class": "zhouwudasaochu",
+      "unicode": "e6fd",
+      "unicode_decimal": 59133
+    },
+    {
+      "icon_id": "18809656",
+      "name": "芭蕾舞",
+      "font_class": "baleiwu",
+      "unicode": "e635",
+      "unicode_decimal": 58933
+    },
+    {
+      "icon_id": "19429769",
+      "name": "划船机",
+      "font_class": "huachuanji",
+      "unicode": "e7b6",
+      "unicode_decimal": 59318
+    },
+    {
+      "icon_id": "19541399",
+      "name": "深蹲",
+      "font_class": "shendun",
+      "unicode": "e60f",
+      "unicode_decimal": 58895
+    },
+    {
+      "icon_id": "21284740",
+      "name": "拉伸",
+      "font_class": "lashen",
+      "unicode": "e6f1",
+      "unicode_decimal": 59121
+    },
+    {
+      "icon_id": "21777020",
+      "name": "逛街-默认",
+      "font_class": "guangjie-moren",
+      "unicode": "e6f2",
+      "unicode_decimal": 59122
+    },
+    {
+      "icon_id": "24051797",
+      "name": "03_冲浪",
+      "font_class": "a-03_chonglang",
+      "unicode": "e6f3",
+      "unicode_decimal": 59123
+    },
+    {
+      "icon_id": "27565468",
+      "name": "50米跑",
+      "font_class": "a-50mipao",
+      "unicode": "e8b7",
+      "unicode_decimal": 59575
+    },
+    {
+      "icon_id": "30935093",
+      "name": "仰卧起坐",
+      "font_class": "yangwoqizuo",
+      "unicode": "e637",
+      "unicode_decimal": 58935
+    },
+    {
+      "icon_id": "31555841",
+      "name": "icon_俯卧撑",
+      "font_class": "icon_fuwocheng",
+      "unicode": "e6f4",
+      "unicode_decimal": 59124
+    },
+    {
+      "icon_id": "31555842",
+      "name": "icon_波比跳",
+      "font_class": "icon_bobitiao",
+      "unicode": "e6f5",
+      "unicode_decimal": 59125
+    },
+    {
+      "icon_id": "32801793",
+      "name": "文艺演出",
+      "font_class": "wenyiyanchu",
+      "unicode": "e6f6",
+      "unicode_decimal": 59126
+    },
+    {
+      "icon_id": "32948316",
+      "name": "快速",
+      "font_class": "Union",
+      "unicode": "e6f7",
+      "unicode_decimal": 59127
+    },
+    {
+      "icon_id": "36482187",
+      "name": "钓鱼-copy",
+      "font_class": "diaoyu",
+      "unicode": "e601",
+      "unicode_decimal": 58881
+    },
+    {
+      "icon_id": "39423989",
+      "name": "ic_keep_hiit",
+      "font_class": "ic_keep_hiit",
+      "unicode": "e7e7",
+      "unicode_decimal": 59367
+    },
+    {
+      "icon_id": "39666534",
+      "name": "冥想",
+      "font_class": "mingxiang",
+      "unicode": "e618",
+      "unicode_decimal": 58904
+    },
+    {
+      "icon_id": "41570022",
+      "name": "太极",
+      "font_class": "taiji",
+      "unicode": "e603",
+      "unicode_decimal": 58883
+    },
+    {
+      "icon_id": "44280866",
+      "name": "搬运,货物",
+      "font_class": "a-291",
+      "unicode": "eb16",
+      "unicode_decimal": 60182
+    },
+    {
+      "icon_id": "45700209",
+      "name": "带娃日常",
+      "font_class": "daiwarichang",
+      "unicode": "e60c",
+      "unicode_decimal": 58892
+    },
+    {
+      "icon_id": "46634944",
+      "name": "爬楼梯",
+      "font_class": "palouti",
+      "unicode": "e604",
+      "unicode_decimal": 58884
+    },
+    {
+      "icon_id": "46635263",
+      "name": "单腿硬拉",
+      "font_class": "dantuiyingla",
+      "unicode": "e607",
+      "unicode_decimal": 58887
+    },
+    {
+      "icon_id": "46635374",
+      "name": "哑铃上斜卧推",
+      "font_class": "yalingshangxiewotui",
+      "unicode": "e608",
+      "unicode_decimal": 58888
+    },
+    {
       "icon_id": "210195",
       "name": "麻辣烫",
       "font_class": "malatang",

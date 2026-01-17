@@ -1,25 +1,47 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useGameStore } from '@/stores/counter';
-import { useSystemStore } from '@/stores/useSystemStore'; // [New]
+import { useSystemStore } from '@/stores/useSystemStore';
 import { TAG_DEFS } from '@/constants/gameData';
 import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper';
 import type { FoodItem } from '@/types';
 
 const store = useGameStore();
-const systemStore = useSystemStore(); // [New]
+const systemStore = useSystemStore();
 
 const show = computed({
   get: () => store.modals.quantity,
   set: (val) => store.setModal('quantity', val)
 });
 
-// [New] 纯净模式判断
+// 纯净模式判断
 const isPure = computed(() => systemStore.isPureMode);
 
 const item = computed(() => store.temp.pendingItem);
 const multiplier = ref(1.0);
 const currentGrams = ref(0);
+
+// ==========================================
+// [New Feature] 餐点归档选择 (补录神器)
+// ==========================================
+const MEAL_OPTIONS = [
+  { label: '早餐', value: 'BREAKFAST', icon: 'fas fa-coffee', color: 'text-amber-500 bg-amber-50 border-amber-200 ring-amber-400' },
+  { label: '午餐', value: 'LUNCH', icon: 'fas fa-hamburger', color: 'text-orange-500 bg-orange-50 border-orange-200 ring-orange-400' },
+  { label: '晚餐', value: 'DINNER', icon: 'fas fa-utensils', color: 'text-indigo-500 bg-indigo-50 border-indigo-200 ring-indigo-400' },
+  { label: '加餐', value: 'SNACK', icon: 'fas fa-cookie-bite', color: 'text-pink-500 bg-pink-50 border-pink-200 ring-pink-400' },
+];
+
+// 当前选中的餐点 (默认值会被 getAutoMealType 覆盖)
+const selectedMeal = ref('SNACK');
+
+// 智能推断当前餐点
+const getAutoMealType = () => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return 'BREAKFAST';
+  if (hour >= 11 && hour < 17) return 'LUNCH';
+  if (hour >= 17 && hour < 22) return 'DINNER';
+  return 'SNACK';
+};
 
 // ==========================================
 // [Core Logic] Symbol 图标显示逻辑
@@ -62,13 +84,19 @@ const getIconDisplay = (item: FoodItem | null) => {
   return { isSymbol: false, content: iconRaw };
 };
 
+// 监听物品变化，初始化状态
 watch(item, (v) => {
   if(v) {
     multiplier.value = 1.0;
     currentGrams.value = v.grams || 100;
+
+    // [Smart Default] 每次打开弹窗，自动选中当前时间段对应的餐点
+    // 但用户随后可以手动修改 selectedMeal
+    selectedMeal.value = getAutoMealType();
   }
 }, { immediate: true });
 
+// 监听倍率滑块
 watch(multiplier, (v) => {
   if(item.value) currentGrams.value = Math.round((item.value.grams || 100) * v);
 });
@@ -178,7 +206,9 @@ const confirm = () => {
     grams: currentGrams.value,
     p: macros.p,
     c: macros.c,
-    f: macros.f
+    f: macros.f,
+    // [Fix] 关键点：将用户手动修正的餐点类型传递给 store
+    mealType: selectedMeal.value
   };
 
   if (store.temp.isBuilding) {
@@ -200,21 +230,21 @@ const confirm = () => {
   <van-popup v-model:show="show" position="bottom" round safe-area-inset-bottom class="!pb-6 dark:bg-slate-900">
     <div class="p-6 text-slate-700 dark:text-slate-200" v-if="item">
       <!-- 头部展示 -->
-      <div class="text-center mb-6">
-        <div class="h-32 sm:h-40 flex items-center justify-center mb-2 text-slate-700 dark:text-slate-300">
+      <div class="text-center mb-4">
+        <div class="h-24 sm:h-32 flex items-center justify-center mb-2 text-slate-700 dark:text-slate-300">
           <template v-if="getIconDisplay(item).isSymbol">
-            <svg class="icon text-[5rem] sm:text-[7rem]" aria-hidden="true">
+            <svg class="icon text-[4rem] sm:text-[6rem]" aria-hidden="true">
               <use :xlink:href="'#' + getIconDisplay(item).content"></use>
             </svg>
           </template>
           <template v-else>
-            <span class="text-[5rem] sm:text-[7rem] leading-none">{{ getIconDisplay(item).content }}</span>
+            <span class="text-[4rem] sm:text-[6rem] leading-none">{{ getIconDisplay(item).content }}</span>
           </template>
         </div>
 
         <h3 class="font-bold text-2xl sm:text-3xl text-slate-800 dark:text-white">{{ item.name }}</h3>
 
-        <div class="flex justify-center gap-1 mt-3 mb-2 flex-wrap" v-if="displayTags.length">
+        <div class="flex justify-center gap-1 mt-2 mb-2 flex-wrap" v-if="displayTags.length">
           <span v-for="tag in displayTags" :key="tag" :class="'tag-'+tag" class="tag-badge text-xs px-2 py-1">
             {{ TAG_DEFS[tag as keyof typeof TAG_DEFS]?.label || tag }}
           </span>
@@ -226,10 +256,37 @@ const confirm = () => {
           <div v-if="dmgPrediction.subtext" class="text-[9px] mt-0.5 opacity-80">{{ dmgPrediction.subtext }}</div>
         </div>
 
-        <div class="text-sm text-slate-400 mt-2 font-mono">基准: {{ item.grams }}g = ~{{ item.calories }} kcal</div>
+        <div class="text-sm text-slate-400 mt-1 font-mono">基准: {{ item.grams }}g = ~{{ item.calories }} kcal</div>
       </div>
 
-      <!-- 宏量营养素卡片：色彩更柔和，边框更细 -->
+      <!-- [New] 餐点类型选择器 (支持补录) -->
+      <div class="mb-5 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+        <div class="flex justify-between items-center mb-2 px-1">
+          <div class="text-xs text-slate-400 font-bold tracking-wider">归属餐点</div>
+          <div class="text-[10px] text-slate-300">点选以补录</div>
+        </div>
+        <div class="flex justify-between gap-2">
+          <button
+            v-for="opt in MEAL_OPTIONS"
+            :key="opt.value"
+            @click="selectedMeal = opt.value"
+            class="flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all duration-200 border-2 relative overflow-hidden"
+            :class="[
+              selectedMeal === opt.value
+                ? `${opt.color} ring-1 ring-offset-0`
+                : 'bg-white dark:bg-slate-800 text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700'
+            ]"
+          >
+            <!-- 选中时的背景高亮光晕 -->
+            <div v-if="selectedMeal === opt.value" class="absolute inset-0 opacity-10 bg-current"></div>
+
+            <i :class="opt.icon" class="text-lg mb-1 relative z-10"></i>
+            <span class="text-[10px] font-bold relative z-10">{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 宏量营养素卡片 -->
       <div class="grid grid-cols-3 gap-3 mb-6">
         <div class="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl text-center border border-blue-100 dark:border-blue-900/30">
           <div class="text-[10px] text-blue-500 font-bold mb-1">蛋白质</div>
@@ -245,7 +302,7 @@ const confirm = () => {
         </div>
       </div>
 
-      <!-- 总量输入：去除紫色 -->
+      <!-- 总量输入 -->
       <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 mb-6 flex justify-around text-center border border-slate-100 dark:border-slate-700">
         <div>
           <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">总热量</div>
@@ -257,7 +314,7 @@ const confirm = () => {
         </div>
       </div>
 
-      <!-- 滑块：使用 Emerald -->
+      <!-- 滑块 -->
       <div class="mb-8 px-2">
         <div class="flex justify-between mb-4 text-sm font-bold text-slate-600 dark:text-slate-300">
           <span>份量调整</span><span>x{{ multiplier.toFixed(1) }}</span>
@@ -271,7 +328,7 @@ const confirm = () => {
         </van-slider>
       </div>
 
-      <!-- 确认按钮：健康绿 -->
+      <!-- 确认按钮 -->
       <van-button
         block
         color="#10b981"

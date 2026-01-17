@@ -120,9 +120,14 @@ const startEdit = () => {
         >
           <div class="flex items-center gap-4 mb-6">
             <div
-              class="w-16 h-16 rounded-full bg-orange-50 dark:bg-orange-900/20 text-3xl flex items-center justify-center"
+              class="w-16 h-16 rounded-full bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center"
             >
-              {{ currentLog.icon }}
+              <!-- Icon 渲染逻辑修改 Start -->
+              <svg v-if="currentLog.icon && currentLog.icon.startsWith('icon-')" class="w-10 h-10 fill-current text-orange-500" aria-hidden="true">
+                <use :xlink:href="'#' + currentLog.icon"></use>
+              </svg>
+              <span v-else class="text-3xl">{{ currentLog.icon }}</span>
+              <!-- Icon 渲染逻辑修改 End -->
             </div>
             <div>
               <div class="text-2xl font-bold text-slate-800 dark:text-white">
@@ -268,7 +273,7 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">获得经验</span>
               </div>
               <span class="font-bold text-purple-500 text-lg"
-                >+{{ currentLog.generatedExp }} EXP</span
+              >+{{ currentLog.generatedExp }} EXP</span
               >
             </div>
           </div>
@@ -292,7 +297,7 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">燃烧脂肪</span>
               </div>
               <span class="font-bold text-orange-500"
-                >~{{ Math.round((currentLog.caloriesBurned || 0) / 7.7) }}g</span
+              >~{{ Math.round((currentLog.caloriesBurned || 0) / 7.7) }}g</span
               >
             </div>
             <div
@@ -303,12 +308,12 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">心血管强化</span>
               </div>
               <span class="font-bold text-red-500">{{
-                currentLog.tags?.includes('高强度')
-                  ? '极佳'
-                  : currentLog.tags?.includes('低强度')
-                    ? '一般'
-                    : '良好'
-              }}</span>
+                  currentLog.tags?.includes('高强度')
+                    ? '极佳'
+                    : currentLog.tags?.includes('低强度')
+                      ? '一般'
+                      : '良好'
+                }}</span>
             </div>
             <div
               class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3"
@@ -318,7 +323,7 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">多巴胺分泌</span>
               </div>
               <span class="font-bold text-purple-500"
-                >+{{ Math.round((currentLog.duration || 0) / 10) }}%</span
+              >+{{ Math.round((currentLog.duration || 0) / 10) }}%</span
               >
             </div>
           </div>
@@ -336,19 +341,19 @@ const startEdit = () => {
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">相当于走路</span>
               <span class="font-bold text-slate-700 dark:text-slate-200"
-                >~{{ Math.round((currentLog.caloriesBurned || 0) / 4) }} 分钟</span
+              >~{{ Math.round((currentLog.caloriesBurned || 0) / 4) }} 分钟</span
               >
             </div>
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">相当于爬楼</span>
               <span class="font-bold text-slate-700 dark:text-slate-200"
-                >~{{ Math.round((currentLog.caloriesBurned || 0) / 0.15) }} 层</span
+              >~{{ Math.round((currentLog.caloriesBurned || 0) / 0.15) }} 层</span
               >
             </div>
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">抵消食物</span>
               <span class="font-bold text-slate-700 dark:text-slate-200"
-                >1 碗米饭 ({{ Math.round(((currentLog.caloriesBurned || 0) / 200) * 100) }}%)</span
+              >1 碗米饭 ({{ Math.round(((currentLog.caloriesBurned || 0) / 200) * 100) }}%)</span
               >
             </div>
           </div>

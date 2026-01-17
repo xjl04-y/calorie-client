@@ -7,7 +7,6 @@ import { useSystemStore } from './useSystemStore';
 import { useHeroStore } from './useHeroStore';
 import { showToast } from 'vant';
 
-// ... (DEFAULT_ACHIEVEMENTS 和 CUSTOM_QUEST_TEMPLATES 保持不变) ...
 const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   { id: 1, name: "初出茅庐", desc: "完成首次食物记录", condition: "记录 1 次食物", icon: "🗡️", unlocked: false, reward: "训练剑", slot: "WEAPON", rarity: "common", flavor: "你的冒险开始了。", stats: "攻击 +5", combatPower: 10, bonusBMR: 0 },
   { id: 2, name: "肉食主义", desc: "单日蛋白质摄入超100g", condition: "蛋白质 > 100g", icon: "🍖", unlocked: false, reward: "蛮族护腕", slot: "OFFHAND", rarity: "rare", flavor: "力量涌入体内！", stats: "格挡 +10", combatPower: 30, bonusBMR: 0 },
@@ -109,7 +108,10 @@ export const useCollectionStore = defineStore('collection', () => {
       cleanItem.id = Date.now() + Math.random();
       cleanItem.usageCount = 1;
       foodDb.value.unshift(cleanItem);
-      if (foodDb.value.length > 300) foodDb.value = foodDb.value.slice(0, 300);
+
+      // [CRITICAL FIX] 移除了 300 条的硬性限制
+      // 之前的代码会因为 foodDb 超过 300 条而截断后续数据，导致初始加载的几百条食物数据丢失
+      // if (foodDb.value.length > 300) foodDb.value = foodDb.value.slice(0, 300);
     }
   }
 

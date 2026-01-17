@@ -1,8 +1,8 @@
 @font-face {
   font-family: "iconfont"; /* Project id 5076657 */
-  src: url('iconfont.woff2?t=1767612168875') format('woff2'),
-       url('iconfont.woff?t=1767612168875') format('woff'),
-       url('iconfont.ttf?t=1767612168875') format('truetype');
+  src: url('iconfont.woff2?t=1768573889560') format('woff2'),
+       url('iconfont.woff?t=1768573889560') format('woff'),
+       url('iconfont.ttf?t=1768573889560') format('truetype');
 }
 
 .iconfont {
@@ -11,6 +11,274 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-shui:before {
+  content: "\e61f";
+}
+
+.icon-baolingqiu-2:before {
+  content: "\e6e6";
+}
+
+.icon-yangwotuijujianshen:before {
+  content: "\e60a";
+}
+
+.icon-icon--:before {
+  content: "\e738";
+}
+
+.icon-kuaizou:before {
+  content: "\e628";
+}
+
+.icon-zuojiawu:before {
+  content: "\e62b";
+}
+
+.icon-jianshencao:before {
+  content: "\e60b";
+}
+
+.icon-manpao:before {
+  content: "\e60d";
+}
+
+.icon-qiche:before {
+  content: "\e9ec";
+}
+
+.icon-boji:before {
+  content: "\e617";
+}
+
+.icon-tiaosheng:before {
+  content: "\e6e8";
+}
+
+.icon-quanji:before {
+  content: "\e602";
+}
+
+.icon-yaling:before {
+  content: "\e606";
+}
+
+.icon-qihang:before {
+  content: "\e719";
+}
+
+.icon-jianshen-:before {
+  content: "\e89c";
+}
+
+.icon-donggandanche:before {
+  content: "\e624";
+}
+
+.icon-tuoyuanji:before {
+  content: "\e6e9";
+}
+
+.icon-huling:before {
+  content: "\e605";
+}
+
+.icon-dengshan:before {
+  content: "\e6ea";
+}
+
+.icon-huabingbisai:before {
+  content: "\e6eb";
+}
+
+.icon-pingbanzhicheng:before {
+  content: "\e600";
+}
+
+.icon-louying:before {
+  content: "\e615";
+}
+
+.icon-panyan-:before {
+  content: "\e614";
+}
+
+.icon-benpaojiance:before {
+  content: "\e76f";
+}
+
+.icon-danbanhuaxue:before {
+  content: "\e6ec";
+}
+
+.icon-zhiyu:before {
+  content: "\e73b";
+}
+
+.icon-yintixiangshang:before {
+  content: "\e622";
+}
+
+.icon-zoulu_huabanfuben:before {
+  content: "\e6ed";
+}
+
+.icon-youyong:before {
+  content: "\e7b3";
+}
+
+.icon-yundongleixing-tiaowu:before {
+  content: "\e6ee";
+}
+
+.icon-liugou:before {
+  content: "\e62e";
+}
+
+.icon-bangqiu:before {
+  content: "\e636";
+}
+
+.icon-gaoerfu:before {
+  content: "\e638";
+}
+
+.icon-huaxue:before {
+  content: "\e639";
+}
+
+.icon-huaban:before {
+  content: "\e63a";
+}
+
+.icon-juanfu:before {
+  content: "\e63b";
+}
+
+.icon-kuaipao:before {
+  content: "\e63c";
+}
+
+.icon-lanqiu:before {
+  content: "\e63d";
+}
+
+.icon-pingpangqiu:before {
+  content: "\e63e";
+}
+
+.icon-paiqiu:before {
+  content: "\e63f";
+}
+
+.icon-taiqiu:before {
+  content: "\e640";
+}
+
+.icon-wangqiu:before {
+  content: "\e641";
+}
+
+.icon-yumaoqiu:before {
+  content: "\e642";
+}
+
+.icon-zuqiu:before {
+  content: "\e6ef";
+}
+
+.icon-yaling1:before {
+  content: "\e6f0";
+}
+
+.icon-zhouwudasaochu:before {
+  content: "\e6fd";
+}
+
+.icon-baleiwu:before {
+  content: "\e635";
+}
+
+.icon-huachuanji:before {
+  content: "\e7b6";
+}
+
+.icon-shendun:before {
+  content: "\e60f";
+}
+
+.icon-lashen:before {
+  content: "\e6f1";
+}
+
+.icon-guangjie-moren:before {
+  content: "\e6f2";
+}
+
+.icon-a-03_chonglang:before {
+  content: "\e6f3";
+}
+
+.icon-a-50mipao:before {
+  content: "\e8b7";
+}
+
+.icon-yangwoqizuo:before {
+  content: "\e637";
+}
+
+.icon-icon_fuwocheng:before {
+  content: "\e6f4";
+}
+
+.icon-icon_bobitiao:before {
+  content: "\e6f5";
+}
+
+.icon-wenyiyanchu:before {
+  content: "\e6f6";
+}
+
+.icon-Union:before {
+  content: "\e6f7";
+}
+
+.icon-diaoyu:before {
+  content: "\e601";
+}
+
+.icon-ic_keep_hiit:before {
+  content: "\e7e7";
+}
+
+.icon-mingxiang:before {
+  content: "\e618";
+}
+
+.icon-taiji:before {
+  content: "\e603";
+}
+
+.icon-a-291:before {
+  content: "\eb16";
+}
+
+.icon-daiwarichang:before {
+  content: "\e60c";
+}
+
+.icon-palouti:before {
+  content: "\e604";
+}
+
+.icon-dantuiyingla:before {
+  content: "\e607";
+}
+
+.icon-yalingshangxiewotui:before {
+  content: "\e608";
 }
 
 .icon-malatang:before {

@@ -2,17 +2,26 @@
 /**
  * ModalAddFood.vue
  * 专注食物录入 (单一职责)
- * - V7.8 Update:
- * 1. [Fix] 彻底修复补水记录出现在历史列表的问题 (检查 logType)
- * 2. [Filter] 增强关键词过滤，屏蔽各类基础水
+ *
+ * Refactor for Pure Mode Experience:
+ * 1. [Quick Add] 纯净模式下支持点击按钮直接录入，无需弹窗。
+ * 2. [Visual Feedback] 添加了按钮点击后的微交互（Pop动画 + 状态变更）。
+ * 3. [Logic Separation] 清晰区分“精准录入”与“快速录入”。
+ * * Update 2026-01-15 (PM & Dev Review):
+ * - Fixed: Category filtering now supports 'Tags' lookup.
+ * (Strict Mode: Relies on data tags, no regex guessing).
+ * - UX: Default tab set to 'RECENT' for quicker access.
+ * - UX: Enabled 'swipeable' tabs for easier mobile navigation.
+ * - Fix: Forced list refresh on open to ensure sync.
+ * - Feat: Replaced mock AI search with OpenFoodFacts API.
  */
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useGameStore } from '@/stores/counter';
 import { useSystemStore } from '@/stores/useSystemStore';
+import { useHeroStore } from '@/stores/useHeroStore'; // Added missing import
 import { useCooking } from '@/composables/useCooking';
 import { AiService } from '@/utils/aiService';
 import { getFoodDisplayName } from '@/utils/foodNameService';
-// [Import] 导入图标匹配逻辑、标签推断，移除 getIconColorClass
 import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper';
 import { TAG_DEFS } from '@/constants/gameData';
 import { showToast, showNotify, showConfirmDialog, List as VanList } from 'vant';
@@ -21,6 +30,7 @@ import type { UploaderFileListItem } from 'vant';
 
 const store = useGameStore();
 const systemStore = useSystemStore();
+const heroStore = useHeroStore(); // Initialize heroStore
 
 const isPure = computed(() => systemStore.isPureMode);
 
@@ -37,7 +47,10 @@ const { isBuilding, basket, resetBasket, removeFromBasket, commitBasket } = useC
 const query = ref('');
 const loading = ref(false);
 const loadingText = ref('AI 思考中...');
-const activeCategory = ref('ALL');
+
+// [Modified] 默认选中“最近”，减少用户操作路径
+const activeCategory = ref('RECENT');
+
 const aiResult = ref<FoodItem | null>(null);
 const aiSuggestions = ref<FoodItem[]>([]);
 
@@ -48,7 +61,11 @@ const currentPage = ref(1);
 const pageSize = 20;
 const displayedList = ref<FoodItem[]>([]);
 
-// [Fix: Search Clear] 监听搜索内容变化
+// --- 快速添加反馈状态管理 (New) ---
+// 使用 Set 存储最近点击过快速添加的 item ID (或名称)，用于展示 "Success" 状态
+const recentAddedSet = ref<Set<string>>(new Set());
+
+// 监听搜索内容变化
 watch(query, (newVal) => {
   if (newVal && newVal.trim().length > 0) {
     if (activeCategory.value !== 'ALL') {
@@ -66,7 +83,6 @@ const clearSearchState = () => {
   loading.value = false;
 };
 
-// [UI Action] 手动清空搜索
 const onClearSearch = () => {
   query.value = '';
   clearSearchState();
@@ -78,50 +94,37 @@ const openManualAdd = () => {
   store.setModal('manualAdd', true);
 };
 
-// ==========================================
-// [Core Logic] Symbol 图标显示逻辑
-// ==========================================
+// 图标显示逻辑
 const getIconDisplay = (item: FoodItem | null) => {
   if (!item) return { isSymbol: false, content: '' };
-
   let iconRaw = item.icon || '';
-
-  // 1. 脏数据清洗: 移除可能存在的 HTML 标签
   if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
     iconRaw = iconRaw.replace(/<[^>]*>?/gm, '');
   }
-
-  // 2. 如果数据本身包含 icon- (例如 icon-apple)，提取为 ID
   if (iconRaw.includes('icon-')) {
     const match = iconRaw.match(/icon-[a-zA-Z0-9-_]+/);
     if (match) {
       const extractedId = match[0];
-      // [FIX] 查表验证：确保图标真的存在
       if (isValidIcon(extractedId)) {
         return { isSymbol: true, content: extractedId };
       }
     }
   }
-
-  // 3. 运行时热修复 (Hot-fix):
-  const effectiveTags = (item.tags && item.tags.length > 0)
-    ? item.tags
-    : inferTags(item.name || '');
-
+  const effectiveTags = (item.tags && item.tags.length > 0) ? item.tags : inferTags(item.name || '');
   const assigned = assignIcon(item.name || '', effectiveTags);
-
   if (assigned) {
     return { isSymbol: true, content: assigned };
   }
-
   return { isSymbol: false, content: iconRaw };
 };
 
 const resetLocalState = () => {
   query.value = '';
   clearSearchState();
-  activeCategory.value = 'ALL';
+  // [Modified] 重置时也回到 Recent，保持体验一致
+  activeCategory.value = 'RECENT';
   resetBasket();
+  recentAddedSet.value.clear();
 };
 
 // 历史记录计算
@@ -134,8 +137,6 @@ const historyList = computed(() => {
   const uniqueMap = new Map<string, FoodLog>();
 
   allLogs.forEach(log => {
-    // [CRITICAL FIX] 同时检查 mealType 和 logType
-    // 之前只检查 mealType，导致新的补水记录(只有logType='HYDRATION')没被过滤
     if (
       log.mealType === 'HYDRATION' ||
       (log as any).logType === 'HYDRATION' ||
@@ -143,7 +144,6 @@ const historyList = computed(() => {
       (log as any).logType === 'EXERCISE'
     ) return;
 
-    // [Fix] 增加针对系统自动生成名称的过滤 (解决“净化之泉”出现在历史列表的问题)
     const name = (log.name || '').trim();
     if (name === '净化之泉' || name === '补水') return;
 
@@ -155,7 +155,7 @@ const historyList = computed(() => {
   return Array.from(uniqueMap.values());
 });
 
-// 完整过滤列表 (数据源)
+// 完整过滤列表
 const fullFilteredList = computed(() => {
   const rawList = (store.foodDb && Array.isArray(store.foodDb)) ? store.foodDb : [];
   let result: FoodItem[] = [];
@@ -171,37 +171,36 @@ const fullFilteredList = computed(() => {
       .filter((i) => i.usageCount && i.usageCount > 0)
       .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
   } else if (activeCategory.value !== 'ALL') {
-    result = rawList.filter((i) => i.category === activeCategory.value);
+    // [Refactor] 既然 JSON 数据已经包含了准确的 tags (如 MEAT)，我们直接信任数据
+    // 移除之前的正则猜测逻辑，严格按照 Category 或 Tags 匹配
+    const targetKey = activeCategory.value;
+    result = rawList.filter((i) => {
+      // 1. 匹配 Category 字段
+      if (i.category === targetKey) return true;
+
+      // 2. 匹配 Tags 数组 (核心逻辑)
+      // 只要 tags 数组中包含当前 Tab 的 Key (例如 "MEAT")，即视为命中
+      if (i.tags && Array.isArray(i.tags) && i.tags.includes(targetKey)) return true;
+
+      return false;
+    });
   } else {
     result = rawList;
   }
 
-  // [PM Request] 强力过滤：隐藏所有基础水类目
-  // 避免与快捷补水功能重复
   result = result.filter(item => {
     const n = (item.name || '').toLowerCase();
     const t = (item.tags || []).join('');
-
-    // 黑名单关键词
     if (
-      n === 'water' ||
-      n === '水' ||
-      n === '纯净水' ||
-      n === '矿泉水' ||
-      n === '白开水' ||
-      n === '温开水' ||
-      n === '凉白开' ||
-      n === '净化之泉' || // [Fix] 过滤 RPG 模式下的水
-      n === '补水'       // [Fix] 过滤 纯净 模式下的水
+      n === 'water' || n === '水' || n === '纯净水' || n === '矿泉水' ||
+      n === '白开水' || n === '温开水' || n === '凉白开' ||
+      n === '净化之泉' || n === '补水'
     ) return false;
-
-    // 如果名字包含水，且热量为0，且没有味道标签，大概率是纯水
     if (n.includes('水') && (!item.calories || item.calories <= 1)) {
       if (!t.includes('甜') && !t.includes('味') && !n.includes('果') && !n.includes('茶') && !n.includes('咖')) {
         return false;
       }
     }
-
     return true;
   });
 
@@ -230,41 +229,47 @@ const onLoad = async () => {
       listLoading.value = false;
       return;
     }
-
     const newItems = fullFilteredList.value.slice(start, end);
-
     if (newItems.length > 0) {
       displayedList.value.push(...newItems);
       currentPage.value++;
       await nextTick();
     }
-
     if (displayedList.value.length >= fullFilteredList.value.length) {
       listFinished.value = true;
     }
-
     listLoading.value = false;
   }, 50);
 };
 
-watch(fullFilteredList, () => {
+// [Fix: Screen Flash] 优化列表刷新策略
+const resetList = () => {
   currentPage.value = 1;
   listFinished.value = false;
   listLoading.value = true;
   displayedList.value = [];
   onLoad();
+};
+
+watch([activeCategory, query], () => {
+  resetList();
 }, { immediate: true });
+
+// 特殊处理: 初始数据加载 (当 DB 从空变为有数据时刷新)
+watch(() => store.foodDb?.length, (newLen, oldLen) => {
+  if (newLen && (!oldLen || oldLen === 0)) {
+    resetList();
+  }
+});
 
 const getDisplayName = (item: FoodItem) => {
   return getFoodDisplayName(item, !isPure.value, store.user.race);
 };
 
-// [Fix] 标签显示净化 - 兼容旧数据字段
 const getDisplayTags = (item: FoodItem) => {
   const tags = new Set(item.tags || []);
   const name = item.name || '';
 
-  // 优先读 c/f/p，如果为 0 或 undefined，尝试读 carbs/fat/protein
   const c = Number(item.c ?? item.carbs ?? 0);
   const f = Number(item.f ?? item.fat ?? 0);
   const p = Number(item.p ?? item.protein ?? 0);
@@ -298,18 +303,68 @@ const getDisplayTags = (item: FoodItem) => {
   return Array.from(tags).filter(t => !HIDDEN_TAGS.includes(t));
 };
 
+// [Update] 重写搜索功能，直接对接 OpenFoodFacts 云端数据
 const onTextSearch = async () => {
   if (!query.value.trim()) return;
   loading.value = true;
-  loadingText.value = '大贤者正在查阅古籍...';
+  loadingText.value = '搜索全球食品库...';
   aiResult.value = null;
   aiSuggestions.value = [];
+
   try {
-    const res = await AiService.estimateText(query.value, store.user.race);
-    if (Array.isArray(res) && res.length > 0) aiSuggestions.value = res;
-    else if (res && !Array.isArray(res)) aiResult.value = res as FoodItem;
-  } catch {
-    showToast({ type: 'fail', message: '服务正忙' });
+    // 使用 OpenFoodFacts API (强制中国区域优先)
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query.value)}&search_simple=1&action=process&json=1&cc=cn&page_size=20&fields=product_name,nutriments,image_front_thumb_url,code`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('API Error');
+
+    const data = await response.json();
+
+    if (data.products && data.products.length > 0) {
+      const results = data.products.map((p: any) => {
+        const nutriments = p.nutriments || {};
+        const cal = Math.round(nutriments['energy-kcal_100g'] || 0);
+        const pro = Math.round(nutriments['proteins_100g'] || 0);
+        const carb = Math.round(nutriments['carbohydrates_100g'] || 0);
+        const fat = Math.round(nutriments['fat_100g'] || 0);
+
+        // 自动打标签
+        const tags: string[] = [];
+        if (cal > 300) tags.push('高卡');
+        if (cal < 100 && cal > 0) tags.push('低卡');
+        if (pro > 10) tags.push('高蛋白');
+        if (carb > 40) tags.push('高碳');
+        if (fat > 20) tags.push('高油');
+
+        return {
+          id: p.code || `off-${Date.now()}-${Math.random()}`,
+          name: p.product_name || query.value,
+          icon: p.image_front_thumb_url || 'icon-hanbaoshutiao', // 默认图标
+          calories: cal,
+          p: pro,
+          c: carb,
+          f: fat,
+          grams: 100,
+          unit: '100g',
+          category: 'CUSTOM',
+          tags: tags,
+          tips: 'OpenFoodFacts 云端数据',
+          source: 'remote'
+        } as FoodItem;
+      }).filter((i: FoodItem) => (i.calories || 0) > 0);
+
+      if (results.length > 0) {
+        aiResult.value = results[0];
+        aiSuggestions.value = results.slice(1);
+      } else {
+        showToast('未找到有效热量数据');
+      }
+    } else {
+      showToast('未找到相关食物');
+    }
+  } catch (e) {
+    console.error(e);
+    showToast({ type: 'fail', message: '网络请求失败' });
   } finally {
     loading.value = false;
   }
@@ -332,6 +387,11 @@ const onImageUpload = async (items: UploaderFileListItem | UploaderFileListItem[
   }
 };
 
+/**
+ * [Modified] 列表项点击逻辑
+ * 纯净模式下：点击行 -> 打开详情 (查看/修改份量)
+ * 纯净模式下：点击按钮 -> 快速添加 (使用 onQuickAdd)
+ */
 const selectItem = (item: FoodItem) => {
   if (store.user.fasting?.isFasting) {
     const isSafeDrink = (item.category === 'DRINK' && (!item.calories || item.calories < 5));
@@ -355,6 +415,7 @@ const selectItem = (item: FoodItem) => {
   proceedSelection(item);
 };
 
+// 进入常规的选择流程（打开 ModalQuantity）
 const proceedSelection = (item: FoodItem) => {
   if (isBuilding.value) {
     if (item.isComposite || item.isPreset) {
@@ -383,11 +444,48 @@ const proceedSelection = (item: FoodItem) => {
   store.setModal('quantity', true);
 };
 
+// [New] 纯净模式专属：快速添加逻辑
+const onQuickAdd = async (item: FoodItem) => {
+  if (store.user.fasting?.isFasting) {
+    const isSafeDrink = (item.category === 'DRINK' && (!item.calories || item.calories < 5));
+    if (!isSafeDrink) {
+      selectItem(item);
+      return;
+    }
+  }
+
+  const key = item.id || item.name;
+  recentAddedSet.value.add(key);
+
+  const finalItem = {
+    ...item,
+    name: getDisplayName(item),
+    originalName: item.originalName || item.name,
+    grams: item.grams || 100
+  };
+
+  await store.battleCommit(finalItem);
+
+  showToast({
+    message: `已添加 ${finalItem.name}`,
+    icon: 'success',
+    duration: 1500,
+    className: 'pure-toast'
+  });
+
+  setTimeout(() => {
+    recentAddedSet.value.delete(key);
+  }, 2000);
+};
+
 watch(show, (val) => {
   if (val) {
     query.value = '';
-    activeCategory.value = 'ALL';
+    // [Modified] 每次打开弹窗，优先显示 Recent
+    activeCategory.value = 'RECENT';
     if (!store.foodDb || store.foodDb.length === 0) store.loadState();
+    // [FIX] 强制刷新列表，确保刚才添加的数据（ManualAdd）能立即显示
+    resetList();
   } else {
     if (!store.modals.quantity && !store.temp.pendingItem) {
       resetLocalState();
@@ -417,16 +515,15 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
   >
     <div class="flex flex-col h-full bg-slate-50 dark:bg-[#0b1120] relative text-slate-700 dark:text-slate-200">
 
-      <!-- Top Header: 清除紫色边框和背景 -->
+      <!-- Top Header -->
       <div class="px-4 py-3 bg-white dark:bg-slate-800 flex justify-between sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 items-center shadow-sm">
-        <div v-if="isPure" @click="show = false" class="text-slate-500 flex items-center cursor-pointer hover:text-slate-800">
+        <div v-if="isPure" @click="show = false" class="text-slate-500 flex items-center cursor-pointer hover:text-slate-800 transition-colors">
           <van-icon name="arrow-left" class="mr-1" /> 返回
         </div>
         <van-icon v-else name="arrow-down" @click="show = false" class="text-slate-400 text-lg active:scale-90 transition" />
 
         <div class="font-bold dark:text-white text-lg flex items-center gap-2">
           <span>{{ isPure ? '饮食记录' : '添加补给' }}</span>
-          <!-- 烹饪模式徽章：从紫色改为橙色 (Fire/Energy) -->
           <span v-if="isBuilding" class="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full border border-orange-200">
             <i class="fas fa-fire-alt mr-1"></i>烹饪模式
           </span>
@@ -438,33 +535,41 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
         <div v-else class="w-8"></div>
       </div>
 
-      <!-- 战术情报 (Pure模式不显示): 颜色微调为 Sky/Slate -->
+      <!-- [修复] 战术顾问 (卡片留白优化) -->
+      <!-- 优化：极简 HUD 风格，高度紧凑，去除了所有多余 padding -->
       <div v-if="suggestion && !isPure"
-           class="mx-4 mt-3 px-4 py-3 rounded-xl flex items-center gap-3 border shadow-sm bg-white dark:bg-slate-800 border-sky-100 dark:border-slate-700 relative overflow-hidden">
+           class="mx-3 mt-2 p-2 rounded-lg flex items-center gap-2 bg-sky-50/30 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-800/30 relative overflow-hidden">
 
-        <div class="text-2xl z-10 flex items-center justify-center w-8 text-sky-500">
-          <i v-if="suggestion.icon.includes('icon')" :class="[suggestion.icon, 'text-4xl']"></i>
-          <span v-else class="text-4xl">{{ suggestion.icon }}</span>
+        <!-- 左侧高亮条 -->
+        <div class="absolute left-0 top-1 bottom-1 w-0.5 bg-sky-400 rounded-full"></div>
+
+        <!-- 图标 (固定小尺寸) -->
+        <div class="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-white dark:bg-slate-800 rounded-md shadow-sm border border-sky-50 dark:border-slate-700 ml-1">
+          <span class="text-lg leading-none" v-if="!suggestion.icon.includes('icon')">{{ suggestion.icon }}</span>
+          <i v-else :class="[suggestion.icon, 'text-lg text-sky-500']"></i>
         </div>
 
-        <div class="flex-1 z-10 ml-2">
-          <div class="text-[10px] text-sky-500 font-bold uppercase tracking-wider flex items-center mb-0.5">
-            战术顾问 <span class="ml-1 text-[8px] px-1 bg-sky-100 rounded text-sky-600">INTEL</span>
+        <!-- 文本内容 -->
+        <div class="flex-1 min-w-0 flex flex-col">
+          <div class="flex items-center gap-1.5 opacity-70">
+            <span class="text-[9px] font-black text-sky-600 dark:text-sky-400 uppercase tracking-widest leading-none">TACTICAL</span>
+            <div class="h-px w-3 bg-sky-200 dark:bg-sky-800"></div>
           </div>
-          <div class="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">{{ suggestion.text }}</div>
+          <div class="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight mt-0.5 line-clamp-1">
+            {{ suggestion.text }}
+          </div>
         </div>
       </div>
 
-      <!-- Search & AI Tools: 输入框改为 Emerald 聚焦色 -->
+      <!-- Search & AI Tools -->
       <div class="p-4 pb-0 flex gap-2 items-center bg-white dark:bg-slate-800 pt-3">
         <div class="flex-1 bg-slate-100 dark:bg-slate-700/50 rounded-full px-4 py-2 flex items-center border border-transparent focus-within:border-emerald-500 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all">
           <van-icon name="search" class="text-slate-400 mr-2" />
           <input v-model="query" :placeholder="isPure ? '搜索食物' : '搜索 / 描述食物 (AI)'" class="bg-transparent w-full text-sm outline-none dark:text-white placeholder-slate-400" @keyup.enter="onTextSearch" />
           <button v-if="query" @click="onClearSearch" class="mr-2 text-slate-400 hover:text-slate-600"><van-icon name="clear" /></button>
 
-          <!-- AI按钮：Emerald -->
           <button v-if="query" @click="onTextSearch" class="text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-full font-bold whitespace-nowrap active:scale-95 transition flex items-center">
-            <i class="fas fa-magic mr-1"></i>{{ isPure ? 'AI识别' : '鉴定' }}
+            <i class="fas fa-magic mr-1"></i>{{ isPure ? '云端搜索' : '鉴定' }}
           </button>
         </div>
 
@@ -479,16 +584,24 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
         </van-uploader>
       </div>
 
-      <!-- Categories Tabs: 选中色改为 Emerald -->
+      <!-- Categories Tabs -->
       <div class="px-2 mt-2 bg-white dark:bg-slate-800 pb-2 border-b border-slate-100 dark:border-slate-700">
-        <van-tabs v-model:active="activeCategory" background="transparent" color="#10b981" title-active-color="#10b981" shrink line-width="20px">
+        <!--
+          [Update]
+          1. swipeable: 开启手势滑动，解决“滑动繁琐”痛点。
+          2. Tab Order: 将 RECENT 放在 All 之后，配合默认选中 RECENT，体验更顺畅。
+        -->
+        <van-tabs v-model:active="activeCategory" background="transparent" color="#10b981" title-active-color="#10b981" shrink line-width="20px" swipeable>
           <van-tab title="全部" name="ALL"></van-tab>
           <van-tab title="🕒 最近" name="RECENT"></van-tab>
           <van-tab title="❤️ 常吃" name="FAV"></van-tab>
           <van-tab title="🍞 主食" name="STAPLE"></van-tab>
           <van-tab title="🥩 肉类" name="MEAT"></van-tab>
-          <van-tab title="🥦 素食" name="VEG"></van-tab>
+          <van-tab title="🥚 蛋类" name="EGG"></van-tab>
+          <van-tab title="🥦 素食" name="VEGETABLE"></van-tab>
+          <van-tab title="🍎 水果" name="FRUIT"></van-tab>
           <van-tab title="🥤 饮品" name="DRINK"></van-tab>
+          <van-tab title="🍪 零食" name="SNACK"></van-tab>
         </van-tabs>
       </div>
 
@@ -501,7 +614,7 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
           </van-loading>
         </div>
 
-        <!-- AI Result: 去除 Gradient，使用扁平边框风格 -->
+        <!-- AI Result -->
         <div v-if="aiResult && !loading" class="bg-white dark:bg-slate-800 p-4 rounded-xl mb-4 border border-emerald-500 dark:border-emerald-700 shadow-md cursor-pointer active:scale-98 transition relative overflow-hidden group" @click="selectItem(aiResult)">
           <div class="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">AI 结果</div>
           <div class="flex justify-between items-start">
@@ -530,7 +643,6 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
           <div v-for="sugg in aiSuggestions" :key="sugg.name" @click="selectItem(sugg)"
                class="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-xl mb-2 flex justify-between items-center shadow-sm hover:border-emerald-200 transition-colors">
             <div class="flex items-center gap-3">
-              <!-- AI 建议列表图标 -->
               <span class="flex items-center justify-center w-10 text-slate-600">
                 <template v-if="getIconDisplay(sugg).isSymbol">
                    <svg class="icon text-3xl" aria-hidden="true">
@@ -571,7 +683,7 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
             <div v-for="item in displayedList" :key="item.id" @click="selectItem(item)"
                  class="flex justify-between p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl active:bg-slate-50 dark:active:bg-slate-700 transition cursor-pointer shadow-sm mb-2 group">
               <div class="flex items-center flex-1 mr-2 overflow-hidden">
-                <!-- [MODIFIED] 主列表图标：Symbol 模式 -->
+                <!-- Icon -->
                 <div class="mr-3 w-16 h-16 flex justify-center items-center shrink-0 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-600">
                   <template v-if="getIconDisplay(item).isSymbol">
                     <svg class="icon text-4xl" aria-hidden="true">
@@ -600,13 +712,32 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
                   </div>
                 </div>
               </div>
+
               <div class="flex items-center shrink-0">
-                <!-- 列表按钮：更细的边框，更轻的视觉重量 -->
-                <van-button size="small" :color="isBuilding ? '#10b981' : (item.isComposite && !item.isPreset ? '#f59e0b' : '#10b981')" plain class="h-8 px-3 text-xs rounded-lg font-bold border border-opacity-50">
-                  <template v-if="isBuilding"><i class="fas fa-plus mr-1"></i>加入</template>
-                  <template v-else-if="item.isComposite && !item.isPreset"><i class="fas fa-utensils mr-1"></i>制作</template>
-                  <template v-else><i class="fas fa-check mr-1"></i>记录</template>
-                </van-button>
+                <template v-if="isPure && !isBuilding">
+                  <button
+                    @click.stop="onQuickAdd(item)"
+                    class="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border"
+                    :class="[
+                        recentAddedSet.has(item.id || item.name)
+                          ? 'bg-emerald-500 text-white border-emerald-500 scale-110'
+                          : 'bg-white dark:bg-slate-800 text-emerald-500 border-slate-200 dark:border-slate-600 hover:bg-emerald-50'
+                      ]"
+                  >
+                    <transition name="scale-fade" mode="out-in">
+                      <i v-if="recentAddedSet.has(item.id || item.name)" class="fas fa-check text-sm" key="check"></i>
+                      <i v-else class="fas fa-plus text-sm" key="plus"></i>
+                    </transition>
+                  </button>
+                </template>
+
+                <template v-else>
+                  <van-button size="small" :color="isBuilding ? '#10b981' : (item.isComposite && !item.isPreset ? '#f59e0b' : '#10b981')" plain class="h-8 px-3 text-xs rounded-lg font-bold border border-opacity-50">
+                    <template v-if="isBuilding"><i class="fas fa-plus mr-1"></i>加入</template>
+                    <template v-else-if="item.isComposite && !item.isPreset"><i class="fas fa-utensils mr-1"></i>制作</template>
+                    <template v-else><i class="fas fa-check mr-1"></i>记录</template>
+                  </van-button>
+                </template>
               </div>
             </div>
           </VanList>
@@ -627,7 +758,6 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
           </div>
           <div class="flex gap-3 overflow-x-auto pb-4 mb-2 no-scrollbar px-1" v-if="basket.length > 0">
             <div v-for="(item, idx) in basket" :key="idx" class="relative shrink-0 w-16 flex flex-col items-center group">
-              <!-- [MODIFIED] 购物篮 -->
               <div class="w-14 h-14 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm group-hover:border-rose-200 transition-colors">
                 <template v-if="getIconDisplay(item).isSymbol">
                   <svg class="icon text-4xl" aria-hidden="true">
@@ -638,7 +768,6 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
                   <span class="text-4xl">{{ getIconDisplay(item).content }}</span>
                 </template>
               </div>
-
               <div class="text-[9px] truncate w-full text-center mt-1 dark:text-slate-300 font-medium">{{ item.name }}</div>
               <div class="absolute -top-1 -right-1 bg-rose-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] cursor-pointer shadow-md transform scale-0 group-hover:scale-100 transition-transform" @click.stop="removeFromBasket(idx)"><i class="fas fa-times"></i></div>
             </div>
@@ -681,7 +810,6 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
 .tag-TEMP_COLD { @apply bg-cyan-50 text-cyan-600 border-cyan-100; }
 .tag-TEMP_HOT { @apply bg-orange-50 text-orange-600 border-orange-100; }
 
-
 /* Symbol Icon Style */
 .icon {
   width: 1em;
@@ -689,5 +817,23 @@ const popupPosition = computed(() => isPure.value ? 'right' : 'bottom');
   vertical-align: -0.15em;
   fill: currentColor;
   overflow: hidden;
+}
+
+/* Micro Interaction: Quick Add Button Animation
+  Scale-Fade transition for icon switch
+*/
+.scale-fade-enter-active,
+.scale-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.scale-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.scale-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.5);
 }
 </style>

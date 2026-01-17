@@ -3,11 +3,9 @@ import { computed, ref } from 'vue'
 import { useGameStore } from '@/stores/counter'
 import { useSystemStore } from '@/stores/useSystemStore'
 import { showToast } from 'vant'
-// [Import] 引入验证逻辑，与 ModalLogDetail 保持一致
 import { assignIcon, inferTags, isValidIcon } from '@/utils/foodDataMapper'
-// 注意：保留引入以免构建报错，实际已使用内置CSS引擎替代
-// import BodyTrendRPG from '@/components/trend/BodyTrendRPG.vue';
-// import BodyTrendPure from '@/components/trend/BodyTrendPure.vue';
+// [Fix] 引入增强的日期工具
+import { getLocalDateStr, parseLocalDate } from '@/utils/dateUtils'
 
 const store = useGameStore()
 const systemStore = useSystemStore()
@@ -27,17 +25,19 @@ const activeTab = computed({
   set: (val) => (systemStore.analysisActiveTab = val),
 })
 
+// [Fix] 修复日期解析逻辑，避免 UTC 偏移导致的日期错误
 const currentDateObj = computed(() => {
-  const dateStr = store.analysisRefDate || new Date().toISOString().split('T')[0] || ''
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y || 0, (m || 0) - 1, d || 0)
+  // 如果 store 中没有选定日期，默认使用本地今天的日期字符串
+  const dateStr = store.analysisRefDate || getLocalDateStr()
+  return parseLocalDate(dateStr)
 })
 
 const weekRangeDateText = computed(() => {
   const stats = weeklyStats.value
   if (!stats || !stats.length || !stats[0] || !stats[6]) return '加载中...'
-  const start = new Date(stats[0].date)
-  const end = new Date(stats[6].date)
+  // 使用 parseLocalDate 确保解析为本地时间，不发生时区跳变
+  const start = parseLocalDate(stats[0].date)
+  const end = parseLocalDate(stats[6].date)
   return `${start.getFullYear()}.${start.getMonth() + 1}.${start.getDate()} - ${end.getMonth() + 1}.${end.getDate()}`
 })
 
@@ -76,47 +76,32 @@ const totalProgress = computed(() => {
 const getDayFlavorText = (status: string) => {
   if (isPure.value) {
     switch (status) {
-      case 'VICTORY':
-        return '热量达标'
-      case 'DEFEAT':
-        return '热量超标'
-      case 'ONGOING':
-        return '记录中'
-      case 'SKIPPED':
-        return '无记录'
-      default:
-        return ''
+      case 'VICTORY': return '热量达标'
+      case 'DEFEAT': return '热量超标'
+      case 'ONGOING': return '记录中'
+      case 'SKIPPED': return '无记录'
+      default: return ''
     }
   }
   switch (status) {
-    case 'VICTORY':
-      return '任务完成'
-    case 'DEFEAT':
-      return '防线告急'
-    case 'ONGOING':
-      return '行动中'
-    case 'SKIPPED':
-      return '休整'
-    default:
-      return '未探测区域'
+    case 'VICTORY': return '任务完成'
+    case 'DEFEAT': return '防线告急'
+    case 'ONGOING': return '行动中'
+    case 'SKIPPED': return '休整'
+    default: return '未探测区域'
   }
 }
 
 const shiftWeek = (offset: number) => {
   const d = new Date(currentDateObj.value)
   d.setDate(d.getDate() + offset * 7)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  store.analysisRefDate = `${y}-${m}-${day}`
+  // [Fix] 使用工具函数生成日期字符串
+  store.analysisRefDate = getLocalDateStr(d)
 }
 
 const resetToCurrentWeek = () => {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  store.analysisRefDate = `${y}-${m}-${day}`
+  // [Fix] 使用工具函数生成日期字符串，确保基于本地时区
+  store.analysisRefDate = getLocalDateStr()
 }
 
 const openDetail = (date: string) => {
@@ -156,57 +141,35 @@ const openWeightUpdate = () => {
   showWeightUpdate.value = true
 }
 
-// ==========================================
-// [Core Logic] Symbol 图标显示逻辑 (修复版)
-// ==========================================
+// ... (getIconDisplay 逻辑保持不变，省略以节省空间，但在最终文件中应包含) ...
 const getIconDisplay = (item: unknown) => {
   const typedItem = item as { icon?: string; name?: string; tags?: string[] }
   if (!item) return { isSymbol: false, isImage: false, content: '' }
-
   let iconRaw = typedItem.icon || ''
-
-  // 1. 脏数据清洗
   if (typeof iconRaw === 'string' && iconRaw.includes('<')) {
     iconRaw = iconRaw.replace(/<[^>]*>?/gm, '')
   }
-
-  // 2. 图片检查
   if (iconRaw.includes('/') || iconRaw.startsWith('http')) {
     return { isSymbol: false, isImage: true, content: iconRaw }
   }
-
-  // 3. Symbol ID 检查与验证
   if (iconRaw.includes('icon-')) {
     const match = iconRaw.match(/icon-[a-zA-Z0-9-_]+/)
     if (match) {
       const extractedId = match[0]
-      // 只有当它是有效的 Symbol 时才作为 Symbol 返回
       if (isValidIcon(extractedId)) {
         return { isSymbol: true, isImage: false, content: extractedId }
       }
-      // 如果无效，继续向下执行 (不立即返回)
     }
   }
-
-  // 4. [关键修复] Emoji/文字优先策略
-  // 如果 iconRaw 有值，且不包含 'icon-'（说明不是一个损坏的 Symbol ID）
-  // 那么它大概率是 Emoji (💧, 🏃) 或者 FontAwesome class
-  // 我们直接显示它，防止被 assignIcon 覆盖
   if (iconRaw && !iconRaw.includes('icon-')) {
     return { isSymbol: false, isImage: false, content: iconRaw }
   }
-
-  // 5. 智能推断 (仅当 icon 为空或 icon 无效时)
   const effectiveTags =
     typedItem.tags && typedItem.tags.length > 0 ? typedItem.tags : inferTags(typedItem.name || '')
-
   const assigned = assignIcon(typedItem.name || '', effectiveTags)
-
   if (assigned) {
     return { isSymbol: true, isImage: false, content: assigned }
   }
-
-  // 6. 最终兜底
   return { isSymbol: false, isImage: false, content: iconRaw }
 }
 
@@ -217,7 +180,6 @@ const chartDisplayData = computed(() => {
   let history = store.user.weightHistory || []
   if (!Array.isArray(history)) history = []
 
-  // Define a local type for processing to handle timestamp conversion and temporary flag
   type ProcessedWeightRecord = {
     weight: number
     timestamp: number
@@ -228,28 +190,34 @@ const chartDisplayData = computed(() => {
     isTemp?: boolean
   }
 
+  // [Fix] 增强的数据清洗逻辑
   let cleanHistory: ProcessedWeightRecord[] = history
-    .map(
-      (h) =>
-        ({
-          ...h,
-          weight: Number(h.weight),
-          timestamp: h.timestamp ? new Date(h.timestamp).getTime() : 0,
-          date: h.date || '',
-        }) as ProcessedWeightRecord,
-    )
+    .map((h) => {
+      // 优先使用 timestamp，如果没有，尝试从 date 字符串解析
+      let ts = h.timestamp ? new Date(h.timestamp).getTime() : 0
+      if (ts === 0 && h.date) {
+        ts = parseLocalDate(h.date).getTime()
+      }
+      return {
+        ...h,
+        weight: Number(h.weight),
+        timestamp: ts,
+        date: h.date || '', // 这里可能需要重新格式化，但暂且相信存储时的格式
+      } as ProcessedWeightRecord
+    })
     .filter((h) => !isNaN(h.weight) && h.weight > 0)
 
   cleanHistory.sort((a, b) => a.timestamp - b.timestamp)
 
   if (cleanHistory.length === 0 && store.user.weight > 0) {
     if (store.user.weight > 0) {
-      const now = new Date()
+      // [Fix] 使用 getLocalDateStr
+      const nowStr = getLocalDateStr()
       cleanHistory = [
         {
           weight: Number(store.user.weight),
-          timestamp: now.getTime(),
-          date: now.toISOString().split('T')[0] ?? '',
+          timestamp: Date.now(),
+          date: nowStr,
           isTemp: true,
         },
       ]
@@ -261,6 +229,7 @@ const chartDisplayData = computed(() => {
   const maxSlots = 7
   const recentItems = cleanHistory.slice(-maxSlots)
   const emptyCount = maxSlots - recentItems.length
+
   type WeightSlot = {
     weight: number
     dateStr: string
@@ -289,16 +258,12 @@ const chartDisplayData = computed(() => {
     })
   }
 
-  let min = 0,
-    max = 100,
-    range = 100,
-    lowerBound = 0
+  let min = 0, max = 100, range = 100, lowerBound = 0
   if (recentItems.length > 0) {
     const weights = recentItems.map((d) => d.weight)
     min = Math.min(...weights)
     max = Math.max(...weights)
     const diff = max - min
-
     const buffer = diff < 1 ? 2 : diff * 0.5
     lowerBound = Math.max(0, min - buffer)
     const upperBound = max + buffer
@@ -311,6 +276,12 @@ const chartDisplayData = computed(() => {
     const heightPct = ((item.weight - lowerBound) / range) * 100
 
     let dateStr = item.date || ''
+    // [Fix] 如果 date 为空，尝试从 timestamp 生成
+    if (!dateStr && item.timestamp) {
+      dateStr = getLocalDateStr(new Date(item.timestamp))
+    }
+
+    // 截取 MM-DD 格式
     if (dateStr.length > 5 && dateStr.includes('-')) {
       dateStr = dateStr.substring(5)
     }
@@ -350,17 +321,28 @@ const saveWeight = () => {
     const heightM = (store.user.height || 0) / 100
     const bmi = heightM > 0 ? (newWeight.value / (heightM * heightM)).toFixed(1) : 0
 
+    // [Fix] 确保存储的日期字符串是本地时间，时间戳是绝对时间
     const newEntry = {
       weight: Number(newWeight.value),
-      timestamp: now.toISOString(),
-      date: now.toISOString().split('T')[0] ?? '',
+      timestamp: now.getTime(), // 保存时间戳 number
+      date: getLocalDateStr(now), // 保存本地日期字符串
       bmi: Number(bmi),
     }
 
-    history.push(newEntry)
+    // 检查今天是否已经有记录，如果有，更新最后一条，否则 push
+    const todayStr = getLocalDateStr(now)
+    const existingIndex = history.findIndex(h => h.date === todayStr)
 
-    if (history.length > 7) {
-      history = history.slice(history.length - 7)
+    if (existingIndex !== -1) {
+      history[existingIndex] = { ...history[existingIndex], ...newEntry }
+    } else {
+      history.push(newEntry)
+    }
+
+    // 排序并截取
+    history.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    if (history.length > 30) { // 保留更多历史记录以便计算趋势，展示时再 slice
+      history = history.slice(history.length - 30)
     }
 
     store.user.weightHistory = history
@@ -414,7 +396,7 @@ const useTargetWeight = () => {
         "
       >
         <span v-if="!isPure"
-          ><i class="fas fa-terminal text-blue-600 dark:text-blue-400 mr-2"></i> 战术分析</span
+        ><i class="fas fa-terminal text-blue-600 dark:text-blue-400 mr-2"></i> 战术分析</span
         >
         <span v-else>数据报表</span>
         <button
@@ -524,7 +506,7 @@ const useTargetWeight = () => {
               <span
                 class="text-lg font-normal"
                 :class="isPure ? 'text-stone-400' : 'text-slate-400'"
-                >/ {{ dailyTarget }}</span
+              >/ {{ dailyTarget }}</span
               >
             </div>
             <div class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">
@@ -812,8 +794,8 @@ const useTargetWeight = () => {
                 </div>
                 <div class="text-[10px] text-slate-400 mt-1 italic flex justify-between">
                   <span>{{
-                    day.isFuture ? (isPure ? '未到' : '未解锁...') : getDayFlavorText(day.rpgStatus)
-                  }}</span>
+                      day.isFuture ? (isPure ? '未到' : '未解锁...') : getDayFlavorText(day.rpgStatus)
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -844,9 +826,9 @@ const useTargetWeight = () => {
             <div class="text-[10px] text-slate-600 dark:text-slate-400 leading-tight">
               <span v-if="!isPure">
                 这是你的体重变化曲线。<br />体重的改变将直接重塑你的<span
-                  class="font-bold text-slate-700 dark:text-slate-200"
-                  >基础属性 (STR/AGI/VIT)</span
-                >。
+                class="font-bold text-slate-700 dark:text-slate-200"
+              >基础属性 (STR/AGI/VIT)</span
+              >。
               </span>
               <span v-else> 定期记录体重,监控身体变化趋势。 </span>
             </div>
@@ -1005,7 +987,7 @@ const useTargetWeight = () => {
         <!-- 新体重输入 -->
         <div>
           <label class="text-xs text-slate-500 dark:text-slate-400 block mb-2 font-bold"
-            >新体重 (kg)</label
+          >新体重 (kg)</label
           >
           <input
             type="number"
@@ -1036,13 +1018,13 @@ const useTargetWeight = () => {
             <div class="flex justify-between">
               <span>健康范围:</span>
               <span class="font-bold"
-                >{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span
+              >{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span
               >
             </div>
             <div class="flex justify-between">
               <span>理想体重:</span>
               <span class="font-bold text-blue-600 dark:text-blue-400"
-                >{{ recommendedWeightRange.ideal }} kg</span
+              >{{ recommendedWeightRange.ideal }} kg</span
               >
             </div>
             <div class="text-[10px] text-slate-400 mt-2">*基于BMI 18.5-24的健康范围计算</div>
@@ -1070,7 +1052,7 @@ const useTargetWeight = () => {
             <div class="flex justify-between">
               <span>你的目标:</span>
               <span class="font-bold text-emerald-600 dark:text-emerald-400"
-                >{{ targetWeight }} kg</span
+              >{{ targetWeight }} kg</span
               >
             </div>
             <div v-if="targetDifference" class="flex justify-between">
@@ -1099,13 +1081,13 @@ const useTargetWeight = () => {
             <div class="flex justify-between">
               <span>健康范围:</span>
               <span class="font-bold"
-                >{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span
+              >{{ recommendedWeightRange.min }} - {{ recommendedWeightRange.max }} kg</span
               >
             </div>
             <div class="flex justify-between">
               <span>理想体重:</span>
               <span class="font-bold text-teal-600 dark:text-teal-400"
-                >{{ recommendedWeightRange.ideal }} kg</span
+              >{{ recommendedWeightRange.ideal }} kg</span
               >
             </div>
             <div class="text-[10px] text-slate-400 mt-2">*基于BMI 18.5-24的健康范围计算</div>

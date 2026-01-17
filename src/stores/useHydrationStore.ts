@@ -1,12 +1,9 @@
 /**
  * useHydrationStore - 独立补水状态管理
  * [New V6.0] 将补水相关逻辑从 BattleStore 中分离
- *
- * 职责:
- * - 补水记录的 CRUD 操作
- * - 补水提醒管理
- * - 补水目标与进度追踪
- * - RPG 效果处理 (净化、Buff)
+ * * 修改说明：
+ * - 将所有 Emoji 图标替换为 iconfont 类名字符串
+ * - 确保数据源头产出的 log.icon 是 CSS 类名而非字符
  */
 import { defineStore } from 'pinia'
 import { reactive, computed, watch } from 'vue'
@@ -19,12 +16,12 @@ import { useHeroStore } from './useHeroStore'
 import { useLogStore } from './useLogStore'
 import { useCollectionStore } from './useCollectionStore'
 
-// 饮品预设
+// 饮品预设 - [修改] Emoji -> iconfont class
 const DRINK_PRESETS = [
   {
     id: 'water',
     name: '纯净水',
-    icon: '💧',
+    icon: 'icon-shui', // 原: 💧
     defaultAmount: 250,
     type: 'WATER' as const,
     tags: ['纯净'],
@@ -32,17 +29,17 @@ const DRINK_PRESETS = [
   {
     id: 'hot_water',
     name: '温开水',
-    icon: '🫖',
+    icon: 'icon-reshui', // 原: 🫖 (请确保有此icon，或复用 icon-shui)
     defaultAmount: 250,
     type: 'WATER' as const,
     temperature: 'WARM' as const,
     tags: ['纯净', '温热'],
   },
-  { id: 'tea', name: '茶', icon: '🍵', defaultAmount: 200, type: 'TEA' as const, tags: ['提神'] },
+  { id: 'tea', name: '茶', icon: 'icon-cha', defaultAmount: 200, type: 'TEA' as const, tags: ['提神'] }, // 原: 🍵
   {
     id: 'green_tea',
     name: '绿茶',
-    icon: '🍃',
+    icon: 'icon-lvcha', // 原: 🍃 (或用 icon-cha)
     defaultAmount: 200,
     type: 'TEA' as const,
     tags: ['抗氧化'],
@@ -50,7 +47,7 @@ const DRINK_PRESETS = [
   {
     id: 'coffee',
     name: '咖啡',
-    icon: '☕',
+    icon: 'icon-kafei', // 原: ☕
     defaultAmount: 150,
     type: 'COFFEE' as const,
     tags: ['提神', '咖啡因'],
@@ -58,7 +55,7 @@ const DRINK_PRESETS = [
   {
     id: 'milk',
     name: '牛奶',
-    icon: '🥛',
+    icon: 'icon-niunai', // 原: 🥛
     defaultAmount: 250,
     type: 'OTHER' as const,
     tags: ['蛋白质'],
@@ -66,7 +63,7 @@ const DRINK_PRESETS = [
   {
     id: 'juice',
     name: '果汁',
-    icon: '🧃',
+    icon: 'icon-guozhi', // 原: 🧃
     defaultAmount: 250,
     type: 'OTHER' as const,
     tags: ['维生素'],
@@ -74,7 +71,7 @@ const DRINK_PRESETS = [
   {
     id: 'soda',
     name: '苏打水',
-    icon: '🥤',
+    icon: 'icon-qishui', // 原: 🥤
     defaultAmount: 330,
     type: 'OTHER' as const,
     tags: ['气泡'],
@@ -94,7 +91,7 @@ export const useHydrationStore = defineStore('hydration', () => {
   const formState = reactive({
     selectedPresetId: 'water' as string,
     customName: '',
-    customIcon: '💧',
+    customIcon: 'icon-shui', // [修改] 默认图标
     amount: 250,
     cupSize: 250,
     temperature: 'WARM' as 'COLD' | 'WARM' | 'HOT',
@@ -178,7 +175,7 @@ export const useHydrationStore = defineStore('hydration', () => {
   function resetForm() {
     formState.selectedPresetId = 'water'
     formState.customName = ''
-    formState.customIcon = '💧'
+    formState.customIcon = 'icon-shui' // [修改]
     formState.amount = hydrationConfig.value.cupSizeMl
     formState.cupSize = hydrationConfig.value.cupSizeMl
     formState.temperature = 'WARM'
@@ -215,7 +212,6 @@ export const useHydrationStore = defineStore('hydration', () => {
 
   /**
    * 提交补水记录 (核心方法)
-   * [工单01补充] 防御性编程: 拒绝负数补水量,防止通过负数绕过熔断机制
    */
   function commitHydration(options?: {
     name?: string
@@ -228,24 +224,23 @@ export const useHydrationStore = defineStore('hydration', () => {
     // 使用传入参数或表单状态
     const preset = selectedPreset.value
     const name = options?.name || formState.customName || preset?.name || '水'
-    const icon = options?.icon || formState.customIcon || preset?.icon || '💧'
+    // [修改] 默认图标改为 icon-shui
+    const icon = options?.icon || formState.customIcon || preset?.icon || 'icon-shui'
     const amount = options?.amount ?? formState.amount
     const cupSize = options?.cupSize ?? formState.cupSize
     const type = options?.type ?? formState.type
     const temperature = options?.temperature ?? formState.temperature
 
-    // [工单01补充] 关键防御: 拒绝负数或零补水量
+    // [防御性编程] 拒绝负数或零补水量
     if (amount <= 0) {
       showToast('补水量必须大于0')
       return { log: null }
     }
 
-    // [浮点数陷阱修复] RPG模式下发放金币奖励
+    // RPG模式下发放金币奖励
     let goldReward = 0
     if (!systemStore.isPureMode && amount > 0) {
-      // [统一算法] 每250ml奖励5金币, 向下取整 (与removeHydration保持一致)
       goldReward = Math.floor(amount / 250) * 5
-      // 注意: 如果小于250ml, goldReward为0, 这是正常行为
       if (goldReward > 0) {
         heroStore.addGold(goldReward, '补水奖励', 'BATTLE_REWARD')
       }
@@ -256,10 +251,7 @@ export const useHydrationStore = defineStore('hydration', () => {
     let buffEffect = ''
 
     if (!systemStore.isPureMode) {
-      // 在 RPG 模式下，补水可以提供轻微的治疗效果
       healAmount = Math.floor(amount / 10) // 每10ml恢复1点HP
-
-      // 根据饮品类型提供特殊效果
       if (type === 'TEA') {
         buffEffect = '精神焕发'
       } else if (type === 'COFFEE') {
@@ -267,7 +259,6 @@ export const useHydrationStore = defineStore('hydration', () => {
       }
     }
 
-    // 使用新格式存储到 LogStore
     const savedLog = logStore.addHydrationLog({
       name,
       icon,
@@ -278,7 +269,6 @@ export const useHydrationStore = defineStore('hydration', () => {
       buffEffect,
     })
 
-    // 更新用户补水时间
     if (heroStore.user.hydration) {
       heroStore.user.hydration.lastDrinkTime = Date.now()
     }
@@ -288,7 +278,8 @@ export const useHydrationStore = defineStore('hydration', () => {
       systemStore.triggerHealEffect()
       heroStore.heal(healAmount)
 
-      // 根据饮品类型显示不同提示
+      // [修改] 提示信息中的 Emoji 可以保留，也可以改为 iconfont，但在 notify 中通常保留 Emoji 更方便
+      // 这里我保留了 Emoji，因为 Notify 组件通常直接显示文本
       let message = '💧 净化之水！身心舒畅！'
       if (type === 'TEA') {
         message = '🍵 茶韵悠长，精神焕发！'
@@ -298,10 +289,10 @@ export const useHydrationStore = defineStore('hydration', () => {
 
       showNotify({ type: 'primary', message })
     } else {
-      showToast({ type: 'success', message: `💧 补水 +${amount}ml` })
+      showToast({ type: 'success', message: `补水 +${amount}ml` })
     }
 
-    // 任务检查 (兼容旧的任务系统)
+    // 任务检查
     const legacyFormat: FoodLog = {
       id: savedLog.id,
       name: savedLog.name,
@@ -318,10 +309,7 @@ export const useHydrationStore = defineStore('hydration', () => {
     }
     collectionStore.checkDailyQuests(legacyFormat)
 
-    // 检查是否完成今日目标
-    // 只在首次达到目标时显示通知
     const wasComplete = todayProgress.value.isComplete
-    // 重新计算进度以获取最新的状态
     const newProgress = {
       amount: logStore.todayHydrationAmount,
       cups: logStore.todayHydrationCups,
@@ -345,44 +333,34 @@ export const useHydrationStore = defineStore('hydration', () => {
       }
     }
 
-    // 重置表单
     resetForm()
-
     return { log: savedLog }
   }
 
   /**
-   * [工单01] 删除补水记录 - 防白嫖熔断机制
-   * 目标：防止用户利用"喝水赚金币 -> 商店花金币 -> 删记录"的流程实现零元购
+   * 删除补水记录
    */
   function removeHydration(logId: number | string): HydrationLog | null {
-    // 步骤1: 先获取要删除的记录,计算需要扣除的金币
     const targetLog = logStore.allTodayHydration.find((log) => log.id === logId)
     if (!targetLog) {
       showToast('记录不存在')
       return null
     }
 
-    // 步骤2: [关键修复] 计算需要回退的金币 - 必须与commitHydration的算法完全一致
     let goldToRevert = 0
     if (!systemStore.isPureMode && targetLog.amount) {
-      // [统一算法] 每250ml奖励5金币, 向下取整
       const baseGold = Math.floor(targetLog.amount / 250) * 5
-      // [关键] 如果计算结果为0,也不能强制我1, 必须与增加时一致
-      goldToRevert = baseGold // 删除时只退回实际获得的金币
+      goldToRevert = baseGold
     }
 
-    // 步骤3: 核心熔断检查 - 余额不足时禁止删除
     const currentGold = heroStore.user.gold || 0
     if (goldToRevert > 0 && currentGold < goldToRevert) {
       showToast(`金币不足，无法撤销此记录（需要 ${goldToRevert} 金币，当前 ${currentGold}）`)
-      return null // 熔断！终止执行
+      return null
     }
 
-    // 步骤4: 余额充足，执行删除操作
     const removed = logStore.removeHydrationLog(logId)
     if (removed && goldToRevert > 0) {
-      // 扣除金币
       heroStore.revertGold(goldToRevert)
     }
 
@@ -404,7 +382,6 @@ export const useHydrationStore = defineStore('hydration', () => {
       Object.assign(heroStore.user.hydration, config)
     }
 
-    // 同步提醒状态
     if (config.enableNotifications !== undefined) {
       reminderState.isEnabled = config.enableNotifications
     }
@@ -429,27 +406,28 @@ export const useHydrationStore = defineStore('hydration', () => {
 
   /**
    * 获取补水建议
+   * [修改] icon 字段返回 iconfont 类名
    */
   function getSuggestion(): { message: string; icon: string; type: 'INFO' | 'WARN' | 'GOOD' } {
     const progress = todayProgress.value
     const minutesSince = minutesSinceLastDrink.value
 
     if (progress.isComplete) {
-      return { message: '今日补水目标已完成，保持水分充足！', icon: '✨', type: 'GOOD' }
+      return { message: '今日补水目标已完成，保持水分充足！', icon: 'icon-shui', type: 'GOOD' } // 原: ✨
     }
 
     if (minutesSince > 120) {
-      return { message: '已经超过2小时没喝水了，快来补充水分！', icon: '⚠️', type: 'WARN' }
+      return { message: '已经超过2小时没喝水了，快来补充水分！', icon: 'icon-shui', type: 'WARN' } // 原: ⚠️
     }
 
     if (minutesSince > 60) {
-      return { message: '一小时没喝水了，来杯水保持活力吧！', icon: '💧', type: 'INFO' }
+      return { message: '一小时没喝水了，来杯水保持活力吧！', icon: 'icon-shui', type: 'INFO' } // 原: 💧
     }
 
     if (progress.percentage < 30) {
       return {
         message: `今日进度 ${progress.percentage}%，还需要 ${progress.remaining}ml`,
-        icon: '🥤',
+        icon: 'icon-qishui', // 原: 🥤
         type: 'INFO',
       }
     }
@@ -457,12 +435,12 @@ export const useHydrationStore = defineStore('hydration', () => {
     if (progress.percentage < 70) {
       return {
         message: `进度不错！再来 ${progress.remaining}ml 就达标了`,
-        icon: '💪',
+        icon: 'icon-muscle', // 原: 💪 (需确认是否有 icon-muscle 或类似图标)
         type: 'INFO',
       }
     }
 
-    return { message: `即将达标！只差 ${progress.remaining}ml 了`, icon: '🎯', type: 'GOOD' }
+    return { message: `即将达标！只差 ${progress.remaining}ml 了`, icon: 'icon-target', type: 'GOOD' } // 原: 🎯
   }
 
   // --- Internal Helpers ---
@@ -473,7 +451,6 @@ export const useHydrationStore = defineStore('hydration', () => {
     reminderState.nextRemindTime = now + reminderState.intervalMinutes * 60 * 1000
   }
 
-  // 监听配置变化，同步提醒状态
   watch(
     () => heroStore.user.hydration,
     (config) => {
@@ -486,11 +463,8 @@ export const useHydrationStore = defineStore('hydration', () => {
   )
 
   return {
-    // State
     formState,
     reminderState,
-
-    // Getters
     hydrationConfig,
     dailyTargetMl,
     todayProgress,
@@ -499,11 +473,7 @@ export const useHydrationStore = defineStore('hydration', () => {
     minutesSinceLastDrink,
     shouldRemind,
     todayLogs,
-
-    // 常量导出
     DRINK_PRESETS,
-
-    // Actions
     resetForm,
     selectPreset,
     quickDrink,

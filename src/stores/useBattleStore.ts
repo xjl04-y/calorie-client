@@ -597,11 +597,22 @@ export const useBattleStore = defineStore('battle', () => {
 
     const displayName = (systemStore.isPureMode && item.originalName) ? item.originalName : item.name;
 
+    // [Critical Fix] 餐点类型优先级修正
+    // 优先级：
+    // 1. forcedMealType (显式指定)
+    // 2. item.mealType (数据自带)
+    // 3. systemStore.temp.activeMealType (首页选中)
+    // 4. 'SNACK' (兜底)
+    const resolvedMealType = forcedMealType
+      || (item as any).mealType
+      || systemStore.temp.activeMealType
+      || 'SNACK';
+
     const battleItem: FoodLog = {
       ...item,
       name: displayName,
       tags: Array.from(newTags),
-      mealType: (forcedMealType || systemStore.temp.activeMealType || 'SNACK') as MealType,
+      mealType: resolvedMealType as MealType,
       timestamp: new Date().toISOString()
     };
 

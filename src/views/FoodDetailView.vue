@@ -20,12 +20,17 @@ if (!log.value) {
   router.replace('/');
 }
 
+// [Fix] 判断是否为补水类型
+const isHydration = computed(() => log.value?.mealType === 'HYDRATION');
+
 // 营养映射
 const macros = computed(() => {
-  if (!log.value) return { p: 0, c: 0, f: 0, pPct: 0, cPct: 0, fPct: 0 };
-  const p = log.value.p || 0;
-  const c = log.value.c || 0;
-  const f = log.value.f || 0;
+  // [Fix] 补水类型直接返回0，防止 NaN
+  if (!log.value || isHydration.value) return { p: 0, c: 0, f: 0, pPct: 0, cPct: 0, fPct: 0 };
+
+  const p = Number(log.value.p) || 0;
+  const c = Number(log.value.c) || 0;
+  const f = Number(log.value.f) || 0;
   const total = p + c + f;
 
   if (total === 0) return { p: 0, c: 0, f: 0, pPct: 0, cPct: 0, fPct: 0 };
@@ -40,16 +45,17 @@ const macros = computed(() => {
 
 // [New] 每份/每100克 营养数据计算
 const perServingMacros = computed(() => {
-  if (!log.value) return null;
+  // [Fix] 补水类型不计算此项
+  if (!log.value || isHydration.value) return null;
 
-  const totalGrams = log.value.grams || 100; // 防止除以0
+  const totalGrams = Number(log.value.grams) || 100; // 防止除以0
   const ratio = 100 / totalGrams; // 计算100g的倍率
 
   return {
-    calories: Math.round((log.value.calories || 0) * ratio),
-    p: (log.value.p * ratio).toFixed(1),
-    c: (log.value.c * ratio).toFixed(1),
-    f: (log.value.f * ratio).toFixed(1)
+    calories: Math.round((Number(log.value.calories) || 0) * ratio),
+    p: (Number(log.value.p || 0) * ratio).toFixed(1),
+    c: (Number(log.value.c || 0) * ratio).toFixed(1),
+    f: (Number(log.value.f || 0) * ratio).toFixed(1)
   };
 });
 
@@ -67,7 +73,8 @@ const pieStyle = computed(() => {
 
 // 运动换算 (基于总热量)
 const exercise = computed(() => {
-  const cal = log.value?.calories || 0;
+  if (isHydration.value) return { walk: 0, run: 0, swim: 0 }; // 补水无需消耗
+  const cal = Number(log.value?.calories) || 0;
   return {
     walk: Math.ceil(cal / 4),
     run: Math.ceil(cal / 10),
@@ -153,7 +160,7 @@ const handleDelete = () => {
       <button @click="router.back()" class="w-8 h-8 flex items-center justify-center rounded-full active:bg-slate-100 dark:active:bg-slate-800 transition">
         <i class="fas fa-arrow-left text-slate-600 dark:text-slate-300"></i>
       </button>
-      <span class="font-bold text-slate-800 dark:text-white">食物详情</span>
+      <span class="font-bold text-slate-800 dark:text-white">详情</span>
       <div class="w-8"></div>
     </div>
 
@@ -202,98 +209,123 @@ const handleDelete = () => {
         </div>
       </div>
 
-      <!-- 2. 营养大盘 (圆环图) -->
-      <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-700">
-        <div class="flex justify-between items-center mb-6">
-          <h3 class="text-sm font-bold text-slate-500">本餐摄入</h3>
-          <div class="text-right">
-            <span class="text-2xl font-black text-slate-800 dark:text-white">{{ log.calories }}</span>
-            <span class="text-xs text-slate-400 font-bold ml-1">kcal</span>
+      <!-- [Condition] 分支一：补水详情视图 -->
+      <div v-if="isHydration" class="space-y-4 animate-fade-in">
+        <div class="bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl p-6 border border-cyan-100 dark:border-cyan-800 text-center">
+          <div class="text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-1">补充水量</div>
+          <div class="text-4xl font-black text-cyan-800 dark:text-cyan-200">
+            {{ log.amount || log.grams || 0 }}<span class="text-lg ml-1 font-bold opacity-70">ml</span>
+          </div>
+          <div class="mt-4 flex justify-center gap-4">
+            <div class="px-3 py-1.5 bg-white/50 dark:bg-black/20 rounded-lg text-xs text-cyan-700 dark:text-cyan-300 font-bold">
+              <i class="iconfont icon-shui mr-1"></i> 纯净
+            </div>
+            <div class="px-3 py-1.5 bg-white/50 dark:bg-black/20 rounded-lg text-xs text-cyan-700 dark:text-cyan-300 font-bold">
+              <i class="fas fa-leaf mr-1"></i> 0 热量
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center justify-between">
-          <div class="relative w-32 h-32 rounded-full flex items-center justify-center shrink-0" :style="pieStyle">
-            <!-- 遮罩层形成圆环 -->
-            <div class="w-24 h-24 bg-white dark:bg-slate-800 rounded-full flex flex-col items-center justify-center relative z-10">
-              <span class="text-xs text-slate-400 font-bold uppercase">Total</span>
-              <span class="text-xl font-black text-slate-800 dark:text-white">{{ log.grams }}g</span>
-            </div>
-          </div>
-
-          <div class="flex-1 pl-8 space-y-3">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                <span class="text-xs text-slate-500">碳水 ({{ macros.cPct }}%)</span>
-              </div>
-              <div class="text-sm font-bold dark:text-slate-200">{{ macros.c }}g</div>
-            </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-                <span class="text-xs text-slate-500">蛋白质 ({{ macros.pPct }}%)</span>
-              </div>
-              <div class="text-sm font-bold dark:text-slate-200">{{ macros.p }}g</div>
-            </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-orange-500"></div>
-                <span class="text-xs text-slate-500">脂肪 ({{ macros.fPct }}%)</span>
-              </div>
-              <div class="text-sm font-bold dark:text-slate-200">{{ macros.f }}g</div>
-            </div>
-          </div>
+        <div class="text-center text-xs text-slate-400 p-4">
+          <p>💦 保持水分充足有助于提升新陈代谢和专注力。</p>
         </div>
       </div>
 
-      <!-- 3. [New] 每份营养量 (100g 基准) -->
-      <div v-if="perServingMacros" class="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
-        <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-200 dark:border-slate-600">
-          <h3 class="text-xs font-bold text-slate-500 flex items-center">
-            <i class="fas fa-balance-scale mr-1.5"></i> 每 100 克营养参考
+      <!-- [Condition] 分支二：普通食物详情视图 -->
+      <template v-else>
+        <!-- 2. 营养大盘 (圆环图) -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-700">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-sm font-bold text-slate-500">本餐摄入</h3>
+            <div class="text-right">
+              <span class="text-2xl font-black text-slate-800 dark:text-white">{{ log.calories }}</span>
+              <span class="text-xs text-slate-400 font-bold ml-1">kcal</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div class="relative w-32 h-32 rounded-full flex items-center justify-center shrink-0" :style="pieStyle">
+              <!-- 遮罩层形成圆环 -->
+              <div class="w-24 h-24 bg-white dark:bg-slate-800 rounded-full flex flex-col items-center justify-center relative z-10">
+                <span class="text-xs text-slate-400 font-bold uppercase">Total</span>
+                <span class="text-xl font-black text-slate-800 dark:text-white">{{ log.grams }}g</span>
+              </div>
+            </div>
+
+            <div class="flex-1 pl-8 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                  <span class="text-xs text-slate-500">碳水 ({{ macros.cPct }}%)</span>
+                </div>
+                <div class="text-sm font-bold dark:text-slate-200">{{ macros.c }}g</div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span class="text-xs text-slate-500">蛋白质 ({{ macros.pPct }}%)</span>
+                </div>
+                <div class="text-sm font-bold dark:text-slate-200">{{ macros.p }}g</div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-orange-500"></div>
+                  <span class="text-xs text-slate-500">脂肪 ({{ macros.fPct }}%)</span>
+                </div>
+                <div class="text-sm font-bold dark:text-slate-200">{{ macros.f }}g</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. [New] 每份营养量 (100g 基准) -->
+        <div v-if="perServingMacros" class="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700">
+          <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-200 dark:border-slate-600">
+            <h3 class="text-xs font-bold text-slate-500 flex items-center">
+              <i class="fas fa-balance-scale mr-1.5"></i> 每 100 克营养参考
+            </h3>
+            <span class="text-xs font-bold text-slate-700 dark:text-slate-300">{{ perServingMacros.calories }} kcal</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div class="text-[10px] text-slate-400 mb-1">碳水化合物</div>
+              <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">{{ perServingMacros.c }}g</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-400 mb-1">蛋白质</div>
+              <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">{{ perServingMacros.p }}g</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-400 mb-1">脂肪</div>
+              <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">{{ perServingMacros.f }}g</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. 运动消耗参考 -->
+        <div>
+          <h3 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center">
+            <i class="fas fa-fire-alt text-red-500 mr-2"></i> 消耗本次摄入需运动
           </h3>
-          <span class="text-xs font-bold text-slate-700 dark:text-slate-300">{{ perServingMacros.calories }} kcal</span>
-        </div>
-        <div class="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <div class="text-[10px] text-slate-400 mb-1">碳水化合物</div>
-            <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">{{ perServingMacros.c }}g</div>
-          </div>
-          <div>
-            <div class="text-[10px] text-slate-400 mb-1">蛋白质</div>
-            <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">{{ perServingMacros.p }}g</div>
-          </div>
-          <div>
-            <div class="text-[10px] text-slate-400 mb-1">脂肪</div>
-            <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">{{ perServingMacros.f }}g</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 4. 运动消耗参考 -->
-      <div>
-        <h3 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center">
-          <i class="fas fa-fire-alt text-red-500 mr-2"></i> 消耗本次摄入需运动
-        </h3>
-        <div class="grid grid-cols-3 gap-3">
-          <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
-            <i class="fas fa-walking text-2xl text-blue-400 mb-2"></i>
-            <div class="text-xs text-slate-400 mb-1">慢走</div>
-            <div class="font-black text-slate-700 dark:text-slate-200">{{ exercise.walk }}<span class="text-[10px] font-normal ml-0.5">分钟</span></div>
-          </div>
-          <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
-            <i class="fas fa-running text-2xl text-green-500 mb-2"></i>
-            <div class="text-xs text-slate-400 mb-1">跑步</div>
-            <div class="font-black text-slate-700 dark:text-slate-200">{{ exercise.run }}<span class="text-[10px] font-normal ml-0.5">分钟</span></div>
-          </div>
-          <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
-            <i class="fas fa-swimmer text-2xl text-blue-500 mb-2"></i>
-            <div class="text-xs text-slate-400 mb-1">游泳</div>
-            <div class="font-black text-slate-700 dark:text-slate-200">{{ exercise.swim }}<span class="text-[10px] font-normal ml-0.5">分钟</span></div>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
+              <i class="fas fa-walking text-2xl text-blue-400 mb-2"></i>
+              <div class="text-xs text-slate-400 mb-1">慢走</div>
+              <div class="font-black text-slate-700 dark:text-slate-200">{{ exercise.walk }}<span class="text-[10px] font-normal ml-0.5">分钟</span></div>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
+              <i class="fas fa-running text-2xl text-green-500 mb-2"></i>
+              <div class="text-xs text-slate-400 mb-1">跑步</div>
+              <div class="font-black text-slate-700 dark:text-slate-200">{{ exercise.run }}<span class="text-[10px] font-normal ml-0.5">分钟</span></div>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
+              <i class="fas fa-swimmer text-2xl text-blue-500 mb-2"></i>
+              <div class="text-xs text-slate-400 mb-1">游泳</div>
+              <div class="font-black text-slate-700 dark:text-slate-200">{{ exercise.swim }}<span class="text-[10px] font-normal ml-0.5">分钟</span></div>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
 
       <!-- 删除按钮 -->
       <button @click="handleDelete" class="w-full py-4 text-red-500 font-bold text-sm bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30 active:scale-95 transition">
@@ -314,5 +346,13 @@ const handleDelete = () => {
   vertical-align: -0.15em;
   fill: currentColor;
   overflow: hidden;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

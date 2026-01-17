@@ -88,16 +88,6 @@ const startEdit = () => {
   isEditing.value = true
 }
 
-// 保存编辑
-// const saveEdit = () => {
-//   if (!currentLog.value) return;
-//
-//   // 这里应该调用相应的更新方法
-//   // 由于我们使用的是独立的日志存储，更新逻辑会比较复杂
-//   // 暂时只给出提示
-//   showToast('编辑功能正在开发中');
-//   isEditing.value = false;
-// };
 </script>
 
 <template>
@@ -114,7 +104,6 @@ const startEdit = () => {
       </button>
       <span class="font-bold text-slate-800 dark:text-white">💧 补水详情</span>
       <div class="w-8 h-8"></div>
-      <!-- 占位符 -->
     </div>
 
     <div class="flex-1 p-4 overflow-y-auto">
@@ -124,11 +113,13 @@ const startEdit = () => {
           class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700"
         >
           <div class="flex items-center gap-4 mb-6">
+            <!-- [修改] 此处不再渲染文本，而是使用 iconfont class -->
             <div
-              class="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/20 text-3xl flex items-center justify-center"
+              class="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center"
             >
-              {{ currentLog.icon }}
+              <i class="iconfont text-3xl text-blue-500" :class="currentLog.icon"></i>
             </div>
+
             <div>
               <div class="text-2xl font-bold text-slate-800 dark:text-white">
                 {{ currentLog.name }}
@@ -214,8 +205,8 @@ const startEdit = () => {
                 }}
               </span>
               <span v-else class="text-slate-700 dark:text-slate-200">{{
-                tempLabels.WARM.label
-              }}</span>
+                  tempLabels.WARM.label
+                }}</span>
             </div>
             <div
               v-if="'tags' in currentLog && currentLog.tags && currentLog.tags.length"
@@ -245,7 +236,8 @@ const startEdit = () => {
           class="bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-slate-800 dark:to-slate-700 rounded-2xl p-6 shadow-sm border border-cyan-100 dark:border-slate-600"
         >
           <h4 class="font-bold text-lg mb-4 text-slate-800 dark:text-white flex items-center">
-            <span class="text-2xl mr-2">💧</span>
+            <!-- [修改] 统一 iconfont -->
+            <i class="iconfont icon-shui text-2xl mr-2 text-blue-500"></i>
             RPG 效果
           </h4>
           <div class="space-y-3">
@@ -266,7 +258,7 @@ const startEdit = () => {
           </div>
         </div>
 
-        <!-- 奖励收益 - 显示金币和经验 -->
+        <!-- 奖励收益 -->
         <div
           v-if="
             !systemStore.isPureMode &&
@@ -299,7 +291,7 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">获得经验</span>
               </div>
               <span class="font-bold text-purple-500 text-lg"
-                >+{{ currentLog.generatedExp }} EXP</span
+              >+{{ currentLog.generatedExp }} EXP</span
               >
             </div>
           </div>
@@ -311,7 +303,8 @@ const startEdit = () => {
           class="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 shadow-sm border border-blue-100 dark:border-blue-800"
         >
           <h4 class="font-bold text-lg mb-4 text-slate-800 dark:text-white flex items-center">
-            <span class="text-2xl mr-2">💦</span>
+            <!-- [修改] 统一 iconfont -->
+            <i class="iconfont icon-shui text-2xl mr-2 text-blue-500"></i>
             健康收益
           </h4>
           <div class="space-y-3">
@@ -323,12 +316,12 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">促进代谢</span>
               </div>
               <span class="font-bold text-blue-500">{{
-                (currentLog.amount || 250) >= 500
-                  ? '显著'
-                  : (currentLog.amount || 250) >= 250
-                    ? '良好'
-                    : '轻微'
-              }}</span>
+                  (currentLog.amount || 250) >= 500
+                    ? '显著'
+                    : (currentLog.amount || 250) >= 250
+                      ? '良好'
+                      : '轻微'
+                }}</span>
             </div>
             <div
               class="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-xl p-3"
@@ -338,7 +331,7 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">提升专注</span>
               </div>
               <span class="font-bold text-purple-500"
-                >+{{ Math.round((currentLog.amount || 250) / 50) }}%</span
+              >+{{ Math.round((currentLog.amount || 250) / 50) }}%</span
               >
             </div>
             <div
@@ -349,7 +342,7 @@ const startEdit = () => {
                 <span class="text-sm text-slate-600 dark:text-slate-300">皮肤水润</span>
               </div>
               <span class="font-bold text-pink-500"
-                >+{{ Math.round((currentLog.amount || 250) / 100) }}%</span
+              >+{{ Math.round((currentLog.amount || 250) / 100) }}%</span
               >
             </div>
           </div>
@@ -367,19 +360,19 @@ const startEdit = () => {
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">占每日目标</span>
               <span class="font-bold text-slate-700 dark:text-slate-200"
-                >~{{ Math.round(((currentLog.amount || 250) / 2000) * 100) }}%</span
+              >~{{ Math.round(((currentLog.amount || 250) / 2000) * 100) }}%</span
               >
             </div>
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">相当于标准杯</span>
               <span class="font-bold text-slate-700 dark:text-slate-200"
-                >{{ ((currentLog.amount || 250) / 250).toFixed(1) }} 杯</span
+              >{{ ((currentLog.amount || 250) / 250).toFixed(1) }} 杯</span
               >
             </div>
             <div class="flex justify-between items-center">
               <span class="text-slate-600 dark:text-slate-400 text-sm">体液补充</span>
               <span class="font-bold text-slate-700 dark:text-slate-200"
-                >{{ ((currentLog.amount || 250) / 50).toFixed(0) }}ml 血液</span
+              >{{ ((currentLog.amount || 250) / 50).toFixed(0) }}ml 血液</span
               >
             </div>
           </div>
@@ -397,24 +390,24 @@ const startEdit = () => {
             <p class="flex items-start gap-2">
               <span class="text-amber-500 shrink-0">•</span>
               <span>{{
-                currentLog.tags?.includes('茶')
-                  ? '茶含有抗氧化物质，有益健康'
-                  : currentLog.tags?.includes('咖啡')
-                    ? '适量咖啡可提神，但不宜过量'
-                    : currentLog.tags?.includes('饮料')
-                      ? '注意控制饮料中的糖分摄入'
-                      : '纯净水是最佳选择，不含糖分和热量'
-              }}</span>
+                  currentLog.tags?.includes('茶')
+                    ? '茶含有抗氧化物质，有益健康'
+                    : currentLog.tags?.includes('咖啡')
+                      ? '适量咖啡可提神，但不宜过量'
+                      : currentLog.tags?.includes('饮料')
+                        ? '注意控制饮料中的糖分摄入'
+                        : '纯净水是最佳选择，不含糖分和热量'
+                }}</span>
             </p>
             <p class="flex items-start gap-2">
               <span class="text-amber-500 shrink-0">•</span>
               <span>{{
-                currentLog.tags?.includes('冰镇')
-                  ? '冰饮会刺激肠胃，不宜空腹饮用'
-                  : currentLog.tags?.includes('滚烫')
-                    ? '热饮可促进血液循环'
-                    : '温水最适合身体吸收'
-              }}</span>
+                  currentLog.tags?.includes('冰镇')
+                    ? '冰饮会刺激肠胃，不宜空腹饮用'
+                    : currentLog.tags?.includes('滚烫')
+                      ? '热饮可促进血液循环'
+                      : '温水最适合身体吸收'
+                }}</span>
             </p>
             <p class="flex items-start gap-2">
               <span class="text-amber-500 shrink-0">•</span>
